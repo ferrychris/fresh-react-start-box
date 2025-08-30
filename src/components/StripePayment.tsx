@@ -1,6 +1,8 @@
+
 import React, { useState } from 'react';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { calculateRevenueSplit } from '../lib/supabase';
+import { StripeCardElement } from '@stripe/stripe-js';
+import { calculateRevenueSplit, createTransaction } from '../lib/supabase';
 import { supabase } from '../lib/supabase';
 
 interface StripePaymentProps {
@@ -39,13 +41,20 @@ export const StripePayment: React.FC<StripePaymentProps> = ({
       setProcessing(true);
       
       // Calculate revenue split
-      const revenueSplit = await calculateRevenueSplit(amount);
-      const racerAmount = revenueSplit?.racer_amount || Math.floor(amount * 0.8);
-      const platformAmount = revenueSplit?.platform_amount || Math.floor(amount * 0.2);
+      const revenueSplitData = await calculateRevenueSplit(amount);
+      const racerAmount = revenueSplitData?.racer_amount || Math.floor(amount * 0.8);
+      const platformAmount = revenueSplitData?.platform_amount || Math.floor(amount * 0.2);
+
+      const cardElement = elements.getElement(CardElement) as StripeCardElement;
+      if (!cardElement) {
+        onError('Card element not found.');
+        setProcessing(false);
+        return;
+      }
 
       const { error, paymentMethod } = await stripe.createPaymentMethod({
         type: 'card',
-        card: elements.getElement(CardElement) as CardElement,
+        card: cardElement,
       });
 
       if (error) {
@@ -54,11 +63,11 @@ export const StripePayment: React.FC<StripePaymentProps> = ({
         return;
       }
 
-      const { error: paymentError, paymentIntent } = await stripe.confirmCardPayment(
+      const { error: paymentError } = await stripe.confirmCardPayment(
         paymentMethod.id,
         {
           payment_method: {
-            card: elements.getElement(CardElement) as CardElement,
+            card: cardElement,
           },
         }
       );
@@ -70,26 +79,24 @@ export const StripePayment: React.FC<StripePaymentProps> = ({
       }
 
       // Create transaction record
-      await supabase
-        .from('transactions')
-        .insert({
-          payer_id: payerId,
-          receiver_id: receiverId,
-          total_amount_cents: amount,
-          racer_amount_cents: racerAmount,
-          platform_amount_cents: platformAmount,
-          transaction_type: type,
-          status: 'completed',
-          stripe_payment_intent_id: 'mock_payment_id'
-        });
+      await createTransaction({
+        payer_id: payerId,
+        receiver_id: receiverId,
+        total_amount_cents: amount,
+        racer_amount_cents: racerAmount,
+        platform_amount_cents: platformAmount,
+        transaction_type: type,
+        status: 'completed',
+        stripe_payment_intent_id: 'mock_payment_id'
+      });
 
       onSuccess();
       alert('Payment successful!');
       setProcessing(false);
       
-      const finalRevenueSplit = await calculateRevenueSplit(amount);
-      const finalRacerAmount = finalRevenueSplit?.racer_amount || racerAmount;
-      const finalPlatformAmount = finalRevenueSplit?.platform_amount || platformAmount;
+      const finalRevenueSplitData = await calculateRevenueSplit(amount);
+      const finalRacerAmount = finalRevenueSplitData?.racer_amount || racerAmount;
+      const finalPlatformAmount = finalRevenueSplitData?.platform_amount || platformAmount;
 
       console.log('Payment completed successfully!', {
         totalAmount: amount,

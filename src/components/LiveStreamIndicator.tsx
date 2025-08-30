@@ -6,25 +6,30 @@ import { LiveStream } from '../lib/supabase/types';
 
 interface LiveStreamIndicatorProps {
   racerId?: string;
+  streamerId?: string; // Add streamerId as an alternative prop name
   className?: string;
 }
 
 export const LiveStreamIndicator: React.FC<LiveStreamIndicatorProps> = ({ 
   racerId, 
+  streamerId,
   className = '' 
 }) => {
   const [liveStream, setLiveStream] = useState<LiveStream | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Use streamerId if provided, otherwise use racerId
+  const actualStreamerId = streamerId || racerId;
+
   useEffect(() => {
-    if (!racerId) return;
+    if (!actualStreamerId) return;
 
     const fetchLiveStream = async () => {
       try {
         const { data, error } = await supabase
           .from('live_streams')
           .select('*')
-          .eq('streamer_id', racerId)
+          .eq('streamer_id', actualStreamerId)
           .eq('is_live', true)
           .maybeSingle();
 
@@ -41,7 +46,7 @@ export const LiveStreamIndicator: React.FC<LiveStreamIndicatorProps> = ({
     };
 
     fetchLiveStream();
-  }, [racerId]);
+  }, [actualStreamerId]);
 
   if (loading || !liveStream?.is_live) {
     return null;

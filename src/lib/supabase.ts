@@ -1,3 +1,4 @@
+
 import * as supabase from './supabase/client';
 import * as profiles from './supabase/profiles';
 import * as posts from './supabase/posts';
@@ -32,10 +33,11 @@ export * from './supabase/types';
 
 // Namespace exports for modules consumed as grouped imports (e.g., `gifts as supabaseGifts`)
 export { gifts };
+export { tokens };
 
 // Add missing notification functions
-export const getNotificationsForUser = async (userId: string) => {
-  return getNotifications(userId);
+export const getNotificationsForUser = async (userId: string, limit: number = 20) => {
+  return notifications.getNotifications(userId);
 };
 
 export const markAllNotificationsAsRead = async (userId: string) => {
@@ -98,10 +100,153 @@ export const getRacerFanStats = async (racerId: string) => {
 // Token packages constant
 export const TOKEN_PACKAGES = [
   { tokens: 100, price: 9.99, bonus: 0 },
-  { tokens: 500, price: 39.99, bonus: 50 },
+  { tokens: 500, price: 39.99, bonus: 50, popular: true },
   { tokens: 1000, price: 74.99, bonus: 150 },
   { tokens: 2500, price: 174.99, bonus: 500 },
 ];
+
+// Add missing fan functions
+export const becomeFan = async (fanId: string, racerId: string) => {
+  const { data, error } = await sb
+    .from('fan_connections')
+    .upsert({
+      fan_id: fanId,
+      racer_id: racerId,
+      became_fan_at: new Date().toISOString(),
+      is_superfan: false,
+      total_tips: 0,
+      is_subscribed: false
+    })
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('Error becoming fan:', error);
+    throw error;
+  }
+  return data;
+};
+
+export const unfollowRacer = async (fanId: string, racerId: string) => {
+  const { error } = await sb
+    .from('fan_connections')
+    .delete()
+    .eq('fan_id', fanId)
+    .eq('racer_id', racerId);
+  
+  if (error) {
+    console.error('Error unfollowing racer:', error);
+    throw error;
+  }
+};
+
+export const checkFanStatus = async (fanId: string, racerId: string) => {
+  const { data, error } = await sb
+    .from('fan_connections')
+    .select('*')
+    .eq('fan_id', fanId)
+    .eq('racer_id', racerId)
+    .maybeSingle();
+  
+  if (error) {
+    console.error('Error checking fan status:', error);
+    return null;
+  }
+  return data;
+};
+
+export const getRacerFans = async (racerId: string) => {
+  const { data, error } = await sb
+    .from('fan_connections')
+    .select(`
+      *,
+      profiles!fan_connections_fan_id_fkey (
+        name,
+        avatar
+      )
+    `)
+    .eq('racer_id', racerId)
+    .order('became_fan_at', { ascending: false });
+  
+  if (error) {
+    console.error('Error getting racer fans:', error);
+    return [];
+  }
+  return data || [];
+};
+
+// Add missing series and track functions
+export const getSeriesProfile = async (seriesId: string) => {
+  const { data, error } = await sb
+    .from('series_profiles')
+    .select('*')
+    .eq('id', seriesId)
+    .single();
+  
+  if (error) {
+    console.error('Error getting series profile:', error);
+    return null;
+  }
+  return data;
+};
+
+export const updateSeriesProfile = async (seriesId: string, updates: any) => {
+  const { data, error } = await sb
+    .from('series_profiles')
+    .update(updates)
+    .eq('id', seriesId)
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('Error updating series profile:', error);
+    throw error;
+  }
+  return data;
+};
+
+export const getTrackProfile = async (trackId: string) => {
+  const { data, error } = await sb
+    .from('track_profiles')
+    .select('*')
+    .eq('id', trackId)
+    .single();
+  
+  if (error) {
+    console.error('Error getting track profile:', error);
+    return null;
+  }
+  return data;
+};
+
+export const updateTrackProfile = async (trackId: string, updates: any) => {
+  const { data, error } = await sb
+    .from('track_profiles')
+    .update(updates)
+    .eq('id', trackId)
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('Error updating track profile:', error);
+    throw error;
+  }
+  return data;
+};
+
+export const createTrackPost = async (post: any) => {
+  const { data, error } = await sb
+    .from('racer_posts')
+    .insert([post])
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('Error creating track post:', error);
+    throw error;
+  }
+  return data;
+};
 
 // Explicit re-exports for commonly used track helpers
 export { checkTrackFollow, getTrackFollowerCount, toggleTrackFollow } from './supabase/tracks';
@@ -287,6 +432,48 @@ export const calculateRevenueSplit = async (totalCents: number) => {
   return data;
 };
 
+// Add missing fan subscription and activity functions
+export const getFanSubscriptions = async (fanId: string) => {
+  const { data, error } = await sb
+    .from('fan_connections')
+    .select(`
+      *,
+      racer_profiles!fan_connections_racer_id_fkey (
+        username,
+        profile_photo_url,
+        car_number,
+        racing_class
+      )
+    `)
+    .eq('fan_id', fanId)
+    .eq('is_subscribed', true);
+  
+  if (error) {
+    console.error('Error getting fan subscriptions:', error);
+    return [];
+  }
+  return data || [];
+};
+
+export const getFanActivity = async (fanId: string) => {
+  const { data, error } = await sb
+    .from('fan_activity')
+    .select('*')
+    .eq('fan_id', fanId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  
+  if (error) {
+    console.error('Error getting fan activity:', error);
+    return [];
+  }
+  return data || [];
+};
+
+export const getFanNotifications = async (fanId: string) => {
+  return getNotificationsForUser(fanId);
+};
+
 // Earnings and transactions helpers/types
 export type RacerEarnings = {
   total_earnings_cents: number;
@@ -310,9 +497,9 @@ export const getRacerEarnings = async (racerId: string): Promise<RacerEarnings> 
 
   try {
     // Prefer RPC if available
-    const rpc = await sb.rpc('get_racer_earnings', { p_racer_id: racerId }).maybeSingle();
-    if (!rpc.error && rpc.data) {
-      return { ...defaults, ...rpc.data } as RacerEarnings;
+    const { data, error } = await sb.rpc('get_racer_earnings', { p_racer_id: racerId }).maybeSingle();
+    if (!error && data) {
+      return { ...defaults, ...data } as RacerEarnings;
     }
   } catch (e) {
     // ignore and fallback

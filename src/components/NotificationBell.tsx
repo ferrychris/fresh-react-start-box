@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Bell, X, Check, CheckCheck, Clock, DollarSign, Users, Trophy } from 'lucide-react';
 import { 
@@ -41,7 +42,7 @@ export const NotificationBell: React.FC = () => {
     }
     
     try {
-      const data = await getNotificationsForUser(user.id, 20);
+      const data = await getNotificationsForUser(user.id);
       setNotifications(data);
     } catch (error) {
       // Handle database connection errors gracefully
@@ -268,12 +269,12 @@ export const NotificationBell: React.FC = () => {
                             </span>
                             {notification.type === 'sponsorship_inquiry' && notification.data?.spot_price && (
                               <span className="text-xs text-green-400 font-medium">
-                                💰 ${(notification.data.spot_price / 100)}/race
+                                💰 ${((notification.data.spot_price as number) / 100)}/race
                               </span>
                             )}
                             {notification.type === 'new_superfan' && notification.data?.subscription_amount && (
                               <span className="text-xs text-purple-400 font-medium">
-                                💎 ${(notification.data.subscription_amount / 100)}/mo
+                                💎 ${((notification.data.subscription_amount as number) / 100)}/mo
                               </span>
                             )}
                           </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import LeaderBoard from './LeaderBoard'
-import CreatePost from './CreatePost'
+import { CreatePost } from './CreatePost'
 import PostsPanel from './PostsPanel'
 import { Post, PostCreationPayload, transformDbPostToUIPost } from './types'
 import { supabase, createFanPost, getFanPosts } from '../../../lib/supabase'
@@ -8,14 +8,10 @@ import { useUser } from '../../../contexts/UserContext'
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-
-// Using PostCreationPayload interface imported from CreatePost.tsx
-
 const IndexPost: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // Loading state for post creation is handled by the main loading state
   const [showCreatePostModal, setShowCreatePostModal] = useState(false);
   const { user } = useUser()
 
@@ -47,7 +43,7 @@ const IndexPost: React.FC = () => {
   }
 
   const handleCreatePost = async (payload: PostCreationPayload) => {
-    if (!user) return;
+    if (!user?.id) return;
     
     try {
       // Show loading state
