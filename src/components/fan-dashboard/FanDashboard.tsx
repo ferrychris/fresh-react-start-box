@@ -10,7 +10,6 @@ import StatsCards from './StatsCards';
 import FavoriteRacers from './FavoriteRacers';
 import RecentActivity from './RecentActivity';
 import IndexPost from './posts/indexpost';
-import ModernFanDashboard from './ModernFanDashboard';
 
 // Define types for our data structures
 interface FanProfile {
@@ -105,9 +104,6 @@ const FanDashboard: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useApp();
   const navigate = useNavigate();
-  
-  // Use user ID if no ID parameter or if ID is placeholder
-  const fanId = (id && id !== ':id') ? id : user?.id;
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   
@@ -155,7 +151,7 @@ const FanDashboard: React.FC = () => {
       const { data: fanData, error: fanError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', fanId)
+        .eq('id', id)
         .maybeSingle();
       
       if (fanError) throw fanError;
@@ -167,7 +163,7 @@ const FanDashboard: React.FC = () => {
         const { data: racerData, error: racerError } = await supabase
           .from('racer_profiles')
           .select('banner_photo_url, car_photos')
-          .eq('id', fanId)
+          .eq('id', id)
           .maybeSingle();
           
         if (!racerError && racerData) {
@@ -207,7 +203,7 @@ const FanDashboard: React.FC = () => {
         const { data, error: statsError } = await supabase
           .from('fan_stats')
           .select('*')
-          .eq('fan_id', fanId)
+          .eq('fan_id', id)
           .maybeSingle();
         
         if (!statsError || statsError.code === 'PGRST116') {
@@ -231,7 +227,7 @@ const FanDashboard: React.FC = () => {
             total_tipped,
             subscription_tier
           `)
-          .eq('fan_id', fanId)
+          .eq('fan_id', id)
           .order('total_tipped', { ascending: false })
           .limit(5);
         
@@ -250,7 +246,7 @@ const FanDashboard: React.FC = () => {
         const { data, error: activityError } = await supabase
           .from('fan_activity')
           .select('*')
-          .eq('fan_id', fanId)
+          .eq('fan_id', id)
           .order('created_at', { ascending: false })
           .limit(5);
         
@@ -294,7 +290,7 @@ const FanDashboard: React.FC = () => {
       if (racersData.length === 0) {
         console.log('No favorite racers found or table missing, using placeholder data');
         // Only use placeholder data if the user is viewing their own profile
-        if (user?.id === fanId) {
+        if (user?.id === id) {
           setFavoriteRacers([
             {
               id: 'placeholder-1',
@@ -335,7 +331,7 @@ const FanDashboard: React.FC = () => {
       if (activityData.length === 0) {
         console.log('No activity found or table missing, using placeholder data');
         // Only use placeholder data if the user is viewing their own profile
-        if (user?.id === fanId) {
+        if (user?.id === id) {
           formattedActivity = [
             {
               id: 'placeholder-1',
@@ -386,13 +382,13 @@ const FanDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [fanId, user?.id]);
+  }, [id, user?.id]);
 
   useEffect(() => {
-    if (fanId) {
+    if (id) {
       loadFanProfile();
     }
-  }, [fanId, loadFanProfile]);
+  }, [id, loadFanProfile]);
 
   // Handle tab navigation
   const handleTabChange = (tab: string) => {
@@ -486,11 +482,8 @@ const FanDashboard: React.FC = () => {
   }
 
   // Check if this is the user's own profile
-  const isOwnProfile = user?.id === fanId;
+  const isOwnProfile = user?.id === id;
 
-  // Use modern dashboard for better UX
-  return <ModernFanDashboard />;
-  
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Profile header */}
