@@ -244,53 +244,6 @@ export type Database = {
           },
         ]
       }
-      fan_posts: {
-        Row: {
-          comments_count: number | null
-          content: string | null
-          created_at: string | null
-          fan_id: string
-          id: string
-          likes_count: number | null
-          media_urls: Json | null
-          post_type: string | null
-          updated_at: string | null
-          visibility: string | null
-        }
-        Insert: {
-          comments_count?: number | null
-          content?: string | null
-          created_at?: string | null
-          fan_id: string
-          id?: string
-          likes_count?: number | null
-          media_urls?: Json | null
-          post_type?: string | null
-          updated_at?: string | null
-          visibility?: string | null
-        }
-        Update: {
-          comments_count?: number | null
-          content?: string | null
-          created_at?: string | null
-          fan_id?: string
-          id?: string
-          likes_count?: number | null
-          media_urls?: Json | null
-          post_type?: string | null
-          updated_at?: string | null
-          visibility?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fan_posts_fan_id_fkey"
-            columns: ["fan_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       fan_profiles: {
         Row: {
           created_at: string | null
@@ -879,9 +832,11 @@ export type Database = {
           likes_count: number | null
           media_urls: Json | null
           post_type: string | null
-          racer_id: string
+          racer_id: string | null
           total_tips: number | null
           updated_at: string | null
+          user_id: string | null
+          user_type: string | null
           visibility: string | null
         }
         Insert: {
@@ -893,9 +848,11 @@ export type Database = {
           likes_count?: number | null
           media_urls?: Json | null
           post_type?: string | null
-          racer_id: string
+          racer_id?: string | null
           total_tips?: number | null
           updated_at?: string | null
+          user_id?: string | null
+          user_type?: string | null
           visibility?: string | null
         }
         Update: {
@@ -907,9 +864,11 @@ export type Database = {
           likes_count?: number | null
           media_urls?: Json | null
           post_type?: string | null
-          racer_id?: string
+          racer_id?: string | null
           total_tips?: number | null
           updated_at?: string | null
+          user_id?: string | null
+          user_type?: string | null
           visibility?: string | null
         }
         Relationships: [
