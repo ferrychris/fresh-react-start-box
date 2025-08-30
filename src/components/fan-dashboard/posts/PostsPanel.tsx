@@ -26,6 +26,9 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const { user } = useUser();
   const [isLoading, setIsLoading] = useState(false);
+  const [showCommentModal, setShowCommentModal] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   // Pagination state
   const [cursor, setCursor] = useState<{ created_at: string; id: string } | null>(null);
@@ -46,6 +49,37 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
       setPrefetch(null);
     }
   }, []);
+
+  // Update like status for posts based on user's likes in database
+  const updateLikeStatus = useCallback(async (posts: Post[]) => {
+    if (!user || posts.length === 0) return;
+    
+    try {
+      const postIds = posts.map(p => p.id);
+      const { data: likes, error } = await supabase
+        .from('post_likes')
+        .select('post_id')
+        .eq('user_id', user.id)
+        .in('post_id', postIds);
+      
+      if (error) {
+        console.error('Error fetching like status:', error);
+        return;
+      }
+      
+      const likedPostIds = new Set(likes?.map(like => like.post_id) || []);
+      
+      // Update the posts with correct like status
+      setList(currentList => 
+        currentList.map(post => ({
+          ...post,
+          isLiked: likedPostIds.has(post.id)
+        }))
+      );
+    } catch (error) {
+      console.error('Error updating like status:', error);
+    }
+  }, [user]);
 
   // Load first page - fetch all public posts with better error handling
   const loadInitial = useCallback(async () => {
@@ -84,9 +118,16 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
 
       const transformed = (data as unknown as DatabasePost[]).map(transformDbPostToUIPost);
       console.log(`Loaded ${transformed.length} posts successfully`);
+      
       setList(transformed);
       setCursor(nextCursor);
       setHasMore(!!nextCursor);
+      
+      // Check which posts are liked by the current user
+      if (user) {
+        await updateLikeStatus(transformed);
+      }
+      
       // Kick off background prefetch of the next page
       prefetchNext(nextCursor);
     } catch (e) {
@@ -99,7 +140,7 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
     } finally {
       setIsLoading(false);
     }
-  }, [prefetchNext]);
+  }, [prefetchNext, updateLikeStatus, user]);
 
   // Create mock posts for when database is unavailable
   const createMockPosts = (): Post[] => {
