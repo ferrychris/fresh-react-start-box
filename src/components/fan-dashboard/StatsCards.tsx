@@ -15,10 +15,10 @@ const StatsCard: React.FC<StatsCardProps> = ({ title, value, icon, description, 
   const isDark = theme === 'dark';
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 flex flex-col">
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col">
       <div className="flex justify-between items-start mb-2">
         <h3 className="text-sm text-gray-400">{title}</h3>
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color}`}>
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${color}`}>
           {icon}
         </div>
       </div>
