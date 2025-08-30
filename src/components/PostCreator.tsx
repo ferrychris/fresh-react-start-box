@@ -157,7 +157,7 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ racerId, onPostCreated
         const uploadFn = isVideo ? uploadVideo : uploadImage;
         const result = await uploadFn(racerId, file);
 
-        if (!result || !result.path) {
+        if (!result || 'error' in result) {
           throw new Error(`Failed to upload ${file.name}`);
         }
 
