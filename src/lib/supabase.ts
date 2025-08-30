@@ -1,4 +1,3 @@
-
 import * as supabase from './supabase/client';
 import * as profiles from './supabase/profiles';
 import * as posts from './supabase/posts';
@@ -186,6 +185,20 @@ export const getSeriesProfile = async (seriesId: string) => {
   if (error) {
     console.error('Error getting series profile:', error);
     return null;
+  }
+  return data;
+};
+
+export const createSeriesProfile = async (profile: any) => {
+  const { data, error } = await sb
+    .from('series_profiles')
+    .insert([profile])
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('Error creating series profile:', error);
+    throw error;
   }
   return data;
 };

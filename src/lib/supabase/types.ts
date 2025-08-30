@@ -1,255 +1,899 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
-export interface Profile {
-  id: string;
-  user_type: 'racer' | 'fan' | 'track';
-  name: string;
-  email: string;
-  avatar?: string;
-  banner_image?: string;
-  profile_complete: boolean;
-  created_at: string;
-  updated_at: string;
+export interface Database {
+  public: {
+    Tables: {
+      fan_activity: {
+        Row: {
+          activity_type: string | null
+          created_at: string | null
+          details: Json | null
+          fan_id: string | null
+          id: string
+        }
+        Insert: {
+          activity_type?: string | null
+          created_at?: string | null
+          details?: Json | null
+          fan_id?: string | null
+          id?: string
+        }
+        Update: {
+          activity_type?: string | null
+          created_at?: string | null
+          details?: Json | null
+          fan_id?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fan_activity_fan_id_fkey"
+            columns: ["fan_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      fan_connections: {
+        Row: {
+          became_fan_at: string | null
+          fan_id: string | null
+          id: string
+          is_subscribed: boolean | null
+          is_superfan: boolean | null
+          racer_id: string | null
+          total_tips: number | null
+        }
+        Insert: {
+          became_fan_at?: string | null
+          fan_id?: string | null
+          id?: string
+          is_subscribed?: boolean | null
+          is_superfan?: boolean | null
+          racer_id?: string | null
+          total_tips?: number | null
+        }
+        Update: {
+          became_fan_at?: string | null
+          fan_id?: string | null
+          id?: string
+          is_subscribed?: boolean | null
+          is_superfan?: boolean | null
+          racer_id?: string | null
+          total_tips?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fan_connections_fan_id_fkey"
+            columns: ["fan_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fan_connections_racer_id_fkey"
+            columns: ["racer_id"]
+            referencedRelation: "racer_profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      fans: {
+        Row: {
+          favorite_classes: string[] | null
+          favorite_tracks: string[] | null
+          followed_racers: string[] | null
+          id: string
+          location: string | null
+          profile_photo_url: string | null
+          updated_at: string | null
+          why_i_love_racing: string | null
+        }
+        Insert: {
+          favorite_classes?: string[] | null
+          favorite_tracks?: string[] | null
+          followed_racers?: string[] | null
+          id: string
+          location?: string | null
+          profile_photo_url?: string | null
+          updated_at?: string | null
+          why_i_love_racing?: string | null
+        }
+        Update: {
+          favorite_classes?: string[] | null
+          favorite_tracks?: string[] | null
+          followed_racers?: string[] | null
+          id?: string
+          location?: string | null
+          profile_photo_url?: string | null
+          updated_at?: string | null
+          why_i_love_racing?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fans_id_fkey"
+            columns: ["id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      gifts: {
+        Row: {
+          created_at: string | null
+          id: string
+          image_url: string | null
+          name: string | null
+          token_cost: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string | null
+          token_cost?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string | null
+          token_cost?: number | null
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string | null
+          details: Json | null
+          id: string
+          read: boolean | null
+          type: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          read?: boolean | null
+          type?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          read?: boolean | null
+          type?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      posts: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          id: string
+          image_url: string | null
+          racer_id: string | null
+          title: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          racer_id?: string | null
+          title?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          racer_id?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posts_racer_id_fkey"
+            columns: ["racer_id"]
+            referencedRelation: "racer_profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar: string | null
+          email: string | null
+          id: string
+          name: string | null
+          updated_at: string | null
+          username: string | null
+          website: string | null
+        }
+        Insert: {
+          avatar?: string | null
+          email?: string | null
+          id: string
+          name?: string | null
+          updated_at?: string | null
+          username?: string | null
+          website?: string | null
+        }
+        Update: {
+          avatar?: string | null
+          email?: string | null
+          id?: string
+          name?: string | null
+          updated_at?: string | null
+          username?: string | null
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      racer_posts: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          id: string
+          image_url: string | null
+          racer_id: string | null
+          title: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          racer_id?: string | null
+          title?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          racer_id?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "racer_posts_racer_id_fkey"
+            columns: ["racer_id"]
+            referencedRelation: "racer_profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      racer_profiles: {
+        Row: {
+          about: string | null
+          banner_photo_url: string | null
+          birthdate: string | null
+          car_number: string | null
+          car_photo_url: string | null
+          city: string | null
+          country: string | null
+          created_at: string | null
+          facebook_url: string | null
+          gender: string | null
+          id: string
+          instagram_url: string | null
+          is_active: boolean | null
+          racing_class: string | null
+          stripe_account_id: string | null
+          tiktok_url: string | null
+          twitter_url: string | null
+          updated_at: string | null
+          username: string | null
+          youtube_url: string | null
+        }
+        Insert: {
+          about?: string | null
+          banner_photo_url?: string | null
+          birthdate?: string | null
+          car_number?: string | null
+          car_photo_url?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          facebook_url?: string | null
+          gender?: string | null
+          id: string
+          instagram_url?: string | null
+          is_active?: boolean | null
+          racing_class?: string | null
+          stripe_account_id?: string | null
+          tiktok_url?: string | null
+          twitter_url?: string | null
+          updated_at?: string | null
+          username?: string | null
+          youtube_url?: string | null
+        }
+        Update: {
+          about?: string | null
+          banner_photo_url?: string | null
+          birthdate?: string | null
+          car_number?: string | null
+          car_photo_url?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          facebook_url?: string | null
+          gender?: string | null
+          id?: string
+          instagram_url?: string | null
+          is_active?: boolean | null
+          racing_class?: string | null
+          stripe_account_id?: string | null
+          tiktok_url?: string | null
+          twitter_url?: string | null
+          updated_at?: string | null
+          username?: string | null
+          youtube_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "racer_profiles_id_fkey"
+            columns: ["id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      series_profiles: {
+        Row: {
+          banner_photo_url: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          logo_url: string | null
+          name: string | null
+          updated_at: string | null
+          website_url: string | null
+        }
+        Insert: {
+          banner_photo_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string | null
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          banner_photo_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string | null
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Relationships: []
+      }
+      sponsorship_inquiries: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string | null
+          racer_id: string | null
+          sponsor_budget: string | null
+          sponsor_email: string | null
+          sponsor_name: string | null
+          spot_id: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          racer_id?: string | null
+          sponsor_budget?: string | null
+          sponsor_email?: string | null
+          sponsor_name?: string | null
+          spot_id?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          racer_id?: string | null
+          sponsor_budget?: string | null
+          sponsor_email?: string | null
+          sponsor_name?: string | null
+          spot_id?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsorship_inquiries_racer_id_fkey"
+            columns: ["racer_id"]
+            referencedRelation: "racer_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsorship_inquiries_spot_id_fkey"
+            columns: ["spot_id"]
+            referencedRelation: "sponsorship_spots"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      sponsorship_packages: {
+        Row: {
+          car_placement: string | null
+          created_at: string | null
+          description: string | null
+          digital_benefits: string[] | null
+          duration_races: number | null
+          id: string
+          is_active: boolean | null
+          package_name: string | null
+          price_per_race: number | null
+          racer_id: string | null
+          updated_at: string | null
+          visibility_benefits: string[] | null
+        }
+        Insert: {
+          car_placement?: string | null
+          created_at?: string | null
+          description?: string | null
+          digital_benefits?: string[] | null
+          duration_races?: number | null
+          id?: string
+          is_active?: boolean | null
+          package_name?: string | null
+          price_per_race?: number | null
+          racer_id?: string | null
+          updated_at?: string | null
+          visibility_benefits?: string[] | null
+        }
+        Update: {
+          car_placement?: string | null
+          created_at?: string | null
+          description?: string | null
+          digital_benefits?: string[] | null
+          duration_races?: number | null
+          id?: string
+          is_active?: boolean | null
+          package_name?: string | null
+          price_per_race?: number | null
+          racer_id?: string | null
+          updated_at?: string | null
+          visibility_benefits?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsorship_packages_racer_id_fkey"
+            columns: ["racer_id"]
+            referencedRelation: "racer_profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      sponsorship_spots: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_available: boolean | null
+          position_left: string | null
+          position_top: string | null
+          price_per_race: number | null
+          racer_id: string | null
+          sponsor_logo_url: string | null
+          sponsor_name: string | null
+          spot_name: string | null
+          spot_size: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_available?: boolean | null
+          position_left?: string | null
+          position_top?: string | null
+          price_per_race?: number | null
+          racer_id?: string | null
+          sponsor_logo_url?: string | null
+          sponsor_name?: string | null
+          spot_name?: string | null
+          spot_size?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_available?: boolean | null
+          position_left?: string | null
+          position_top?: string | null
+          price_per_race?: number | null
+          racer_id?: string | null
+          sponsor_logo_url?: string | null
+          sponsor_name?: string | null
+          spot_name?: string | null
+          spot_size?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsorship_spots_racer_id_fkey"
+            columns: ["racer_id"]
+            referencedRelation: "racer_profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      track_follows: {
+        Row: {
+          created_at: string | null
+          fan_id: string | null
+          id: string
+          track_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          fan_id?: string | null
+          id?: string
+          track_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          fan_id?: string | null
+          id?: string
+          track_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "track_follows_fan_id_fkey"
+            columns: ["fan_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "track_follows_track_id_fkey"
+            columns: ["track_id"]
+            referencedRelation: "track_profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      track_profiles: {
+        Row: {
+          address: string | null
+          banner_photo_url: string | null
+          city: string | null
+          country: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          latitude: number | null
+          logo_url: string | null
+          longitude: number | null
+          name: string | null
+          phone_number: string | null
+          state: string | null
+          timezone: string | null
+          track_length_km: number | null
+          track_map_url: string | null
+          track_type: string | null
+          updated_at: string | null
+          website_url: string | null
+        }
+        Insert: {
+          address?: string | null
+          banner_photo_url?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          latitude?: number | null
+          logo_url?: string | null
+          longitude?: number | null
+          name?: string | null
+          phone_number?: string | null
+          state?: string | null
+          timezone?: string | null
+          track_length_km?: number | null
+          track_map_url?: string | null
+          track_type?: string | null
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          address?: string | null
+          banner_photo_url?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          latitude?: number | null
+          logo_url?: string | null
+          longitude?: number | null
+          name?: string | null
+          phone_number?: string | null
+          state?: string | null
+          timezone?: string | null
+          track_length_km?: number | null
+          track_map_url?: string | null
+          track_type?: string | null
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          created_at: string | null
+          currency: string | null
+          details: Json | null
+          id: string
+          platform_amount_cents: number | null
+          racer_amount_cents: number | null
+          racer_id: string | null
+          stripe_payment_intent_id: string | null
+          total_amount_cents: number | null
+          transaction_type: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          currency?: string | null
+          details?: Json | null
+          id?: string
+          platform_amount_cents?: number | null
+          racer_amount_cents?: number | null
+          racer_id?: string | null
+          stripe_payment_intent_id?: string | null
+          total_amount_cents?: number | null
+          transaction_type?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          currency?: string | null
+          details?: Json | null
+          id?: string
+          platform_amount_cents?: number | null
+          racer_amount_cents?: number | null
+          racer_id?: string | null
+          stripe_payment_intent_id?: string | null
+          total_amount_cents?: number | null
+          transaction_type?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_racer_id_fkey"
+            columns: ["racer_id"]
+            referencedRelation: "racer_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      user_tokens: {
+        Row: {
+          created_at: string | null
+          id: string
+          token_balance: number | null
+          total_purchased: number | null
+          total_spent: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          token_balance?: number | null
+          total_purchased?: number | null
+          total_spent?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          token_balance?: number | null
+          total_purchased?: number | null
+          total_spent?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tokens_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      virtual_gifts: {
+        Row: {
+          created_at: string | null
+          gift_id: string | null
+          id: string
+          message: string | null
+          racer_id: string | null
+          receiver_id: string | null
+          sender_id: string | null
+          token_amount: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          gift_id?: string | null
+          id?: string
+          message?: string | null
+          racer_id?: string | null
+          receiver_id?: string | null
+          sender_id?: string | null
+          token_amount?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          gift_id?: string | null
+          id?: string
+          message?: string | null
+          racer_id?: string | null
+          receiver_id?: string | null
+          sender_id?: string | null
+          token_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "virtual_gifts_gift_id_fkey"
+            columns: ["gift_id"]
+            referencedRelation: "gifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "virtual_gifts_racer_id_fkey"
+            columns: ["racer_id"]
+            referencedRelation: "racer_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "virtual_gifts_receiver_id_fkey"
+            columns: ["receiver_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "virtual_gifts_sender_id_fkey"
+            columns: ["sender_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      calculate_revenue_split: {
+        Args: {
+          total_cents: number
+        }
+        Returns: {
+          platform_amount: number
+          racer_amount: number
+        }
+      }
+      get_racer_earnings: {
+        Args: {
+          p_racer_id: string
+        }
+        Returns: {
+          total_earnings_cents: number
+          pending_payout_cents: number
+          subscription_earnings_cents: number
+          tip_earnings_cents: number
+          sponsorship_earnings_cents: number
+          stripe_account_id: string
+        }
+      }
+      get_racer_fan_stats: {
+        Args: {
+          racer_uuid: string
+        }
+        Returns: {
+          total_fans: number
+          super_fans: number
+          top_superfan_id: string
+          top_superfan_name: string
+          top_superfan_total: number
+        }
+      }
+      update_token_balance: {
+        Args: {
+          p_user_id: string
+          p_amount: number
+          p_operation: string
+        }
+        Returns: undefined
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
 }
 
-export interface RacerProfile {
-  id: string;
-  username?: string;
-  bio?: string;
-  car_number?: string;
-  racing_class?: string;
-  hometown?: string;
-  address_line1?: string;
-  city?: string;
-  state?: string;
-  postal_code?: string;
-  country?: string;
-  phone?: string;
-  team_name?: string;
-  profile_photo_url?: string;
-  banner_photo_url?: string;
-  main_sponsor_photo_url?: string;
-  car_photos: string[];
-  monetization_enabled: boolean;
-  support_tiers: Array<{
-    name: string;
-    price: number;
-    description: string;
-  }>;
-  thank_you_message?: string;
-  social_links: Record<string, string>;
-  instagram_url?: string | null;
-  facebook_url?: string | null;
-  tiktok_url?: string | null;
-  youtube_url?: string | null;
-  career_wins?: number;
-  podiums?: number;
-  championships?: number;
-  years_racing?: number;
-  career_history?: string;
-  highlights?: string;
-  achievements?: string;
-  is_featured?: boolean;
-  profile_published?: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface FanProfile {
-  id: string;
-  location?: string;
-  favorite_classes: string[];
-  favorite_tracks: string[];
-  followed_racers: string[];
-  why_i_love_racing?: string;
-  profile_photo_url?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface TrackProfile {
-  id: string;
-  track_name?: string;
-  contact_person?: string;
-  track_type?: string;
-  location?: string;
-  contact_email?: string;
-  website?: string;
-  classes_hosted: string[];
-  track_logo_url?: string;
-  banner_photo_url?: string;
-  featured_racers: string[];
-  sponsors: Array<{
-    name: string;
-    website?: string;
-    logo_url?: string;
-  }>;
-  contact_phone?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface RaceSchedule {
-  id: string;
-  racer_id?: string;
-  track_id?: string;
-  event_name: string;
-  track_name: string;
-  event_date: string;
-  event_time?: string;
-  location?: string;
-  created_at?: string;
-}
-
-export interface SeriesProfile {
-  id: string;
-  series_name: string;
-  description?: string;
-  series_type: string;
-  headquarters?: string;
-  founded?: number;
-  contact_email?: string;
-  contact_person?: string;
-  contact_phone?: string;
-  website?: string;
-  series_logo_url?: string;
-  banner_photo_url?: string;
-  social_links?: Record<string, string>;
-  featured_racers?: string[];
-  featured_tracks?: string[];
-  total_purse_cents?: number;
-  championship_purse_cents?: number;
-  total_events?: number;
-  profile_published?: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface DatabasePost {
-  id: string;
-  created_at: string;
-  content: string;
-  media_url?: string;
-  media_type?: 'image' | 'video';
-  fan_id?: string;
-  racer_id?: string;
-  post_type: 'text' | 'photo' | 'video' | 'gallery';
-  media_urls: string[];
-  visibility: 'public' | 'fans_only';
-  likes_count: number;
-  comments_count: number;
-  total_tips: number;
-  allow_tips: boolean;
-  profiles?: { id: string; name: string; user_type: string; avatar: string };
-  racer?: { id: string; username: string; profile_photo_url: string };
-}
-
-export interface SubscriptionTier {
-  id: string;
-  racer_id: string;
-  tier_name: string;
-  price_cents: number;
-  description: string;
-  benefits: string[];
-  is_active: boolean;
-  stripe_price_id: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface FanConnection {
-  id: string;
-  fan_id: string;
-  racer_id: string;
-  became_fan_at: string;
-  is_superfan: boolean;
-  last_support_date?: string;
-  total_tips: number;
-  is_subscribed: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface FanStats {
-  total_fans: number;
-  super_fans: number;
-  top_superfan_id?: string;
-  top_superfan_name?: string;
-  top_superfan_total?: number;
-}
-
-export interface Notification {
-  id: string;
-  user_id: string;
-  type: 'sponsorship_inquiry' | 'new_superfan' | 'new_fan' | 'tip_received' | 'post_like' | 'new_comment';
-  title: string;
-  message: string;
-  read: boolean;
-  data?: Record<string, unknown>;
-  created_at: string;
-}
-
-export interface PostComment {
-  id: string;
-  post_id: string;
-  user_id: string;
-  comment_text: string;
-  created_at: string;
-  profiles: {
-    name: string;
-    avatar_url: string;
-  };
-}
-
-export interface RacerFan {
-  fan_id: string;
-  name: string;
-  profile_picture: string;
-  created_at: string;
-  is_superfan: boolean;
-}
-
-export interface UserTokens {
-  user_id: string;
-  token_balance: number;
-  total_purchased: number;
-  total_spent: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface VirtualGift {
-  id: string;
-  name: string;
-  emoji: string;
-  description: string;
-  token_cost: number;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  is_active: boolean;
-  created_at: string;
-}
-
-export interface GiftTransaction {
-  id: string;
-  sender_id: string;
-  receiver_id: string;
-  gift_id: string;
-  token_amount: number;
-  message?: string;
-  created_at: string;
-  gift?: VirtualGift;
-  sender?: { name: string; avatar?: string };
-}
+export type RacerProfile = Database['public']['Tables']['racer_profiles']['Row'];
+export type Post = Database['public']['Tables']['posts']['Row'];
+export type Track = Database['public']['Tables']['track_profiles']['Row'];
+export type Series = Database['public']['Tables']['series_profiles']['Row'];
+export type Gift = Database['public']['Tables']['gifts']['Row'];
+export type Notification = Database['public']['Tables']['notifications']['Row'];
+export type FanConnection = Database['public']['Tables']['fan_connections']['Row'];
+export type TrackFollow = Database['public']['Tables']['track_follows']['Row'];
+export type Transaction = Database['public']['Tables']['transactions']['Row'];
+export type UserTokens = Database['public']['Tables']['user_tokens']['Row'];
+export type VirtualGift = Database['public']['Tables']['virtual_gifts']['Row'];
+export type RacerPost = Database['public']['Tables']['racer_posts']['Row'];
+export type Profile = Database['public']['Tables']['profiles']['Row'];
+export type SponsorshipSpot = Database['public']['Tables']['sponsorship_spots']['Row'];
+export type SponsorshipInquiry = Database['public']['Tables']['sponsorship_inquiries']['Row'];
 
 export interface SponsorshipPackage {
   id: string;
   racer_id: string;
   package_name: string;
-  price_cents: number;
   description?: string;
+  price_per_race: number;
+  duration_races: number;
+  car_placement: string;
+  visibility_benefits: string[];
+  digital_benefits: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubscriptionTier {
+  id: string;
+  racer_id: string;
+  name: string;
+  description?: string;
+  price_cents: number;
   benefits: string[];
   is_active: boolean;
-  duration_races: number;
-  car_placement?: string;
   created_at: string;
   updated_at: string;
 }
@@ -259,10 +903,11 @@ export interface FanSubscription {
   fan_id: string;
   racer_id: string;
   tier_id: string;
-  status: 'active' | 'cancelled' | 'expired';
+  status: 'active' | 'cancelled' | 'paused';
   created_at: string;
   updated_at: string;
   // Extended properties for UI display
+  racerId?: string;
   racerName?: string;
   racerImage?: string;
   carNumber?: string;
@@ -277,60 +922,47 @@ export interface FanSubscription {
 export interface FanActivity {
   id: string;
   fan_id: string;
-  activity_type: string;
-  content: string;
+  activity_type: 'tip' | 'subscription' | 'follow' | 'comment' | 'like';
+  details: Record<string, any>;
   created_at: string;
-  // Extended properties for different activity types
+  // Extended properties for UI display
   type?: string;
   action?: string;
   date?: string;
   amount?: number;
+  racer_profile?: {
+    username: string;
+    profile_photo_url?: string;
+  };
 }
 
-export interface RacerPost {
+export interface TokenPurchase {
   id: string;
-  racer_id: string;
-  content: string;
-  post_type: 'text' | 'photo' | 'video' | 'gallery';
-  media_urls: string[];
-  visibility: 'public' | 'fans_only';
-  likes_count: number;
-  comments_count: number;
-  total_tips: number;
-  allow_tips: boolean;
+  user_id: string;
+  token_amount: number;
+  price_cents: number;
+  stripe_payment_intent_id?: string;
+  status: 'pending' | 'completed' | 'failed';
   created_at: string;
   updated_at: string;
 }
 
-export interface LiveStream {
+export interface GiftTransaction {
   id: string;
-  streamer_id: string;
-  title: string;
-  description?: string;
-  is_live: boolean;
-  viewer_count: number;
-  started_at: string;
-  ended_at?: string;
+  sender_id: string;
+  receiver_id: string;
+  gift_id: string;
+  token_amount: number;
+  message?: string;
   created_at: string;
-  updated_at: string;
-}
-
-// Extended User type for components
-export interface ExtendedUser {
-  id: string;
-  name: string;
-  email: string;
-  user_type: 'racer' | 'fan' | 'track' | 'series';
-  avatar?: string;
-  banner_image?: string;
-}
-
-// Social Links type
-export interface SocialLinks {
-  instagram?: string;
-  facebook?: string;
-  tiktok?: string;
-  youtube?: string;
-  twitter?: string;
-  [key: string]: string | undefined;
+  // Extended properties for UI display
+  gift?: {
+    name: string;
+    image_url: string;
+    token_cost: number;
+  };
+  sender?: {
+    name: string;
+    avatar?: string;
+  };
 }
