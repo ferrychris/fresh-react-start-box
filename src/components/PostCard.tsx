@@ -27,7 +27,8 @@ import { SuperFanBadge } from './SuperFanBadge';
 // Define a more complete Post type for the component
 export type Post = {
   id: string;
-  racer_id: string;
+  racer_id?: string;
+  fan_id?: string;
   created_at: string;
   updated_at: string;
   content: string;
@@ -38,6 +39,7 @@ export type Post = {
   comments_count: number;
   total_tips: number;
   allow_tips: boolean;
+  user_type?: 'racer' | 'fan' | 'track';
 };
 
 interface PostCardProps {
