@@ -23,6 +23,7 @@ export const getRacerPosts = getPostsForRacer;
 
 export const getFanPosts = async (): Promise<any[]> => {
   try {
+    // Fetch fan posts with profile data
     const { data: fanPosts, error: fanError } = await supabase
       .from('fan_posts')
       .select(`
@@ -38,6 +39,7 @@ export const getFanPosts = async (): Promise<any[]> => {
       .order('created_at', { ascending: false })
       .limit(25);
 
+    // Fetch racer posts with profile data  
     const { data: racerPosts, error: racerError } = await supabase
       .from('racer_posts')
       .select(`
@@ -48,7 +50,9 @@ export const getFanPosts = async (): Promise<any[]> => {
         post_type,
         likes_count,
         comments_count,
-        racer_id
+        racer_id,
+        total_tips,
+        allow_tips
       `)
       .order('created_at', { ascending: false })
       .limit(25);
@@ -59,24 +63,57 @@ export const getFanPosts = async (): Promise<any[]> => {
       return [];
     }
 
+    // Get user profiles for author information
+    const fanIds = (fanPosts || []).map(post => post.fan_id).filter(Boolean);
+    const racerIds = (racerPosts || []).map(post => post.racer_id).filter(Boolean);
+    
+    const { data: fanProfiles } = await supabase
+      .from('profiles')
+      .select('id, name, avatar, user_type')
+      .in('id', fanIds);
+      
+    const { data: racerProfiles } = await supabase
+      .from('profiles')
+      .select('id, name, avatar, user_type')
+      .in('id', racerIds);
+
+    // Create lookup maps
+    const fanProfileMap = (fanProfiles || []).reduce((acc, profile) => {
+      acc[profile.id] = profile;
+      return acc;
+    }, {} as Record<string, any>);
+    
+    const racerProfileMap = (racerProfiles || []).reduce((acc, profile) => {
+      acc[profile.id] = profile;
+      return acc;
+    }, {} as Record<string, any>);
+
     // Combine and sort posts by creation date
     const allPosts = [
       ...(fanPosts || []).map(post => ({
         ...post,
         author_type: 'fan' as const,
-        author: { name: 'Fan User', avatar: '', user_type: 'fan' }
+        author: {
+          name: fanProfileMap[post.fan_id]?.name || 'Fan User',
+          avatar: fanProfileMap[post.fan_id]?.avatar || '',
+          user_type: 'fan'
+        }
       })),
       ...(racerPosts || []).map(post => ({
         ...post,
         author_type: 'racer' as const,
-        author: { name: 'Racer User', avatar: '', user_type: 'racer' }
+        author: {
+          name: racerProfileMap[post.racer_id]?.name || 'Racer',
+          avatar: racerProfileMap[post.racer_id]?.avatar || '',
+          user_type: 'racer'
+        }
       }))
     ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
      .slice(0, 50);
 
     return allPosts;
   } catch (error) {
-    console.error('Error fetching fan posts:', error);
+    console.error('Error fetching posts:', error);
     return [];
   }
 };
