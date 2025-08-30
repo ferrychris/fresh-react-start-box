@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Heart, MessageCircle, Share, MoreHorizontal, Calendar, MapPin, Users, DollarSign, RefreshCw } from 'lucide-react';
+import { Heart, MessageCircle, Share2, MoreHorizontal, Calendar, MapPin, Users, DollarSign, RefreshCw } from 'lucide-react';
 import { useUser } from '../../../contexts/UserContext';
 import toast from 'react-hot-toast';
 import CreatePost from './CreatePost';
@@ -299,180 +299,171 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
           </button>
         </div>
       ) : (
-        <div className="p-4 lg:p-6">
-          <div className="max-w-2xl mx-auto space-y-6">
-            {list.map((post) => (
-              <div 
-                key={post.id} 
-                className={`bg-gray-900 rounded-xl border ${activePostId === post.id ? 'border-fedex-orange' : 'border-gray-800'} overflow-hidden hover:border-gray-700 transition-all duration-300`}
-                onMouseEnter={() => setActivePostId(post.id)}
-                onMouseLeave={() => setActivePostId(null)}
-              >
-                {/* Post Header */}
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center">
-                      <img
-                        src={post.userAvatar}
-                        alt={post.userName}
-                        className="w-8 h-8 rounded-full object-cover mr-2"
-                      />
-                      <div>
-                        <div className="flex items-center">
-                          <span className="font-semibold text-white mr-1">
-                            {post.userName}
+        <div className="max-w-2xl mx-auto space-y-4">
+          {list.map((post) => (
+            <div 
+              key={post.id} 
+              className="bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+            >
+              {/* Post Header - Facebook Style */}
+              <div className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <img
+                      src={post.userAvatar}
+                      alt={post.userName}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-semibold text-slate-900 text-sm">
+                          {post.userName}
+                        </span>
+                        {post.userVerified && (
+                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs">✓</span>
+                          </div>
+                        )}
+                        {post.carNumber && (
+                          <span className="bg-fedex-orange text-white px-2 py-0.5 rounded-full text-xs font-semibold">
+                            #{post.carNumber}
                           </span>
-                          {post.userVerified && (
-                            <div className="text-orange-500 text-xs ml-1">✓</div>
-                          )}
-                          {post.carNumber && (
-                            <span className="text-orange-500 text-sm ml-1">#{post.carNumber}</span>
-                          )}
-                        </div>
-                        <div className="flex items-center text-xs">
-                          <span className={`${getUserTypeColor(post.userType)}`}>
-                            {post.userType}
-                          </span>
-                          <span className="text-gray-500 mx-1">•</span>
-                          <span className="text-gray-400">{post.timestamp}</span>
-                        </div>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-1 text-xs text-slate-500">
+                        <span>{post.timestamp}</span>
+                        <span>•</span>
+                        <span className={`${getUserTypeColor(post.userType)} font-medium`}>
+                          {post.userType}
+                        </span>
                       </div>
                     </div>
-                    <button className="text-gray-400 hover:text-white">
-                      <MoreHorizontal className="w-5 h-5" />
-                    </button>
                   </div>
+                  <button className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                    <MoreHorizontal className="w-5 h-5 text-slate-500" />
+                  </button>
+                </div>
 
-                  {/* Post Content */}
-                  <div className="mb-2">
-                    <p className="text-gray-300 text-sm">{post.content}</p>
-                    
-                    {/* Location and Event Info */}
-                    {(post.location || post.eventDate) && (
-                      <div className="flex items-center mt-1 text-xs text-gray-400">
-                        {post.location && (
-                          <div className="flex items-center mr-3">
-                            <MapPin className="w-3 h-3 mr-1" />
-                            <span>{post.location}</span>
-                          </div>
-                        )}
-                        {post.eventDate && (
-                          <div className="flex items-center">
-                            <Calendar className="w-3 h-3 mr-1" />
-                            <span>{new Date(post.eventDate).toLocaleDateString()}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Media */}
-                  {post.mediaUrls && post.mediaUrls.length > 0 && (
-                    <div className="mb-2 -mx-4 relative">
-                      {post.mediaType === 'video' ? (
-                        <video 
-                          src={post.mediaUrls[0]} 
-                          controls 
-                          className="w-full" 
-                          poster={post.mediaUrls[0] + '?poster=true'}
-                        />
-                      ) : post.mediaUrls.length === 1 ? (
-                        <img
-                          src={post.mediaUrls[0]}
-                          alt="Post media"
-                          className="w-full object-cover max-h-[500px]"
-                          onError={(e) => {
-                            // Fallback if image fails to load
-                            const target = e.target as HTMLImageElement;
-                            target.onerror = null;
-                            target.src = 'https://via.placeholder.com/800x400?text=Image+Not+Available';
-                          }}
-                        />
-                      ) : (
-                        <div className="grid grid-cols-2 gap-1">
-                          {post.mediaUrls.slice(0, 4).map((url, index) => (
-                            <div 
-                              key={index} 
-                              className={`${index >= 2 ? 'mt-1' : ''} relative ${post.mediaUrls.length === 3 && index === 2 ? 'col-span-2' : ''}`}
-                            >
-                              <img
-                                src={url}
-                                alt={`Post media ${index + 1}`}
-                                className="w-full object-cover h-[250px]"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.onerror = null;
-                                  target.src = 'https://via.placeholder.com/400x250?text=Image+Not+Available';
-                                }}
-                              />
-                              {index === 3 && post.mediaUrls.length > 4 && (
-                                <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
-                                  <span className="text-white text-xl font-bold">+{post.mediaUrls.length - 4} more</span>
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                {/* Post Content */}
+                <div className="mt-3">
+                  <p className="text-slate-900 text-sm leading-relaxed">{post.content}</p>
+                  
+                  {/* Location and Event Info */}
+                  {(post.location || post.eventDate) && (
+                    <div className="flex items-center mt-2 text-xs text-slate-500 space-x-4">
+                      {post.location && (
+                        <div className="flex items-center space-x-1">
+                          <MapPin className="w-3 h-3" />
+                          <span>{post.location}</span>
+                        </div>
+                      )}
+                      {post.eventDate && (
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="w-3 h-3" />
+                          <span>{new Date(post.eventDate).toLocaleDateString()}</span>
                         </div>
                       )}
                     </div>
                   )}
+                </div>
+              </div>
 
-                  {/* Post Actions */}
-                  <div className="flex items-center justify-between pt-2 border-t border-gray-800">
-                    <div className="flex items-center space-x-4">
-                      <button
-                        onClick={() => handleLike(post.id)}
-                        disabled={isLikeLoading[post.id]}
-                        className={`flex items-center space-x-1 text-sm ${
-                          post.isLiked 
-                            ? 'text-red-500' 
-                            : activePostId === post.id ? 'text-white' : 'text-gray-400'
-                        } ${isLikeLoading[post.id] ? 'opacity-50' : ''} transition-all duration-200 hover:scale-110`}
-                      >
-                        <Heart className={`w-4 h-4 ${post.isLiked ? 'fill-current' : ''} ${isLikeLoading[post.id] ? 'animate-pulse' : ''}`} />
-                        <span>{post.likes}</span>
-                      </button>
-                      <button className={`flex items-center space-x-1 text-sm ${activePostId === post.id ? 'text-white' : 'text-gray-400'} transition-all duration-200 hover:scale-110`}>
-                        <MessageCircle className="w-4 h-4" />
-                        <span>{post.comments}</span>
-                      </button>
-                      <button className={`flex items-center space-x-1 text-sm ${activePostId === post.id ? 'text-white' : 'text-gray-400'} transition-all duration-200 hover:scale-110`}>
-                        <Share className="w-4 h-4" />
-                        <span>{post.shares}</span>
-                      </button>
+              {/* Media - Full Width Facebook Style */}
+              {post.mediaUrls && post.mediaUrls.length > 0 && (
+                <div className="relative">
+                  {post.mediaType === 'video' ? (
+                    <video 
+                      src={post.mediaUrls[0]} 
+                      controls 
+                      className="w-full max-h-[500px] object-cover" 
+                      poster={post.mediaUrls[0] + '?poster=true'}
+                    />
+                  ) : post.mediaUrls.length === 1 ? (
+                    <img
+                      src={post.mediaUrls[0]}
+                      alt="Post media"
+                      className="w-full max-h-[500px] object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.onerror = null;
+                        target.src = 'https://via.placeholder.com/800x400?text=Image+Not+Available';
+                      }}
+                    />
+                  ) : (
+                    <div className={`grid ${post.mediaUrls.length === 2 ? 'grid-cols-2' : 'grid-cols-2'} gap-0.5`}>
+                      {post.mediaUrls.slice(0, 4).map((url, index) => (
+                        <div 
+                          key={index} 
+                          className={`relative ${post.mediaUrls.length === 3 && index === 2 ? 'col-span-2' : ''}`}
+                        >
+                          <img
+                            src={url}
+                            alt={`Post media ${index + 1}`}
+                            className="w-full h-[200px] object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.onerror = null;
+                              target.src = 'https://via.placeholder.com/400x200?text=Image+Not+Available';
+                            }}
+                          />
+                          {index === 3 && post.mediaUrls.length > 4 && (
+                            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                              <span className="text-white text-lg font-semibold">+{post.mediaUrls.length - 4}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
+                  )}
+                </div>
+              )}
 
-                    {/* Tip/Subscribe Actions for Racers */}
-                    {post.userType === 'RACER' && (
-                      <div className="flex items-center space-x-2">
-                        <button 
-                          className="px-2 py-1 bg-green-600 text-white rounded text-xs flex items-center"
-                        >
-                          <DollarSign className="w-3 h-3 mr-1" />
-                          <span>Tip $5</span>
-                        </button>
-                        <button 
-                          className="px-2 py-1 bg-blue-600 text-white rounded text-xs flex items-center"
-                        >
-                          <span>Join the Team</span>
-                        </button>
-                      </div>
+              {/* Like/Comment Stats */}
+              {(post.likes > 0 || post.comments > 0) && (
+                <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-100">
+                  <div className="flex items-center justify-between">
+                    {post.likes > 0 && (
+                      <span className="flex items-center space-x-1">
+                        <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+                          <Heart className="w-2.5 h-2.5 text-white fill-current" />
+                        </div>
+                        <span>{post.likes}</span>
+                      </span>
                     )}
-
-                    {/* Follow Actions for Tracks/Series */}
-                    {(post.userType === 'TRACK' || post.userType === 'SERIES') && (
-                      <div className="flex items-center space-x-2">
-                        <button className="px-2 py-1 bg-orange-500 text-white rounded text-xs flex items-center">
-                          <Users className="w-3 h-3 mr-1" />
-                          <span>Follow</span>
-                        </button>
-                      </div>
+                    {post.comments > 0 && (
+                      <span>{post.comments} {post.comments === 1 ? 'comment' : 'comments'}</span>
                     )}
                   </div>
                 </div>
+              )}
+
+              {/* Action Buttons - Facebook Style */}
+              <div className="px-4 py-2 border-t border-slate-100">
+                <div className="flex items-center justify-around">
+                  <button
+                    onClick={() => handleLike(post.id)}
+                    disabled={isLikeLoading[post.id]}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      post.isLiked 
+                        ? 'text-red-500 hover:bg-red-50' 
+                        : 'text-slate-600 hover:bg-slate-50'
+                    } ${isLikeLoading[post.id] ? 'opacity-50' : ''}`}
+                  >
+                    <Heart className={`w-4 h-4 ${post.isLiked ? 'fill-current' : ''} ${isLikeLoading[post.id] ? 'animate-pulse' : ''}`} />
+                    <span>Like</span>
+                  </button>
+                  <button className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all">
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Comment</span>
+                  </button>
+                  <button className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all">
+                    <Share2 className="w-4 h-4" />
+                    <span>Share</span>
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
