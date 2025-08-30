@@ -155,6 +155,7 @@ export const getFanPostsPage = async ({
   
   while (retries <= maxRetries) {
     try {
+      // Start with a simpler query first
       let query = supabase
         .from('racer_posts')
         .select(`
@@ -171,30 +172,22 @@ export const getFanPostsPage = async ({
           user_type,
           racer_id,
           total_tips,
-          allow_tips,
-          profiles (
-            name,
-            avatar,
-            user_type
-          )
+          allow_tips
         `)
         .eq('visibility', 'public')
-        .not('created_at', 'is', null)
         .order('created_at', { ascending: false })
-        .order('id', { ascending: false });
+        .limit(limit);
 
       if (cursor?.created_at && cursor?.id) {
-        // Keyset pagination: (created_at, id) tuple
-        // Fetch rows strictly older than the cursor in the current ordering
-        query = query.or(
-          `and(created_at.eq.${cursor.created_at},id.lt.${cursor.id}),created_at.lt.${cursor.created_at}`
-        );
+        // Add cursor filtering for pagination
+        query = query.lt('created_at', cursor.created_at);
       }
 
-      // Apply limit after filters for clarity
-      const { data, error } = await query.limit(limit);
+      const { data, error } = await query;
 
       if (error) {
+        console.error('Error in getFanPostsPage:', error);
+        
         if (error.message?.includes('Failed to fetch') && retries < maxRetries) {
           console.warn(`Network error fetching paginated posts, retrying... (${retries + 1}/${maxRetries})`);
           retries++;
@@ -202,16 +195,20 @@ export const getFanPostsPage = async ({
           continue;
         }
         
-        console.error('Error fetching paginated posts:', error);
         return { data: [], nextCursor: null, error };
       }
 
       const rows = data || [];
+      console.log(`Fetched ${rows.length} posts from database`);
+      
+      // Generate next cursor from the last item
       const last = rows[rows.length - 1];
-      const nextCursor = last ? { created_at: last.created_at, id: last.id } : null;
+      const nextCursor = (last && rows.length === limit) ? { created_at: last.created_at, id: last.id } : null;
 
       return { data: rows, nextCursor, error: null };
     } catch (error) {
+      console.error('Exception in getFanPostsPage:', error);
+      
       if (retries < maxRetries) {
         console.warn(`Unexpected error fetching paginated posts, retrying... (${retries + 1}/${maxRetries})`);
         retries++;
@@ -219,7 +216,6 @@ export const getFanPostsPage = async ({
         continue;
       }
       
-      console.error('Exception fetching paginated posts:', error);
       return { data: [], nextCursor: null, error };
     }
   }
