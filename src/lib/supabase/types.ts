@@ -132,6 +132,13 @@ export interface DatabasePost {
   media_type?: 'image' | 'video';
   fan_id?: string;
   racer_id?: string;
+  post_type: 'text' | 'photo' | 'video' | 'gallery';
+  media_urls: string[];
+  visibility: 'public' | 'fans_only';
+  likes_count: number;
+  comments_count: number;
+  total_tips: number;
+  allow_tips: boolean;
   profiles?: { id: string; name: string; user_type: string; avatar: string };
   racer?: { id: string; username: string; profile_photo_url: string };
 }
@@ -201,7 +208,6 @@ export interface RacerFan {
   is_superfan: boolean;
 }
 
-// Add missing types that are referenced in components
 export interface UserTokens {
   user_id: string;
   token_balance: number;
@@ -230,6 +236,8 @@ export interface GiftTransaction {
   token_amount: number;
   message?: string;
   created_at: string;
+  gift?: VirtualGift;
+  sender?: { name: string; avatar?: string };
 }
 
 export interface SponsorshipPackage {
@@ -240,6 +248,8 @@ export interface SponsorshipPackage {
   description?: string;
   benefits: string[];
   is_active: boolean;
+  duration_races: number;
+  car_placement?: string;
   created_at: string;
   updated_at: string;
 }
@@ -252,6 +262,16 @@ export interface FanSubscription {
   status: 'active' | 'cancelled' | 'expired';
   created_at: string;
   updated_at: string;
+  // Extended properties for UI display
+  racerName?: string;
+  racerImage?: string;
+  carNumber?: string;
+  racingClass?: string;
+  subscriptionTier?: string;
+  monthlyAmount?: number;
+  nextBilling?: string;
+  totalTipped?: number;
+  subscribedAt?: string;
 }
 
 export interface FanActivity {
@@ -260,6 +280,11 @@ export interface FanActivity {
   activity_type: string;
   content: string;
   created_at: string;
+  // Extended properties for different activity types
+  type?: string;
+  action?: string;
+  date?: string;
+  amount?: number;
 }
 
 export interface RacerPost {
@@ -288,4 +313,24 @@ export interface LiveStream {
   ended_at?: string;
   created_at: string;
   updated_at: string;
+}
+
+// Extended User type for components
+export interface ExtendedUser {
+  id: string;
+  name: string;
+  email: string;
+  user_type: 'racer' | 'fan' | 'track' | 'series';
+  avatar?: string;
+  banner_image?: string;
+}
+
+// Social Links type
+export interface SocialLinks {
+  instagram?: string;
+  facebook?: string;
+  tiktok?: string;
+  youtube?: string;
+  twitter?: string;
+  [key: string]: string | undefined;
 }

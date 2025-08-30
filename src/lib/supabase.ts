@@ -1,4 +1,3 @@
-
 import * as supabase from './supabase/client';
 import * as profiles from './supabase/profiles';
 import * as posts from './supabase/posts';
@@ -33,6 +32,76 @@ export * from './supabase/types';
 
 // Namespace exports for modules consumed as grouped imports (e.g., `gifts as supabaseGifts`)
 export { gifts };
+
+// Add missing notification functions
+export const getNotificationsForUser = async (userId: string) => {
+  return getNotifications(userId);
+};
+
+export const markAllNotificationsAsRead = async (userId: string) => {
+  const { error } = await sb
+    .from('notifications')
+    .update({ read: true })
+    .eq('user_id', userId)
+    .eq('read', false);
+  
+  if (error) {
+    console.error('Error marking all notifications as read:', error);
+    throw error;
+  }
+};
+
+export const getUnreadNotificationCount = async (userId: string): Promise<number> => {
+  const { count, error } = await sb
+    .from('notifications')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('read', false);
+  
+  if (error) {
+    console.error('Error getting unread notification count:', error);
+    return 0;
+  }
+  
+  return count || 0;
+};
+
+// Add missing fan stats function
+export const getRacerFanStats = async (racerId: string) => {
+  try {
+    const { data, error } = await sb.rpc('get_racer_fan_stats', { racer_uuid: racerId });
+    
+    if (error) {
+      console.error('Error fetching racer fan stats:', error);
+      return {
+        total_fans: 0,
+        super_fans: 0,
+        top_superfan_id: undefined,
+        top_superfan_name: undefined,
+        top_superfan_total: undefined
+      };
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getRacerFanStats:', error);
+    return {
+      total_fans: 0,
+      super_fans: 0,
+      top_superfan_id: undefined,
+      top_superfan_name: undefined,
+      top_superfan_total: undefined
+    };
+  }
+};
+
+// Token packages constant
+export const TOKEN_PACKAGES = [
+  { tokens: 100, price: 9.99, bonus: 0 },
+  { tokens: 500, price: 39.99, bonus: 50 },
+  { tokens: 1000, price: 74.99, bonus: 150 },
+  { tokens: 2500, price: 174.99, bonus: 500 },
+];
 
 // Explicit re-exports for commonly used track helpers
 export { checkTrackFollow, getTrackFollowerCount, toggleTrackFollow } from './supabase/tracks';

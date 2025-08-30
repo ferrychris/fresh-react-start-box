@@ -898,9 +898,6 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({ onClose, onGoLive }) =
       {showTokenStore && (
         <TokenStore
           onClose={() => setShowTokenStore(false)}
-          onPurchaseComplete={() => {
-            setShowTokenStore(false);
-          }}
         />
       )}
     </div>
