@@ -229,11 +229,16 @@ const FanDashboard: React.FC = () => {
         .eq('id', id)
         .maybeSingle();
       
-      if (fanError) throw fanError;
+      if (fanError) {
+        console.error('Error loading fan profile:', fanError);
+        // Don't throw error, continue with empty data
+      }
       
-      // Initialize empty tables if needed (only for current user)
+      // Initialize empty tables if needed (only for current user) - do this asynchronously
       if (user?.id === id) {
-        await initializeEmptyTables(id);
+        initializeEmptyTables(id).catch(err => 
+          console.error('Failed to initialize tables:', err)
+        );
       }
       
       // Resolve banner image locally to avoid referencing state in dependencies
@@ -360,7 +365,7 @@ const FanDashboard: React.FC = () => {
         console.log('Fan activity table does not exist yet');
       }
       
-      // Format the data
+      // Format the data - create a default profile if none exists
       if (fanData) {
         setFanProfile({
           ...fanData,
@@ -372,6 +377,28 @@ const FanDashboard: React.FC = () => {
           favorites_count: 0,
           badges_count: 0
         });
+      } else {
+        // Create a default profile for the user
+        const defaultProfile: FanProfile = {
+          id: id || '',
+          username: 'user',
+          name: 'Racing Fan',
+          avatar_url: '',
+          avatar: null,
+          banner_image: null,
+          fan_type: 'Racing Fan',
+          user_type: 'fan',
+          created_at: new Date().toISOString(),
+          points: 0,
+          streak_days: 0,
+          favorites_count: 0,
+          badges_count: 0,
+          email: '',
+          profile_complete: false,
+          updated_at: new Date().toISOString(),
+          avatars: null
+        };
+        setFanProfile(defaultProfile);
       }
       
       // Set default stats with more descriptive placeholders if statsData is null
@@ -487,7 +514,38 @@ const FanDashboard: React.FC = () => {
 
   useEffect(() => {
     if (id) {
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        if (loading) {
+          console.warn('Profile loading timeout - using default values');
+          setLoading(false);
+          // Create a default profile if still loading
+          const defaultProfile: FanProfile = {
+            id: id || '',
+            username: 'user',
+            name: 'Racing Fan',
+            avatar_url: '',
+            avatar: null,
+            banner_image: null,
+            fan_type: 'Racing Fan',
+            user_type: 'fan',
+            created_at: new Date().toISOString(),
+            points: 0,
+            streak_days: 0,
+            favorites_count: 0,
+            badges_count: 0,
+            email: '',
+            profile_complete: false,
+            updated_at: new Date().toISOString(),
+            avatars: null
+          };
+          setFanProfile(defaultProfile);
+        }
+      }, 5000); // 5 second timeout
+      
       loadFanProfile();
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [id, loadFanProfile]);
 

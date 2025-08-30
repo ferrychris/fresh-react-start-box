@@ -152,6 +152,7 @@ const IndexPost: React.FC = () => {
           mediaUrls: mediaUrls,
           mediaType: postType === 'photo' ? 'image' : postType === 'video' ? 'video' : postType === 'gallery' ? 'gallery' : undefined,
           timestamp: new Date().toLocaleString(),
+          updated_at: new Date().toISOString(),
           likes: 0,
           comments: 0,
           shares: 0,
