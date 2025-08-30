@@ -1,3 +1,4 @@
+
 export interface Profile {
   id: string;
   user_type: 'racer' | 'fan' | 'track';
@@ -198,4 +199,93 @@ export interface RacerFan {
   profile_picture: string;
   created_at: string;
   is_superfan: boolean;
+}
+
+// Add missing types that are referenced in components
+export interface UserTokens {
+  user_id: string;
+  token_balance: number;
+  total_purchased: number;
+  total_spent: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VirtualGift {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  token_cost: number;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface GiftTransaction {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  gift_id: string;
+  token_amount: number;
+  message?: string;
+  created_at: string;
+}
+
+export interface SponsorshipPackage {
+  id: string;
+  racer_id: string;
+  package_name: string;
+  price_cents: number;
+  description?: string;
+  benefits: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FanSubscription {
+  id: string;
+  fan_id: string;
+  racer_id: string;
+  tier_id: string;
+  status: 'active' | 'cancelled' | 'expired';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FanActivity {
+  id: string;
+  fan_id: string;
+  activity_type: string;
+  content: string;
+  created_at: string;
+}
+
+export interface RacerPost {
+  id: string;
+  racer_id: string;
+  content: string;
+  post_type: 'text' | 'photo' | 'video' | 'gallery';
+  media_urls: string[];
+  visibility: 'public' | 'fans_only';
+  likes_count: number;
+  comments_count: number;
+  total_tips: number;
+  allow_tips: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LiveStream {
+  id: string;
+  streamer_id: string;
+  title: string;
+  description?: string;
+  is_live: boolean;
+  viewer_count: number;
+  started_at: string;
+  ended_at?: string;
+  created_at: string;
+  updated_at: string;
 }

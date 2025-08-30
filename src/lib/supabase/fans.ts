@@ -1,73 +1,80 @@
+
 import { supabase } from './client';
-import { FanConnection, FanStats, RacerFan } from './types';
+import { FanStats, FanSubscription, FanActivity } from './types';
 
-export const getFanStatus = async (fanId: string, racerId: string): Promise<FanConnection | null> => {
-    const { data, error } = await supabase
-        .from('fan_connections')
-        .select('*')
-        .eq('fan_id', fanId)
-        .eq('racer_id', racerId)
-        .single();
-    if (error && error.code !== 'PGRST116') { // Ignore 'single row not found' errors
-        console.error('Error fetching fan status:', error);
+export const getFanStats = async (fanId: string): Promise<FanStats> => {
+  try {
+    const { data, error } = await supabase.rpc('get_fan_stats', { fan_id: fanId });
+    
+    if (error) {
+      console.error('Error fetching fan stats:', error);
+      // Return default stats structure
+      return {
+        total_fans: 0,
+        super_fans: 0,
+        top_superfan_id: undefined,
+        top_superfan_name: undefined,
+        top_superfan_total: undefined
+      };
     }
-    return data;
+
+    return data as FanStats;
+  } catch (error) {
+    console.error('Error in getFanStats:', error);
+    return {
+      total_fans: 0,
+      super_fans: 0,
+      top_superfan_id: undefined,
+      top_superfan_name: undefined,
+      top_superfan_total: undefined
+    };
+  }
 };
 
-export const getFanStats = async (racerId: string): Promise<FanStats | null> => {
+export const getFanSubscriptions = async (fanId: string): Promise<FanSubscription[]> => {
+  try {
     const { data, error } = await supabase
-        .rpc('get_racer_fan_stats', { p_racer_id: racerId })
-        .single();
+      .from('user_subscriptions')
+      .select('*')
+      .eq('user_id', fanId)
+      .eq('status', 'active');
 
     if (error) {
-        console.error('Error fetching fan stats:', error);
-        return null;
+      console.error('Error fetching fan subscriptions:', error);
+      return [];
     }
-    return data;
+
+    return data as FanSubscription[];
+  } catch (error) {
+    console.error('Error in getFanSubscriptions:', error);
+    return [];
+  }
 };
 
-export const getFansForRacer = async (racerId: string): Promise<RacerFan[]> => {
+export const getFanActivity = async (fanId: string): Promise<FanActivity[]> => {
+  try {
     const { data, error } = await supabase
-        .from('racer_fans_view')
-        .select('fan_id, name, profile_picture, created_at, is_superfan')
-        .eq('racer_id', racerId);
+      .from('fan_activity')
+      .select('*')
+      .eq('fan_id', fanId)
+      .order('created_at', { ascending: false })
+      .limit(20);
 
     if (error) {
-        console.error('Error fetching fans for racer:', error);
-        return [];
+      console.error('Error fetching fan activity:', error);
+      return [];
     }
-    return data as RacerFan[];
+
+    return data as FanActivity[];
+  } catch (error) {
+    console.error('Error in getFanActivity:', error);
+    return [];
+  }
 };
 
-export const addFan = async (fanId: string, racerId: string) => {
-    const { data, error } = await supabase
-        .from('fan_connections')
-        .insert([{ fan_id: fanId, racer_id: racerId, became_fan_at: new Date().toISOString() }])
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Error adding fan:', error);
-    }
-    return data;
+export const getFanNotifications = async (fanId: string) => {
+  return getNotifications(fanId);
 };
 
-export const removeFan = async (fanId: string, racerId: string) => {
-    const { error } = await supabase
-        .from('fan_connections')
-        .delete()
-        .eq('fan_id', fanId)
-        .eq('racer_id', racerId);
-
-    if (error) {
-        console.error('Error removing fan:', error);
-    }
-    return !error;
-};
-
-// Backward-compatible aliases for legacy imports
-export const becomeFan = addFan;
-export const unfollowRacer = removeFan;
-export const checkFanStatus = getFanStatus;
-export const getRacerFanStats = getFanStats;
-export const getRacerFans = getFansForRacer;
+// Import getNotifications from notifications module
+import { getNotifications } from './notifications';

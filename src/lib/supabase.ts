@@ -1,3 +1,4 @@
+
 import * as supabase from './supabase/client';
 import * as profiles from './supabase/profiles';
 import * as posts from './supabase/posts';
@@ -150,6 +151,69 @@ export const createSponsorshipInquiry = async (inquiry: {
   if (error) {
     console.error('[sponsorship.createSponsorshipInquiry] error:', error);
     throw error;
+  }
+  return data;
+};
+
+// Add missing functions that are imported in components
+export const createSponsorshipPackage = async (pkg: any) => {
+  const { data, error } = await sb
+    .from('sponsorship_packages')
+    .insert([pkg])
+    .select()
+    .single();
+  if (error) {
+    console.error('[sponsorship.createSponsorshipPackage] error:', error);
+    throw error;
+  }
+  return data;
+};
+
+export const updateSponsorshipPackage = async (id: string, updates: any) => {
+  const { data, error } = await sb
+    .from('sponsorship_packages')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) {
+    console.error('[sponsorship.updateSponsorshipPackage] error:', error);
+    throw error;
+  }
+  return data;
+};
+
+export const getRacerSponsorshipPackages = async (racerId: string) => {
+  const { data, error } = await sb
+    .from('sponsorship_packages')
+    .select('*')
+    .eq('racer_id', racerId)
+    .eq('is_active', true);
+  if (error) {
+    console.error('[sponsorship.getRacerSponsorshipPackages] error:', error);
+    return [];
+  }
+  return data || [];
+};
+
+export const createTransaction = async (transaction: any) => {
+  const { data, error } = await sb
+    .from('transactions')
+    .insert([transaction])
+    .select()
+    .single();
+  if (error) {
+    console.error('[transactions.createTransaction] error:', error);
+    throw error;
+  }
+  return data;
+};
+
+export const calculateRevenueSplit = async (totalCents: number) => {
+  const { data, error } = await sb.rpc('calculate_revenue_split', { total_cents: totalCents });
+  if (error) {
+    console.error('[revenue.calculateRevenueSplit] error:', error);
+    return { racer_amount: Math.floor(totalCents * 0.8), platform_amount: Math.floor(totalCents * 0.2) };
   }
   return data;
 };

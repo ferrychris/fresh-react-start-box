@@ -20,10 +20,20 @@ import {
 } from 'lucide-react';
 import { useApp } from '../App';
 import { supabase } from '../lib/supabase';
+import { GiftModal } from './GiftModal';
+import { TokenStore } from './TokenStore';
 
 interface GoLiveModalProps {
   onClose: () => void;
   onGoLive: (streamData: any) => void;
+}
+
+interface MockMediaDevice {
+  deviceId: string;
+  label: string;
+  kind: string;
+  groupId?: string;
+  toJSON?: () => any;
 }
 
 export const GoLiveModal: React.FC<GoLiveModalProps> = ({ onClose, onGoLive }) => {
@@ -35,7 +45,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({ onClose, onGoLive }) =
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [selectedCamera, setSelectedCamera] = useState('');
   const [selectedMic, setSelectedMic] = useState('');
-  const [devices, setDevices] = useState<{ cameras: MediaDeviceInfo[], mics: MediaDeviceInfo[] }>({ cameras: [], mics: [] });
+  const [devices, setDevices] = useState<{ cameras: (MediaDeviceInfo | MockMediaDevice)[], mics: (MediaDeviceInfo | MockMediaDevice)[] }>({ cameras: [], mics: [] });
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isLive, setIsLive] = useState(false);
   const [viewerCount, setViewerCount] = useState(0);
@@ -65,16 +75,23 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({ onClose, onGoLive }) =
     };
   }, []);
 
+  const createMockDevice = (deviceId: string, label: string, kind: 'videoinput' | 'audioinput'): MockMediaDevice => ({
+    deviceId,
+    label,
+    kind,
+    groupId: 'default',
+    toJSON: () => ({ deviceId, label, kind })
+  });
+
   const getMediaDevices = async () => {
     try {
       // Check if media devices are supported
       if (!navigator.mediaDevices) {
         console.warn('⚠️ Media devices not supported on this browser');
         // Set default devices for browsers without media support
-        setDevices({ 
-          cameras: [{ deviceId: 'default', label: 'Default Camera', kind: 'videoinput' }], 
-          mics: [{ deviceId: 'default', label: 'Default Microphone', kind: 'audioinput' }] 
-        });
+        const mockCameras = [createMockDevice('default', 'Default Camera', 'videoinput')];
+        const mockMics = [createMockDevice('default', 'Default Microphone', 'audioinput')];
+        setDevices({ cameras: mockCameras, mics: mockMics });
         setSelectedCamera('default');
         setSelectedMic('default');
         return;
@@ -101,10 +118,9 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({ onClose, onGoLive }) =
         } catch (permError) {
           console.warn('⚠️ Media permissions denied:', permError);
           // Set default devices even if permissions are denied
-          setDevices({ 
-            cameras: [{ deviceId: 'default', label: 'Default Camera', kind: 'videoinput' }], 
-            mics: [{ deviceId: 'default', label: 'Default Microphone', kind: 'audioinput' }] 
-          });
+          const mockCameras = [createMockDevice('default', 'Default Camera', 'videoinput')];
+          const mockMics = [createMockDevice('default', 'Default Microphone', 'audioinput')];
+          setDevices({ cameras: mockCameras, mics: mockMics });
           setSelectedCamera('default');
           setSelectedMic('default');
           return;
@@ -118,8 +134,8 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({ onClose, onGoLive }) =
       console.log('🎤 Microphones found:', mics.length);
       
       // Ensure we have at least default devices
-      const finalCameras = cameras.length > 0 ? cameras : [{ deviceId: 'default', label: 'Default Camera', kind: 'videoinput' }];
-      const finalMics = mics.length > 0 ? mics : [{ deviceId: 'default', label: 'Default Microphone', kind: 'audioinput' }];
+      const finalCameras = cameras.length > 0 ? cameras : [createMockDevice('default', 'Default Camera', 'videoinput')];
+      const finalMics = mics.length > 0 ? mics : [createMockDevice('default', 'Default Microphone', 'audioinput')];
       
       setDevices({ cameras: finalCameras, mics: finalMics });
       
@@ -128,10 +144,9 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({ onClose, onGoLive }) =
     } catch (error) {
       console.error('Error getting media devices:', error);
       // Set fallback devices on any error
-      setDevices({ 
-        cameras: [{ deviceId: 'default', label: 'Default Camera', kind: 'videoinput' }], 
-        mics: [{ deviceId: 'default', label: 'Default Microphone', kind: 'audioinput' }] 
-      });
+      const mockCameras = [createMockDevice('default', 'Default Camera', 'videoinput')];
+      const mockMics = [createMockDevice('default', 'Default Microphone', 'audioinput')];
+      setDevices({ cameras: mockCameras, mics: mockMics });
       setSelectedCamera('default');
       setSelectedMic('default');
     }
@@ -451,7 +466,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({ onClose, onGoLive }) =
         <div className="p-3 sm:p-4 md:p-6 border-b border-gray-700 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center ${
-              isLive ? 'bg-red-600 animate-pulse' : 'bg-fedex-orange'
+              isLive ? 'bg-red-600 animate-pulse' : 'bg-orange-500'
             }`}>
               <Video className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6 text-white" />
             </div>
@@ -641,7 +656,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({ onClose, onGoLive }) =
                   <button
                     onClick={startPreview}
                     disabled={!streamTitle.trim()}
-                    className="px-3 py-2 sm:px-4 sm:py-2 md:px-6 md:py-3 bg-fedex-orange hover:bg-fedex-orange-dark rounded-lg font-semibold transition-colors flex items-center space-x-1 sm:space-x-2 text-sm sm:text-base"
+                    className="px-3 py-2 sm:px-4 sm:py-2 md:px-6 md:py-3 bg-orange-500 hover:bg-orange-600 rounded-lg font-semibold transition-colors flex items-center space-x-1 sm:space-x-2 text-sm sm:text-base"
                   >
                     <Play className="h-3 w-3 sm:h-4 sm:w-4" />
                     <span className="hidden sm:inline">Start Preview</span>

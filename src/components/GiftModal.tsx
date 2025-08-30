@@ -4,16 +4,15 @@ import {
   getUserTokens, 
   getVirtualGifts, 
   gifts as supabaseGifts,
-  type UserTokens,
-  type VirtualGift 
 } from '../lib/supabase';
+import type { UserTokens, VirtualGift } from '../lib/supabase/types';
 import { useApp } from '../App';
 
 interface GiftModalProps {
   racerId: string;
   racerName: string;
   onClose: () => void;
-  onGiftSent?: () => void;
+  onGiftSent?: (giftName: string, giftEmoji: string, tokenCost: number) => void;
 }
 
 export const GiftModal: React.FC<GiftModalProps> = ({
@@ -81,7 +80,9 @@ export const GiftModal: React.FC<GiftModalProps> = ({
       const updatedTokens = await getUserTokens(user.id);
       setUserTokens(updatedTokens);
       
-      onGiftSent?.(selectedGift.name, selectedGift.emoji, selectedGift.token_cost);
+      if (onGiftSent) {
+        onGiftSent(selectedGift.name, selectedGift.emoji, selectedGift.token_cost);
+      }
       onClose();
       
       alert(`🎁 ${selectedGift.name} sent to ${racerName}!`);
@@ -176,7 +177,7 @@ export const GiftModal: React.FC<GiftModalProps> = ({
           <div className="p-6">
           {loading ? (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-fedex-orange mx-auto mb-4"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
               <p className="text-gray-400">Loading gifts...</p>
             </div>
           ) : (
@@ -187,7 +188,7 @@ export const GiftModal: React.FC<GiftModalProps> = ({
                   onClick={() => canAfford(gift) && setSelectedGift(gift)}
                   className={`p-3 sm:p-4 rounded-xl border-2 text-center transition-all cursor-pointer touch-manipulation ${
                     selectedGift?.id === gift.id
-                      ? 'border-fedex-orange bg-fedex-orange/10 scale-105'
+                      ? 'border-orange-500 bg-orange-500/10 scale-105'
                       : canAfford(gift)
                       ? `${getRarityColor(gift.rarity)} hover:scale-105`
                       : 'border-gray-700 bg-gray-800 opacity-50 cursor-not-allowed'
@@ -231,7 +232,7 @@ export const GiftModal: React.FC<GiftModalProps> = ({
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-fedex-orange"
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   rows={2}
                   placeholder={`Great race! Keep it up! 🏁`}
                   maxLength={200}
@@ -287,9 +288,9 @@ export const GiftModal: React.FC<GiftModalProps> = ({
 
         {/* No tokens CTA */}
         {userTokens && userTokens.token_balance === 0 && (
-            <div className="px-6 pb-6 border-t border-gray-700 bg-gradient-to-r from-fedex-orange/10 to-red-500/10">
+            <div className="px-6 pb-6 border-t border-gray-700 bg-gradient-to-r from-orange-500/10 to-red-500/10">
             <div className="text-center">
-              <Sparkles className="h-8 w-8 mx-auto mb-2 text-fedex-orange" />
+              <Sparkles className="h-8 w-8 mx-auto mb-2 text-orange-500" />
               <h4 className="font-semibold text-white mb-2">No tokens yet?</h4>
               <p className="text-gray-400 text-sm mb-4">Buy tokens to send awesome gifts to racers!</p>
               <button
@@ -297,7 +298,7 @@ export const GiftModal: React.FC<GiftModalProps> = ({
                   onClose();
                   // Open token store
                 }}
-                className="px-6 py-2 bg-fedex-orange hover:bg-fedex-orange-dark rounded-lg font-semibold text-white transition-colors"
+                className="px-6 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg font-semibold text-white transition-colors"
               >
                 Buy Tokens
               </button>
