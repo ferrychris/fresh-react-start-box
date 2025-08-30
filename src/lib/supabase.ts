@@ -96,14 +96,16 @@ export const getUnreadNotificationCount = async (userId: string): Promise<number
         return 0;
       }
       
+      // Use a lightweight GET instead of HEAD to avoid network/proxy issues with HEAD requests
       const { count, error } = await sb
         .from('notifications')
-        .select('*', { count: 'exact', head: true})
+        .select('id', { count: 'exact' })
         .eq('user_id', userId)
-        .eq('read', false);
+        .eq('read', false)
+        .limit(1); // minimize payload
       
       if (error) {
-        if (error.message.includes('Failed to fetch') && retries < maxRetries - 1) {
+        if (error.message?.includes('Failed to fetch') && retries < maxRetries - 1) {
           console.warn(`Retry ${retries + 1}/${maxRetries} for notification count`);
           retries++;
           await new Promise(resolve => setTimeout(resolve, 1000 * retries)); // Exponential backoff

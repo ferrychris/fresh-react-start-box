@@ -14,7 +14,7 @@ export const AuthRedirect: React.FC<AuthRedirectProps> = ({ children }) => {
     if (!isLoading && user) {
       // If user is logged in and is a fan, redirect to fan dashboard
       if (user.user_type === 'fan') {
-        navigate(`/fan/${user.id}`, { replace: true });
+        navigate('/fan-dashboard', { replace: true });
       }
       // If user is logged in but not a fan, let them stay on current page
     }

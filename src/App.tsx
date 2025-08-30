@@ -74,7 +74,7 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
   return (
     <main className={mainPadding}>
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={user?.user_type === 'fan' ? <Navigate to="/fan-dashboard" replace /> : <Home />} />
         <Route path="/feed" element={<Feed />} />
         <Route path="/racers" element={<Racers />} />
         <Route path="/tracks" element={<Tracks />} />
@@ -89,9 +89,10 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
         <Route path="/dashboard" element={
           user?.user_type === 'racer' ? <Dashboard /> : <Navigate to="/" />
         } />
-        <Route path="/fan-dashboard" element={
-          user?.user_type === 'fan' ? <FanDashboard /> : <Navigate to="/" />
-        } />
+        {/* Stick with legacy fan dashboard route */}
+        <Route path="/fan-dashboard" element={<FanDashboard />} />
+        {/* Redirect generic /fan to legacy /fan-dashboard */}
+        <Route path="/fan" element={<Navigate to="/fan-dashboard" replace />} />
         <Route path="/fan/:id" element={<FanDashboard />} />
         <Route path="/track-dashboard" element={
           user?.user_type === 'track' ? <TrackDashboard /> : <Navigate to="/" />
@@ -199,7 +200,7 @@ const AppFooter: React.FC = () => {
         {/* Bottom Bar */}
         <div className="mt-8 pt-8 border-t flex flex-col md:flex-row justify-between items-center border-gray-800">
           <p className="text-sm text-gray-400">
-            © 2025 OnlyRaceFans.co. All rights reserved.
+            &copy; 2025 OnlyRaceFans.co. All rights reserved.
           </p>
           <p className="text-sm mt-2 md:mt-0 text-gray-400">
             Where the Real Ones Race 🏁

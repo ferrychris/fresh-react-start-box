@@ -143,81 +143,6 @@ const FanDashboard: React.FC = () => {
     return Math.floor(seconds) + ' seconds ago';
   };
 
-  // Helper function to check if a table exists
-  const checkTableExists = async (tableName: string): Promise<boolean> => {
-    try {
-      const { data, error } = await supabase
-        .from('information_schema.tables')
-        .select('table_name')
-        .eq('table_schema', 'public')
-        .eq('table_name', tableName)
-        .maybeSingle();
-      
-      return !error && data !== null;
-    } catch (error) {
-      console.error(`Error checking if table ${tableName} exists:`, error);
-      return false;
-    }
-  };
-
-  // Helper function to initialize empty tables with default data
-  const initializeEmptyTables = async (userId: string) => {
-    // Only initialize for the current user viewing their own profile
-    if (user?.id !== userId) return;
-    
-    try {
-      // Check if fan_stats exists and has data for this user
-      const statsTableExists = await checkTableExists('fan_stats');
-      if (statsTableExists) {
-        const { data: existingStats } = await supabase
-          .from('fan_stats')
-          .select('id')
-          .eq('fan_id', userId)
-          .maybeSingle();
-          
-        if (!existingStats) {
-          // Create default stats entry
-          await supabase
-            .from('fan_stats')
-            .insert({
-              fan_id: userId,
-              support_points: 0,
-              total_tips: 0,
-              active_subscriptions: 0,
-              activity_streak: 1 // Start with 1 day streak for new users
-            });
-          console.log('Initialized default fan stats');
-        }
-      }
-      
-      // Check if fan_activity exists and has welcome activity
-      const activityTableExists = await checkTableExists('fan_activity');
-      if (activityTableExists) {
-        const { data: existingActivity } = await supabase
-          .from('fan_activity')
-          .select('id')
-          .eq('fan_id', userId)
-          .eq('activity_type', 'welcome')
-          .maybeSingle();
-          
-        if (!existingActivity) {
-          // Create welcome activity
-          await supabase
-            .from('fan_activity')
-            .insert({
-              fan_id: userId,
-              activity_type: 'welcome',
-              badge_name: 'Welcome to OnlyRaceFans',
-              created_at: new Date().toISOString()
-            });
-          console.log('Initialized welcome activity');
-        }
-      }
-    } catch (error) {
-      console.error('Error initializing empty tables:', error);
-    }
-  };
-
   const loadFanProfile = useCallback(async () => {
     try {
       setLoading(true);
@@ -229,17 +154,7 @@ const FanDashboard: React.FC = () => {
         .eq('id', id)
         .maybeSingle();
       
-      if (fanError) {
-        console.error('Error loading fan profile:', fanError);
-        // Don't throw error, continue with empty data
-      }
-      
-      // Initialize empty tables if needed (only for current user) - do this asynchronously
-      if (user?.id === id) {
-        initializeEmptyTables(id).catch(err => 
-          console.error('Failed to initialize tables:', err)
-        );
-      }
+      if (fanError) throw fanError;
       
       // Resolve banner image locally to avoid referencing state in dependencies
       let resolvedBanner: string | null = null;
@@ -284,88 +199,67 @@ const FanDashboard: React.FC = () => {
       
       // Load fan stats with error handling for missing table
       let statsData = null;
-      const statsTableExists = await checkTableExists('fan_stats');
-      
-      if (statsTableExists) {
-        try {
-          const { data, error: statsError } = await supabase
-            .from('fan_stats')
-            .select('*')
-            .eq('fan_id', id)
-            .maybeSingle();
-          
-          if (!statsError) {
-            statsData = data;
-          } else {
-            console.error('Error fetching fan stats:', statsError);
-          }
-        } catch (statsError: unknown) {
-          const errorMsg = statsError instanceof Error ? statsError.message : 'Unknown error';
-          console.error('Error fetching fan stats:', errorMsg);
+      try {
+        const { data, error: statsError } = await supabase
+          .from('fan_stats')
+          .select('*')
+          .eq('fan_id', id)
+          .maybeSingle();
+        
+        if (!statsError || statsError.code === 'PGRST116') {
+          statsData = data;
         }
-      } else {
-        console.log('Fan stats table does not exist yet');
+      } catch (statsError: unknown) {
+        const errorMsg = statsError instanceof Error ? statsError.message : 'Unknown error';
+        console.log('Fan stats table may not exist yet:', errorMsg);
+        // Continue execution - we'll use default values
       }
       
       // Load favorite racers with error handling for missing table
       let racersData = [];
-      const racersTableExists = await checkTableExists('fan_favorite_racers');
-      
-      if (racersTableExists) {
-        try {
-          const { data, error: racersError } = await supabase
-            .from('fan_favorite_racers')
-            .select(`
-              racer_id,
-              racers:racer_id (name, avatar_url, country_flag, next_race_track, next_race_date),
-              last_tipped,
-              total_tipped,
-              subscription_tier
-            `)
-            .eq('fan_id', id)
-            .order('total_tipped', { ascending: false })
-            .limit(5);
-          
-          if (!racersError) {
-            racersData = data || [];
-          } else {
-            console.error('Error fetching favorite racers:', racersError);
-          }
-        } catch (racersError: unknown) {
-          const errorMsg = racersError instanceof Error ? racersError.message : 'Unknown error';
-          console.error('Error fetching favorite racers:', errorMsg);
+      try {
+        const { data, error: racersError } = await supabase
+          .from('fan_favorite_racers')
+          .select(`
+            racer_id,
+            racers:racer_id (name, avatar_url, country_flag, next_race_track, next_race_date),
+            last_tipped,
+            total_tipped,
+            subscription_tier
+          `)
+          .eq('fan_id', id)
+          .order('total_tipped', { ascending: false })
+          .limit(5);
+        
+        if (!racersError) {
+          racersData = data || [];
         }
-      } else {
-        console.log('Fan favorite racers table does not exist yet');
+      } catch (racersError: unknown) {
+        const errorMsg = racersError instanceof Error ? racersError.message : 'Unknown error';
+        console.log('Fan favorite racers table may not exist yet:', errorMsg);
+        // Continue execution with empty array
       }
       
       // Load recent activity with error handling for missing table
       let activityData = [];
-      const activityTableExists = await checkTableExists('fan_activity');
-      
-      if (activityTableExists) {
-        try {
-          const { data, error: activityError } = await supabase
-            .from('fan_activity')
-            .select('*')
-            .eq('fan_id', id)
-            .order('created_at', { ascending: false })
-            .limit(5);
-          
-          if (!activityError) {
-            activityData = data || [];
-          } else {
-            console.error('Error fetching activity:', activityError);
-          }
-        } catch (activityError: unknown) {
-          const errorMsg = activityError instanceof Error ? activityError.message : 'Unknown error';
-          console.error('Error fetching activity:', errorMsg);
+      try {
+        const { data, error: activityError } = await supabase
+          .from('fan_activity')
+          .select('*')
+          .eq('fan_id', id)
+          .order('created_at', { ascending: false })
+          .limit(5);
+        
+        if (!activityError) {
+          activityData = data || [];
         }
-      } else {
-        console.log('Fan activity table does not exist yet');
+      } catch (activityError: unknown) {
+        const errorMsg = activityError instanceof Error ? activityError.message : 'Unknown error';
+        console.log('Fan activity table may not exist yet:', errorMsg);
+        // Continue execution with empty array
       }
       
-      // Format the data - create a default profile if none exists
+      // Format the data
       if (fanData) {
         setFanProfile({
           ...fanData,
@@ -377,28 +271,6 @@ const FanDashboard: React.FC = () => {
           favorites_count: 0,
           badges_count: 0
         });
-      } else {
-        // Create a default profile for the user
-        const defaultProfile: FanProfile = {
-          id: id || '',
-          username: 'user',
-          name: 'Racing Fan',
-          avatar_url: '',
-          avatar: null,
-          banner_image: null,
-          fan_type: 'Racing Fan',
-          user_type: 'fan',
-          created_at: new Date().toISOString(),
-          points: 0,
-          streak_days: 0,
-          favorites_count: 0,
-          badges_count: 0,
-          email: '',
-          profile_complete: false,
-          updated_at: new Date().toISOString(),
-          avatars: null
-        };
-        setFanProfile(defaultProfile);
       }
       
       // Set default stats with more descriptive placeholders if statsData is null
@@ -514,38 +386,7 @@ const FanDashboard: React.FC = () => {
 
   useEffect(() => {
     if (id) {
-      // Set a timeout to prevent infinite loading
-      const timeoutId = setTimeout(() => {
-        if (loading) {
-          console.warn('Profile loading timeout - using default values');
-          setLoading(false);
-          // Create a default profile if still loading
-          const defaultProfile: FanProfile = {
-            id: id || '',
-            username: 'user',
-            name: 'Racing Fan',
-            avatar_url: '',
-            avatar: null,
-            banner_image: null,
-            fan_type: 'Racing Fan',
-            user_type: 'fan',
-            created_at: new Date().toISOString(),
-            points: 0,
-            streak_days: 0,
-            favorites_count: 0,
-            badges_count: 0,
-            email: '',
-            profile_complete: false,
-            updated_at: new Date().toISOString(),
-            avatars: null
-          };
-          setFanProfile(defaultProfile);
-        }
-      }, 5000); // 5 second timeout
-      
       loadFanProfile();
-      
-      return () => clearTimeout(timeoutId);
     }
   }, [id, loadFanProfile]);
 
