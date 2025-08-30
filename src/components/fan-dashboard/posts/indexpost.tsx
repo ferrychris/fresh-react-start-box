@@ -109,7 +109,7 @@ const IndexPost: React.FC = () => {
       if (newPost) {
         // Create a Post object from the newly created post
         const newUiPost: Post = {
-          id: newPost.id,
+          id: (newPost as any).id || Date.now().toString(),
           userId: user.id,
           userType: 'FAN',
           userName: user.name || 'Fan',
