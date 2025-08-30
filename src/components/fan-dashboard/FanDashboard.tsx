@@ -147,7 +147,7 @@ const FanDashboard: React.FC = () => {
         .from('profiles')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
       
       if (fanError) throw fanError;
       
@@ -471,7 +471,7 @@ const FanDashboard: React.FC = () => {
       <ProfileHeader
         name={fanProfile.name || 'Racing Fan'}
         username={fanProfile.username || 'user'}
-        avatarUrl={fanProfile.avatar_url || fanProfile.avatar || 'https://via.placeholder.com/150'}
+        avatarUrl={fanProfile.avatar_url || fanProfile.avatar || 'https://placehold.co/150'}
         bannerImageUrl={fanProfile?.banner_image || bannerImage || undefined}
         memberSince={new Date(fanProfile.created_at).toLocaleDateString()}
         fanType={fanProfile.fan_type || 'Racing Fan'}

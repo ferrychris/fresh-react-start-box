@@ -386,7 +386,7 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.onerror = null;
-                        target.src = 'https://via.placeholder.com/800x400?text=Image+Not+Available';
+                        target.src = 'https://placehold.co/800x400?text=Image+Not+Available';
                       }}
                     />
                   ) : (
@@ -403,7 +403,7 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
                               target.onerror = null;
-                              target.src = 'https://via.placeholder.com/400x200?text=Image+Not+Available';
+                              target.src = 'https://placehold.co/400x200?text=Image+Not+Available';
                             }}
                           />
                           {index === 3 && post.mediaUrls.length > 4 && (
