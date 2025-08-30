@@ -4,6 +4,7 @@ import { CreatePost } from './CreatePost'
 import PostsPanel from './PostsPanel'
 import { Post, PostCreationPayload, transformDbPostToUIPost } from './types'
 import { supabase, createFanPost, getFanPosts } from '../../../lib/supabase'
+import { uploadPostImage, uploadPostVideo, getPostPublicUrl } from '../../../lib/supabase/storage'
 import { useUser } from '../../../contexts/UserContext'
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -56,24 +57,36 @@ const IndexPost: React.FC = () => {
       // Upload media files if provided
       if (payload.mediaFiles.length > 0 && payload.mediaType) {
         try {
-          // Upload each file to Supabase storage
           for (const file of payload.mediaFiles) {
-            const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-            const { data, error } = await supabase.storage
-              .from('postimage')
-              .upload(`fan_posts/${user.id}/${fileName}`, file);
-              
-            if (error) {
-              console.error('Error uploading media:', error);
-              toast.error(`Failed to upload media: ${error.message}`);
-              continue; // Try to upload the next file
+            const result = payload.mediaType === 'video'
+              ? await uploadPostVideo(user.id, file)
+              : await uploadPostImage(user.id, file);
+
+            // Handle helper error shape
+            if ((result as any)?.error) {
+              const err = (result as any).error;
+              console.error('Error uploading media:', err);
+              toast.error(`Failed to upload media: ${err?.message || 'Unknown error'}`);
+              continue;
             }
-            
-            // Get public URL
-            const mediaUrl = supabase.storage.from('postimage').getPublicUrl(data.path).data.publicUrl;
+
+            const path = (result as any)?.path || (result as any)?.data?.path || (result as any)?.fullPath || (result as any)?.Key;
+            if (!path) {
+              console.error('Upload returned without a path:', result);
+              toast.error('Failed to determine uploaded media path');
+              continue;
+            }
+
+            const mediaUrl = getPostPublicUrl(path);
+            if (!mediaUrl) {
+              console.error('Failed to get public URL for path:', path);
+              toast.error('Failed to get public URL for uploaded media');
+              continue;
+            }
+
             mediaUrls.push(mediaUrl);
           }
-          
+
           if (mediaUrls.length > 0) {
             toast.success(`${mediaUrls.length} file${mediaUrls.length > 1 ? 's' : ''} uploaded successfully`);
           } else {

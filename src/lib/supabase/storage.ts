@@ -138,9 +138,9 @@ export const uploadPostImage = async (userId: string, file: File) => {
     return { error: new Error(`File size exceeds the 10MB limit`) };
   }
   
-  // Store images under postimage bucket with user ID and timestamp
+  // Store images under the same racer bucket with user ID and timestamp
   const path = `${userId}/posts/images/${Date.now()}-${file.name}`;
-  return uploadFile('postimage', path, file);
+  return uploadFile(BUCKET_NAME, path, file);
 };
 
 // Improve post video upload with better error handling
@@ -162,9 +162,9 @@ export const uploadPostVideo = async (userId: string, file: File) => {
     return { error: new Error(`File size exceeds the 50MB limit`) };
   }
   
-  // Store videos under postimage bucket with user ID and timestamp
+  // Store videos under the same racer bucket with user ID and timestamp
   const path = `${userId}/posts/videos/${Date.now()}-${file.name}`;
-  return uploadFile('postimage', path, file);
+  return uploadFile(BUCKET_NAME, path, file);
 };
 
 export const uploadImage = async (racerId: string, file: File) => {
@@ -213,10 +213,10 @@ export const getPublicUrl = (bucket: string, path: string) => {
 export const getPostPublicUrl = (path: string) => {
   if (!path) return null;
   try {
-    const { data } = supabase.storage.from('postimage').getPublicUrl(path);
+    const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
     return data.publicUrl;
   } catch (err) {
-    console.error(`Error getting public URL for postimage/${path}:`, err);
+    console.error(`Error getting public URL for ${BUCKET_NAME}/${path}:`, err);
     return null;
   }
 };
