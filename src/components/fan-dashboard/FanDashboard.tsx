@@ -551,12 +551,4 @@ const FanDashboard: React.FC = () => {
   );
 };
 
-export interface FanDashboardComponentProps {
-  viewedUserId?: string;
-}
-
-export const FanDashboardComponent: React.FC<FanDashboardComponentProps> = (props) => {
-  return <FanDashboard {...props} />;
-};
-
 export default FanDashboard;

@@ -90,14 +90,15 @@ export const AuthModal: React.FC = () => {
       if (profile) {
         console.log('✅ Profile loaded:', profile);
         
-        const userData = {
-          id: profile.id,
-          name: profile.name,
-          email: profile.email,
-          type: profile.user_type,
-          profilePicture: profile.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.name}`,
-          profileComplete: profile.profile_complete
-        };
+          const userData = {
+            id: profile.id,
+            name: profile.name,
+            email: profile.email,
+            type: profile.user_type,
+            user_type: profile.user_type,
+            profilePicture: profile.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.name}`,
+            profileComplete: profile.profile_complete
+          };
         
         setUser(userData);
         setShowAuthModal(false);
@@ -244,6 +245,7 @@ export const AuthModal: React.FC = () => {
         name: formData.name,
         email: formData.email,
         type: userType,
+        user_type: userType,
         profilePicture: `https://api.dicebear.com/7.x/initials/svg?seed=${formData.name}`,
         profileComplete: false
       };

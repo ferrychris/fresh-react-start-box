@@ -21,28 +21,63 @@ export const getPostsForRacer = async (racerId: string): Promise<DatabasePost[]>
 // Backward-compatible alias for legacy imports
 export const getRacerPosts = getPostsForRacer;
 
-// Fetch recent posts for the fan dashboard (all users/types)
-export const getFanPosts = async () => {
+export const getFanPosts = async (): Promise<any[]> => {
   try {
-    const { data, error } = await supabase
-      .from('posts')
+    const { data: fanPosts, error: fanError } = await supabase
+      .from('fan_posts')
       .select(`
-        id, created_at, content, media_urls, post_type, likes_count, comments_count,
-        fan_id, racer_id,
-        profiles ( name, avatar, user_type ),
-        racer:racers ( id, username, profile_photo_url )
+        id,
+        created_at,
+        content,
+        media_urls,
+        post_type,
+        likes_count,
+        comments_count,
+        fan_id
       `)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(25);
 
-    if (error) {
-      console.error('Error fetching fan posts:', error);
-      return [] as any[];
+    const { data: racerPosts, error: racerError } = await supabase
+      .from('racer_posts')
+      .select(`
+        id,
+        created_at,
+        content,
+        media_urls,
+        post_type,
+        likes_count,
+        comments_count,
+        racer_id
+      `)
+      .order('created_at', { ascending: false })
+      .limit(25);
+
+    // If both queries fail, return empty array
+    if (fanError && racerError) {
+      console.error('Error fetching posts:', fanError, racerError);
+      return [];
     }
-    return (data || []) as any[];
-  } catch (e) {
-    console.error('Unexpected error in getFanPosts:', e);
-    return [] as any[];
+
+    // Combine and sort posts by creation date
+    const allPosts = [
+      ...(fanPosts || []).map(post => ({
+        ...post,
+        author_type: 'fan' as const,
+        author: { name: 'Fan User', avatar: '', user_type: 'fan' }
+      })),
+      ...(racerPosts || []).map(post => ({
+        ...post,
+        author_type: 'racer' as const,
+        author: { name: 'Racer User', avatar: '', user_type: 'racer' }
+      }))
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+     .slice(0, 50);
+
+    return allPosts;
+  } catch (error) {
+    console.error('Error fetching fan posts:', error);
+    return [];
   }
 };
 
@@ -148,7 +183,7 @@ export const togglePostLike = async (postId: string, userId: string): Promise<bo
 };
 
 export const createRacerPost = async (post: { racer_id: string; content: string; media_urls: string[]; post_type: string; visibility: string; allow_tips: boolean; }) => {
-    const { data, error } = await supabase.from('posts').insert([post]);
+    const { data, error } = await supabase.from('racer_posts').insert([post]);
     if (error) {
         throw new Error(error.message);
     }
@@ -156,7 +191,7 @@ export const createRacerPost = async (post: { racer_id: string; content: string;
 };
 
 export const createFanPost = async (post: { fan_id: string; content: string; media_urls: string[]; post_type: string; visibility: string; }) => {
-    const { data, error } = await supabase.from('posts').insert([post]);
+    const { data, error } = await supabase.from('fan_posts').insert([post]);
     if (error) {
         throw new Error(error.message);
     }

@@ -90,7 +90,7 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
           user?.user_type === 'racer' ? <Dashboard /> : <Navigate to="/" />
         } />
         <Route path="/fan-dashboard" element={
-          user?.user_type === 'fan' ? <FanDashboard viewedUserId={user.id} /> : <Navigate to="/" />
+          user?.user_type === 'fan' ? <FanDashboard /> : <Navigate to="/" />
         } />
         <Route path="/fan/:id" element={<FanDashboard />} />
         <Route path="/track-dashboard" element={
