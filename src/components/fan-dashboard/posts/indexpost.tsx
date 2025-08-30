@@ -7,6 +7,7 @@ import { supabase, createFanPost, getFanPosts } from '../../../lib/supabase'
 import { useUser } from '../../../contexts/UserContext'
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { Image, Video, MapPin } from 'lucide-react';
 
 const IndexPost: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([])

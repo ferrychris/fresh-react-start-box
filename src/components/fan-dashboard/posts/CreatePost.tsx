@@ -166,13 +166,13 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-slate-800">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-800">
-          <h2 className="text-xl font-bold text-white">Create Post</h2>
+      <div className="bg-slate-900 rounded-xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-xl">
+        {/* Header - Facebook Style */}
+        <div className="flex items-center justify-center relative p-4 border-b border-slate-800">
+          <h2 className="text-lg font-semibold text-white">Create Post</h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+            className="absolute right-4 p-2 hover:bg-slate-800 rounded-full transition-colors"
           >
             <X className="h-5 w-5 text-slate-400" />
           </button>
@@ -180,45 +180,76 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="flex flex-col h-full">
-          <div className="p-6 flex-1 overflow-y-auto">
+          <div className="p-3 flex-1 overflow-y-auto space-y-2">
+            {/* User Info */}
+            <div className="flex items-center space-x-2">
+              <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt={user?.name || 'User'} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-slate-700 flex items-center justify-center">
+                    <span className="text-slate-300 text-xl font-semibold">{user?.name?.charAt(0) || '?'}</span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-white font-medium">{user?.name || 'User'}</p>
+                <div className="flex items-center space-x-1 mt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setVisibility('public')}
+                    className="flex items-center space-x-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700"
+                  >
+                    {visibility === 'public' ? (
+                      <Globe className="h-3 w-3 text-slate-300" />
+                    ) : (
+                      <Users className="h-3 w-3 text-slate-300" />
+                    )}
+                    <span className="text-slate-300">
+                      {visibility === 'public' ? 'Public' : 'Racing Community'}
+                    </span>
+                    <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* Post Content */}
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="What's happening in racing?"
-              className="w-full bg-transparent text-white placeholder-slate-400 text-lg resize-none border-none outline-none min-h-[120px]"
+              placeholder="What's on your mind about racing?"
+              className="w-full bg-transparent text-white placeholder-slate-400 text-base resize-none border-none outline-none min-h-[70px] py-1"
               maxLength={500}
             />
 
-            {/* Character Count */}
-            <div className="text-right text-sm text-slate-400 mb-4">
-              {content.length}/500
-            </div>
-
-            {/* Media Preview */}
+            {/* Media Preview - Facebook Style */}
             {selectedFiles.length > 0 && (
-              <div className="mb-6">
-                <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg overflow-hidden border border-slate-800">
+                <div className={`grid ${selectedFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-1`}>
                   {selectedFiles.map((file, index) => (
-                    <div key={index} className="relative">
+                    <div key={index} className="relative aspect-video">
                       {file.type.startsWith('image/') ? (
                         <img
                           src={URL.createObjectURL(file)}
                           alt={`Upload ${index + 1}`}
-                          className="w-full h-32 object-cover rounded-lg"
+                          className="w-full h-full object-cover"
                         />
                       ) : (
                         <video
                           src={URL.createObjectURL(file)}
-                          className="w-full h-32 object-cover rounded-lg"
+                          className="w-full h-full object-cover"
+                          controls
                         />
                       )}
                       <button
                         type="button"
                         onClick={() => removeFile(index)}
-                        className="absolute top-2 right-2 p-1 bg-red-600 hover:bg-red-700 rounded-full transition-colors"
+                        className="absolute top-2 right-2 p-1 bg-black/60 hover:bg-black/80 rounded-full transition-colors"
                       >
-                        <Trash2 className="h-4 w-4 text-white" />
+                        <X className="h-4 w-4 text-white" />
                       </button>
                     </div>
                   ))}
@@ -226,106 +257,52 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
               </div>
             )}
 
-            {/* Location and Event Date */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="relative">
-                <MapPin className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Add location"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-400 focus:border-slate-600 focus:outline-none"
-                />
-              </div>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
-                <input
-                  type="date"
-                  value={eventDate}
-                  onChange={(e) => setEventDate(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white focus:border-slate-600 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Visibility */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Who can see this?
-              </label>
-              <div className="flex space-x-4">
-                <button
-                  type="button"
-                  onClick={() => setVisibility('public')}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
-                    visibility === 'public'
-                      ? 'bg-fedex-orange border-fedex-orange text-white'
-                      : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600'
-                  }`}
-                >
-                  <Globe className="h-4 w-4" />
-                  <span>Everyone</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVisibility('community')}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
-                    visibility === 'community'
-                      ? 'bg-fedex-orange border-fedex-orange text-white'
-                      : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600'
-                  }`}
-                >
-                  <Users className="h-4 w-4" />
-                  <span>Racing Community</span>
-                </button>
+            {/* Add to Your Post - Facebook Style */}
+            <div>
+              <div className="flex items-center justify-between py-1 px-2 bg-slate-800/50 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={triggerFileSelect}
+                    className="p-2 hover:bg-slate-700 rounded-full transition-colors"
+                  >
+                    <Image className="h-5 w-5 text-green-500" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={triggerFileSelect}
+                    className="p-2 hover:bg-slate-700 rounded-full transition-colors"
+                  >
+                    <Video className="h-5 w-5 text-blue-500" />
+                  </button>
+                  <button
+                    type="button"
+                    className="p-2 hover:bg-slate-700 rounded-full transition-colors"
+                  >
+                    <MapPin className="h-5 w-5 text-red-500" />
+                  </button>
+                  <div className="h-6 border-r border-slate-700 mx-1"></div>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || (!content.trim() && selectedFiles.length === 0)}
+                    className="px-4 py-1.5 bg-fedex-orange hover:bg-fedex-orange-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-md transition-colors text-sm"
+                  >
+                    {isSubmitting ? 'Posting...' : 'Post'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="px-6 py-4 border-t border-slate-800 bg-slate-950/50">
-            <div className="flex items-center justify-between">
-              {/* Media Buttons */}
-              <div className="flex items-center space-x-4">
-                <button
-                  type="button"
-                  onClick={triggerFileSelect}
-                  className="flex items-center space-x-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-                >
-                  <Image className="h-5 w-5" />
-                  <span className="text-sm">Photo</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={triggerFileSelect}
-                  className="flex items-center space-x-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-                >
-                  <Video className="h-5 w-5" />
-                  <span className="text-sm">Video</span>
-                </button>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isSubmitting || (!content.trim() && selectedFiles.length === 0)}
-                className="px-6 py-2 bg-fedex-orange hover:bg-fedex-orange-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
-              >
-                {isSubmitting ? 'Posting...' : 'Post'}
-              </button>
-            </div>
-
-            {/* Hidden File Input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/*,video/*"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-          </div>
+          {/* Hidden File Input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,video/*"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
         </form>
       </div>
     </div>
