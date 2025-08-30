@@ -100,10 +100,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
     setIsLiked(!wasLiked);
     
     try {
-      const newLikeStatus = await togglePostLike(post.id, user.id);
-      // Confirm the server state matches our optimistic update
-      if (newLikeStatus !== !wasLiked) {
-        setIsLiked(newLikeStatus);
+      const result = await togglePostLike(post.id, user.id);
+      if (result && typeof result === 'object' && 'liked' in result) {
+        setIsLiked(result.liked);
       }
       onPostUpdate?.();
     } catch (error) {
