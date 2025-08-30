@@ -26,7 +26,7 @@ export interface DatabasePost {
   fan_id?: string;
   visibility?: string;
   user_type?: 'racer' | 'fan' | 'track';
-  post_type?: string;
+  post_type?: 'text' | 'video' | 'photo' | 'gallery';
   comments_count?: number;
   total_tips?: number;
   allow_tips?: boolean;

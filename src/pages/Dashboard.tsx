@@ -35,7 +35,17 @@ export const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
-  const [fanStats, setFanStats] = useState<FanStats>({ total_fans: 0, super_fans: 0 });
+  const [fanStats, setFanStats] = useState<FanStats>({ 
+    fan_id: '', 
+    total_tips: 0, 
+    active_subscriptions: 0, 
+    support_points: 0, 
+    activity_streak: 0, 
+    created_at: new Date().toISOString(), 
+    updated_at: new Date().toISOString(), 
+    total_fans: 0, 
+    super_fans: 0 
+  });
   const [earnings, setEarnings] = useState<RacerEarnings | null>(null);
   const [showCompleteProfileModal, setShowCompleteProfileModal] = useState(false);
   const [contactPhone, setContactPhone] = useState('');
@@ -256,8 +266,8 @@ export const Dashboard: React.FC = () => {
             state: profile.state || '',
             postalCode: profile.postal_code || '',
             country: profile.country || '',
-            profilePhoto: profile.profile_photo_url || user.avatar || '',
-            bannerPhoto: profile.banner_photo_url || user.banner_image || '',
+            profilePhoto: profile.profile_photo_url || (user as any).avatar || '',
+            bannerPhoto: profile.banner_photo_url || (user as any).banner_image || '',
             carPhotos: profile.car_photos || [],
             socialLinks: {
               instagram: profile.social_links?.instagram || profile.instagram_url || '',
@@ -337,8 +347,16 @@ export const Dashboard: React.FC = () => {
     
     setPostsLoading(true);
     try {
-      const racerPosts = await getRacerPosts(user.id, user.id);
-      setPosts(racerPosts);
+      const racerPosts = await getRacerPosts(user.id);
+      setPosts(racerPosts.map(post => ({
+        ...post,
+        post_type: (post.post_type || 'text') as 'text' | 'video' | 'photo' | 'gallery',
+        media_urls: post.media_urls || [],
+        visibility: (post.visibility || 'public') as 'public' | 'fans_only',
+        comments_count: post.comments_count || 0,
+        total_tips: post.total_tips || 0,
+        allow_tips: post.allow_tips !== false
+      })));
     } catch (error) {
       console.error('Error loading posts:', error);
       setPosts([]);
@@ -911,7 +929,7 @@ export const Dashboard: React.FC = () => {
                               <div className="rounded-full px-1 py-1 cursor-pointer transition-all max-w-[80px] hover:bg-fedex-orange/5">
                                 <div className="flex flex-col items-center justify-center text-center py-1 w-full">
                                   <div className="rounded-full overflow-hidden">
-                                    <SupabaseImageUpload
+                  <SupabaseImageUpload
                                       type="avatar"
                                       currentImage={profileData.profilePhoto}
                                       userId={user.id}

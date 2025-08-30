@@ -617,7 +617,7 @@ export const getRacerEarnings = async (racerId: string): Promise<RacerEarnings> 
     // Prefer RPC if available
     const { data, error } = await sb.rpc('get_racer_earnings', { p_racer_id: racerId }).maybeSingle();
     if (!error && data) {
-      return { ...defaults, ...data } as RacerEarnings;
+      return Object.assign({}, defaults, data || {}) as RacerEarnings;
     }
   } catch (e) {
     // ignore and fallback

@@ -15,7 +15,7 @@ export interface SupabaseImageUploadProps {
   className?: string;
 }
 
-export default function SupabaseImageUpload({
+export const SupabaseImageUpload = ({
   type,
   currentImage,
   userId,
@@ -23,7 +23,7 @@ export default function SupabaseImageUpload({
   hidePreview = false,
   maxSize = 5,
   className = "",
-}: SupabaseImageUploadProps) {
+}: SupabaseImageUploadProps) => {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
 
@@ -169,4 +169,6 @@ export default function SupabaseImageUpload({
       </p>
     </div>
   );
-}
+};
+
+export default SupabaseImageUpload;
