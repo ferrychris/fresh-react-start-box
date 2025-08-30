@@ -56,7 +56,10 @@ export const GiftModal: React.FC<GiftModalProps> = ({
   const handleSendGift = async () => {
     if (!user || !selectedGift) return;
     
-    if (!userTokens || userTokens.token_balance < selectedGift.token_cost) {
+    // Handle both VirtualGift format and raw data format
+    const tokenCost = selectedGift.token_cost || selectedGift.token_amount || 0;
+    
+    if (!userTokens || userTokens.token_balance < tokenCost) {
       alert('Not enough tokens! Please buy more tokens first.');
       return;
     }
@@ -64,7 +67,7 @@ export const GiftModal: React.FC<GiftModalProps> = ({
     setSending(true);
     try {
       // Calculate 80/20 split for gift revenue
-      const totalTokens = selectedGift.token_cost;
+      const totalTokens = tokenCost;
       const racerTokens = Math.floor(totalTokens * 0.8); // 80% to racer
       const platformTokens = totalTokens - racerTokens; // 20% to platform
       

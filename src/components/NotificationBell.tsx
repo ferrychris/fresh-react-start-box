@@ -252,7 +252,7 @@ export const NotificationBell: React.FC = () => {
                             <h4 className={`text-sm font-medium truncate ${
                               !notification.read ? 'text-white' : 'text-gray-300'
                             }`}>
-                              {notification.title}
+                              {notification.title || 'Notification'}
                             </h4>
                             {!notification.read && (
                               <div className="w-2 h-2 bg-fedex-orange rounded-full flex-shrink-0 ml-2" />
@@ -261,7 +261,7 @@ export const NotificationBell: React.FC = () => {
                           <p className={`text-sm mt-1 ${
                             !notification.read ? 'text-gray-300' : 'text-gray-400'
                           }`}>
-                            {notification.message}
+                            {notification.message || 'You have a new notification'}
                           </p>
                           <div className="flex items-center justify-between mt-2">
                             <span className="text-xs text-gray-500">

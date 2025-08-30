@@ -8,9 +8,24 @@ interface RacerGiftsProps {
   className?: string;
 }
 
-interface ExtendedGiftTransaction extends GiftTransaction {
-  gift?: VirtualGift;
-  sender?: { name: string; avatar?: string };
+interface ExtendedGiftTransaction {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  gift_id: string;
+  token_amount: number;
+  message?: string;
+  created_at: string;
+  is_public?: boolean;
+  gift?: {
+    name?: string;
+    image_url?: string;
+    token_cost?: number;
+    emoji?: string;
+    description?: string;
+    rarity?: string;
+  };
+  sender?: { name?: string; avatar?: string };
 }
 
 export const RacerGifts: React.FC<RacerGiftsProps> = ({ racerId, className = '' }) => {

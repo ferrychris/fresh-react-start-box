@@ -56,7 +56,17 @@ export const MonetizationDashboard: React.FC<MonetizationDashboardProps> = ({
 }) => {
   const { user } = useApp();
   const [earnings, setEarnings] = useState<RacerEarnings | null>(null);
-  const [fanStats, setFanStats] = useState<FanStats>({ total_fans: 0, super_fans: 0 });
+  const [fanStats, setFanStats] = useState<FanStats>({ 
+    fan_id: user?.id || '', 
+    total_tips: 0, 
+    active_subscriptions: 0, 
+    support_points: 0, 
+    activity_streak: 0, 
+    created_at: new Date().toISOString(), 
+    updated_at: new Date().toISOString(),
+    total_fans: 0, 
+    super_fans: 0 
+  });
   const [gifts, setGifts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
