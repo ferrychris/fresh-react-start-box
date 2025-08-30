@@ -1,0 +1,359 @@
+import * as supabase from './supabase/client';
+import * as profiles from './supabase/profiles';
+import * as posts from './supabase/posts';
+import * as storage from './supabase/storage';
+import * as tokens from './supabase/tokens';
+import * as gifts from './supabase/gifts';
+import * as notifications from './supabase/notifications';
+import * as fans from './supabase/fans';
+import * as schedule from './supabase/schedule';
+import * as subscriptions from './supabase/subscriptions';
+import * as tracks from './supabase/tracks';
+import { supabase as sb } from './supabase/client';
+
+// Backward-compatible barrel exports
+// - Directly re-export the Supabase client instance
+// - Re-export all functions/types from modular files so named imports keep working
+
+export { supabase } from './supabase/client';
+
+// Feature modules (functions/types)
+export * from './supabase/profiles';
+export * from './supabase/posts';
+export * from './supabase/storage';
+export * from './supabase/tokens';
+export * from './supabase/gifts';
+export * from './supabase/notifications';
+export * from './supabase/fans';
+export * from './supabase/schedule';
+export * from './supabase/subscriptions';
+export * from './supabase/tracks';
+export * from './supabase/types';
+
+// Namespace exports for modules consumed as grouped imports (e.g., `gifts as supabaseGifts`)
+export { gifts };
+
+// Explicit re-exports for commonly used track helpers
+export { checkTrackFollow, getTrackFollowerCount, toggleTrackFollow } from './supabase/tracks';
+
+// Correct implementation of updateProfile that updates the `profiles` table directly
+export const updateProfile = async (id: string, updates: Record<string, any>) => {
+  const { data, error } = await sb
+    .from('profiles')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .maybeSingle();
+  if (error) {
+    console.error('[profiles.updateProfile] error:', error);
+    throw error;
+  }
+  return data;
+};
+
+// Sponsorship helpers (to satisfy named imports from the barrel)
+export const getRacerSponsorshipSpots = async (racerId: string) => {
+  const { data, error } = await sb
+    .from('sponsorship_spots')
+    .select('*')
+    .eq('racer_id', racerId)
+    .order('price_per_race', { ascending: true });
+  if (error) {
+    console.error('[sponsorship.getRacerSponsorshipSpots] error:', error);
+    return [] as any[];
+  }
+  return (data || []) as any[];
+};
+
+export const createSponsorshipSpot = async (spot: {
+  racer_id: string;
+  spot_name: string;
+  price_per_race: number;
+  position_top: string;
+  position_left: string;
+  spot_size: 'small' | 'medium' | 'large';
+  description?: string;
+  is_available?: boolean;
+  sponsor_name?: string;
+  sponsor_logo_url?: string;
+}) => {
+  const { data, error } = await sb
+    .from('sponsorship_spots')
+    .insert([{ ...spot, is_available: spot.is_available ?? true }])
+    .select()
+    .single();
+  if (error) {
+    console.error('[sponsorship.createSponsorshipSpot] error:', error);
+    throw error;
+  }
+  return data;
+};
+
+export const updateSponsorshipSpot = async (
+  spotId: string,
+  updates: Partial<{
+    spot_name: string;
+    price_per_race: number;
+    position_top: string;
+    position_left: string;
+    spot_size: 'small' | 'medium' | 'large';
+    description: string;
+    is_available: boolean;
+    sponsor_name?: string;
+    sponsor_logo_url?: string;
+  }>
+) => {
+  const { data, error } = await sb
+    .from('sponsorship_spots')
+    .update(updates)
+    .eq('id', spotId)
+    .select()
+    .maybeSingle();
+  if (error) {
+    console.error('[sponsorship.updateSponsorshipSpot] error:', error);
+    throw error;
+  }
+  return data;
+};
+
+export const deleteSponsorshipSpot = async (spotId: string) => {
+  const { error } = await sb
+    .from('sponsorship_spots')
+    .delete()
+    .eq('id', spotId);
+  if (error) {
+    console.error('[sponsorship.deleteSponsorshipSpot] error:', error);
+    throw error;
+  }
+  return true;
+};
+
+export const createSponsorshipInquiry = async (inquiry: {
+  spot_id: string;
+  racer_id: string;
+  sponsor_name: string;
+  sponsor_email: string;
+  sponsor_budget?: string;
+  message?: string;
+  status?: 'pending' | 'reviewed' | 'accepted' | 'rejected';
+}) => {
+  const payload = {
+    ...inquiry,
+    status: inquiry.status ?? 'pending',
+    created_at: new Date().toISOString(),
+  };
+  const { data, error } = await sb
+    .from('sponsorship_inquiries')
+    .insert([payload])
+    .select()
+    .single();
+  if (error) {
+    console.error('[sponsorship.createSponsorshipInquiry] error:', error);
+    throw error;
+  }
+  return data;
+};
+
+// Earnings and transactions helpers/types
+export type RacerEarnings = {
+  total_earnings_cents: number;
+  pending_payout_cents: number;
+  subscription_earnings_cents: number;
+  tip_earnings_cents: number;
+  sponsorship_earnings_cents: number;
+  stripe_account_id?: string | null;
+};
+
+export const getRacerEarnings = async (racerId: string): Promise<RacerEarnings> => {
+  // Default structure to avoid UI crashes
+  const defaults: RacerEarnings = {
+    total_earnings_cents: 0,
+    pending_payout_cents: 0,
+    subscription_earnings_cents: 0,
+    tip_earnings_cents: 0,
+    sponsorship_earnings_cents: 0,
+    stripe_account_id: null,
+  };
+
+  try {
+    // Prefer RPC if available
+    const rpc = await sb.rpc('get_racer_earnings', { p_racer_id: racerId }).maybeSingle();
+    if (!rpc.error && rpc.data) {
+      return { ...defaults, ...rpc.data } as RacerEarnings;
+    }
+  } catch (e) {
+    // ignore and fallback
+  }
+
+  try {
+    // Fallback: aggregate from transactions table if it exists
+    const { data, error } = await sb
+      .from('transactions')
+      .select('transaction_type, racer_amount_cents')
+      .eq('racer_id', racerId);
+    if (!error && data) {
+      const sums = data.reduce(
+        (acc: any, row: any) => {
+          const cents = Number(row.racer_amount_cents) || 0;
+          acc.total += cents;
+          if (row.transaction_type === 'subscription') acc.sub += cents;
+          else if (row.transaction_type === 'tip') acc.tip += cents;
+          else if (row.transaction_type === 'sponsorship') acc.spon += cents;
+          return acc;
+        },
+        { total: 0, sub: 0, tip: 0, spon: 0 }
+      );
+
+      // Try to fetch optional stripe account id if present
+      let stripeId: string | null = null;
+      try {
+        const { data: rp } = await sb
+          .from('racer_profiles')
+          .select('stripe_account_id')
+          .eq('id', racerId)
+          .maybeSingle();
+        stripeId = (rp as any)?.stripe_account_id ?? null;
+      } catch {}
+
+      return {
+        total_earnings_cents: sums.total,
+        pending_payout_cents: 0, // if needed, add logic based on payout schedule
+        subscription_earnings_cents: sums.sub,
+        tip_earnings_cents: sums.tip,
+        sponsorship_earnings_cents: sums.spon,
+        stripe_account_id: stripeId,
+      };
+    }
+  } catch (e) {
+    console.error('[earnings.getRacerEarnings] fallback aggregation error:', e);
+  }
+
+  return defaults;
+};
+
+export const getRacerTransactions = async (racerId: string) => {
+  try {
+    const { data, error } = await sb
+      .from('transactions')
+      .select('*')
+      .eq('racer_id', racerId)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('[earnings.getRacerTransactions] error:', error);
+      return [] as any[];
+    }
+    return (data || []) as any[];
+  } catch (e) {
+    console.error('[earnings.getRacerTransactions] unexpected error:', e);
+    return [] as any[];
+  }
+};
+
+export const getRacerGifts = async (racerId: string) => {
+  // Try a likely table name first; return empty on error
+  const candidates = ['virtual_gifts', 'gifts'];
+  for (const table of candidates) {
+    try {
+      const { data, error } = await sb
+        .from(table)
+        .select('*')
+        .eq('racer_id', racerId)
+        .order('created_at', { ascending: false });
+      if (!error) return (data || []) as any[];
+    } catch {}
+  }
+  return [] as any[];
+};
+
+// --- Batch helpers expected by App.tsx ---
+export const getSubscriptionTiersForRacers = async (
+  racerIds: string[]
+): Promise<Record<string, any[]>> => {
+  if (!Array.isArray(racerIds) || racerIds.length === 0) return {};
+  try {
+    const { data, error } = await sb
+      .from('subscription_tiers')
+      .select('*')
+      .in('racer_id', racerIds)
+      .eq('is_active', true)
+      .order('price_cents', { ascending: true });
+    if (error) {
+      console.error('[subscriptions.getSubscriptionTiersForRacers] error:', error);
+      return {};
+    }
+    const map: Record<string, any[]> = {};
+    for (const row of data || []) {
+      const rid = (row as any).racer_id;
+      if (!map[rid]) map[rid] = [];
+      map[rid].push(row);
+    }
+    return map;
+  } catch (e) {
+    console.error('[subscriptions.getSubscriptionTiersForRacers] unexpected error:', e);
+    return {};
+  }
+};
+
+export const getFanCountsForRacers = async (
+  racerIds: string[]
+): Promise<Record<string, number>> => {
+  if (!Array.isArray(racerIds) || racerIds.length === 0) return {};
+  try {
+    // Fetch connections for all provided racer IDs and aggregate in-memory
+    const { data, error } = await sb
+      .from('fan_connections')
+      .select('racer_id')
+      .in('racer_id', racerIds);
+    if (error) {
+      console.error('[fans.getFanCountsForRacers] error:', error);
+      return {};
+    }
+    const counts: Record<string, number> = {};
+    for (const row of data || []) {
+      const rid = (row as any).racer_id as string;
+      counts[rid] = (counts[rid] || 0) + 1;
+    }
+    // Ensure all requested IDs exist in the map
+    for (const id of racerIds) if (!(id in counts)) counts[id] = 0;
+    return counts;
+  } catch (e) {
+    console.error('[fans.getFanCountsForRacers] unexpected error:', e);
+    return {};
+  }
+};
+
+// --- Fan profile helper expected by FanSetup.tsx ---
+export const createFanProfile = async (payload: {
+  id: string;
+  location?: string;
+  favorite_classes?: string[];
+  favorite_tracks?: string[];
+  followed_racers?: string[];
+  why_i_love_racing?: string;
+  profile_photo_url?: string;
+}) => {
+  try {
+    const { data, error } = await sb
+      .from('fans')
+      .upsert({
+        id: payload.id,
+        location: payload.location ?? null,
+        favorite_classes: payload.favorite_classes ?? [],
+        favorite_tracks: payload.favorite_tracks ?? [],
+        followed_racers: payload.followed_racers ?? [],
+        why_i_love_racing: payload.why_i_love_racing ?? null,
+        profile_photo_url: payload.profile_photo_url ?? null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' })
+      .select()
+      .maybeSingle();
+    if (error) {
+      console.error('[fans.createFanProfile] error:', error);
+      throw error;
+    }
+    return data;
+  } catch (e) {
+    console.error('[fans.createFanProfile] unexpected error:', e);
+    throw e;
+  }
+};
