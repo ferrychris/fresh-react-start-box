@@ -46,6 +46,8 @@ export interface DatabasePost {
   };
 }
 
+import { getPostPublicUrl } from '../../../lib/supabase/storage';
+
 // Helper function to transform database posts into UI-ready posts
 export const transformDbPostToUIPost = (post: DatabasePost): Post => {
   const formatTimestamp = (dateString: string): string => {
@@ -62,6 +64,36 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
     return date.toLocaleDateString();
   };
 
+  // Normalize media_urls: can be array or JSON string; convert storage paths to public URLs
+  let rawMedia = post.media_urls as unknown;
+  let mediaArray: string[] = [];
+  try {
+    if (Array.isArray(rawMedia)) {
+      mediaArray = rawMedia as string[];
+    } else if (typeof rawMedia === 'string' && rawMedia.trim().length > 0) {
+      const parsed = JSON.parse(rawMedia);
+      if (Array.isArray(parsed)) mediaArray = parsed as string[];
+    }
+  } catch {}
+
+  const normalizedMedia: string[] = mediaArray
+    .filter((u): u is string => typeof u === 'string' && u.length > 0)
+    .map((u) => {
+      const isHttp = /^https?:\/\//i.test(u);
+      return isHttp ? u : (getPostPublicUrl(u) || u);
+    })
+    .filter(Boolean);
+
+  // Prefer images first when choosing mediaType and display order
+  const imageExtensions = /(\.jpg|\.jpeg|\.png|\.gif|\.webp|\.avif)$/i;
+  const videoExtensions = /(\.mp4|\.webm|\.ogg|\.mov|\.m4v)$/i;
+  const images = normalizedMedia.filter((u) => imageExtensions.test(u));
+  const videos = normalizedMedia.filter((u) => videoExtensions.test(u));
+  const orderedMedia = images.length > 0 ? [...images, ...videos] : normalizedMedia;
+  const mediaType = orderedMedia.length > 0
+    ? (videoExtensions.test(orderedMedia[0]) ? 'video' : 'image')
+    : undefined;
+
   return {
     id: post.id,
     userId: post.user_id || post.racer_id || post.fan_id || '',
@@ -70,10 +102,8 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
     userType: (post.user_type?.toUpperCase() as 'RACER' | 'FAN' | 'TRACK' | 'SERIES') || 'FAN',
     userVerified: post.user_type === 'racer',
     content: post.content,
-    mediaUrls: Array.isArray(post.media_urls) ? post.media_urls : [],
-    mediaType: post.media_urls && post.media_urls.length > 0
-      ? (post.media_urls[0].match(/\.(mp4|webm|ogg|mov)$/i) ? 'video' : 'image')
-      : undefined,
+    mediaUrls: orderedMedia,
+    mediaType,
     timestamp: formatTimestamp(post.created_at),
     likes: post.likes_count || 0,
     comments: post.comments_count || 0,
