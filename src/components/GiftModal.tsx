@@ -56,8 +56,7 @@ export const GiftModal: React.FC<GiftModalProps> = ({
   const handleSendGift = async () => {
     if (!user || !selectedGift) return;
     
-    // Handle both VirtualGift format and raw data format
-    const tokenCost = selectedGift.token_cost || selectedGift.token_amount || 0;
+    const tokenCost = selectedGift.token_cost;
     
     if (!userTokens || userTokens.token_balance < tokenCost) {
       alert('Not enough tokens! Please buy more tokens first.');

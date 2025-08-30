@@ -252,7 +252,7 @@ export const NotificationBell: React.FC = () => {
                             <h4 className={`text-sm font-medium truncate ${
                               !notification.read ? 'text-white' : 'text-gray-300'
                             }`}>
-                              {notification.title || 'Notification'}
+                              {(notification as any).title || 'Notification'}
                             </h4>
                             {!notification.read && (
                               <div className="w-2 h-2 bg-fedex-orange rounded-full flex-shrink-0 ml-2" />
@@ -261,20 +261,20 @@ export const NotificationBell: React.FC = () => {
                           <p className={`text-sm mt-1 ${
                             !notification.read ? 'text-gray-300' : 'text-gray-400'
                           }`}>
-                            {notification.message || 'You have a new notification'}
+                            {(notification as any).message || 'You have a new notification'}
                           </p>
                           <div className="flex items-center justify-between mt-2">
                             <span className="text-xs text-gray-500">
                               {formatTimeAgo(notification.created_at)}
                             </span>
-                            {notification.type === 'sponsorship_inquiry' && notification.data?.spot_price && (
+                            {notification.type === 'sponsorship_inquiry' && (notification as any).data?.spot_price && (
                               <span className="text-xs text-green-400 font-medium">
-                                💰 ${((notification.data.spot_price as number) / 100)}/race
+                                💰 ${(((notification as any).data.spot_price as number) / 100)}/race
                               </span>
                             )}
-                            {notification.type === 'new_superfan' && notification.data?.subscription_amount && (
+                            {notification.type === 'new_superfan' && (notification as any).data?.subscription_amount && (
                               <span className="text-xs text-purple-400 font-medium">
-                                💎 ${((notification.data.subscription_amount as number) / 100)}/mo
+                                💎 ${(((notification as any).data.subscription_amount as number) / 100)}/mo
                               </span>
                             )}
                           </div>

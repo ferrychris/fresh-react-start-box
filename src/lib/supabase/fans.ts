@@ -10,6 +10,13 @@ export const getFanStats = async (fanId: string): Promise<FanStats> => {
       console.error('Error fetching fan stats:', error);
       // Return default stats structure
       return {
+        fan_id: fanId,
+        total_tips: 0,
+        active_subscriptions: 0,
+        support_points: 0,
+        activity_streak: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         total_fans: 0,
         super_fans: 0,
         top_superfan_id: undefined,
@@ -18,10 +25,17 @@ export const getFanStats = async (fanId: string): Promise<FanStats> => {
       };
     }
 
-    return data as FanStats;
+    return { ...data, fan_id: fanId } as FanStats;
   } catch (error) {
     console.error('Error in getFanStats:', error);
     return {
+      fan_id: fanId,
+      total_tips: 0,
+      active_subscriptions: 0,
+      support_points: 0,
+      activity_streak: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
       total_fans: 0,
       super_fans: 0,
       top_superfan_id: undefined,

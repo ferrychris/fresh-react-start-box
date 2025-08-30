@@ -28,14 +28,33 @@ export * from './supabase/fans';
 export * from './supabase/schedule';
 export * from './supabase/subscriptions';
 export * from './supabase/tracks';
-export * from './supabase/types';
-
 // Namespace exports for modules consumed as grouped imports (e.g., `gifts as supabaseGifts`)
 export { gifts };
 export { tokens };
 
-// Add missing exports
-export { PostComment, DatabasePost, LiveStream, FanStats } from './supabase/types';
+// Type re-exports  
+export type { 
+  FanStats, 
+  DatabasePost, 
+  Notification, 
+  GiftTransaction, 
+  ExtendedUser, 
+  PostComment, 
+  RaceSchedule,
+  VirtualGift,
+  UserTokens,
+  TokenPurchase,
+  LiveStream,
+  RacerProfile,
+  FanSubscription,
+  FanActivity,
+  RacerPost,
+  RacerFan,
+  SubscriptionTier,
+  SponsorshipPackage,
+  SeriesProfile,
+  TrackProfile
+} from './supabase/types';
 
 // Add missing notification functions
 export const getNotificationsForUser = async (userId: string, limit: number = 20) => {

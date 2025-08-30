@@ -44,14 +44,11 @@ export const RacerGifts: React.FC<RacerGiftsProps> = ({ racerId, className = '' 
         message: 'Great race!',
         created_at: new Date().toISOString(),
         gift: {
-          id: 'gift1',
           name: 'Racing Trophy',
           emoji: '🏆',
           description: 'A golden trophy for excellent racing',
           token_cost: 50,
-          rarity: 'rare',
-          is_active: true,
-          created_at: new Date().toISOString()
+          rarity: 'rare'
         },
         sender: {
           name: 'Racing Fan',

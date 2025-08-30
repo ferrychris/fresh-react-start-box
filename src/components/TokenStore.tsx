@@ -319,19 +319,19 @@ export const TokenStore: React.FC<TokenStoreProps> = ({ onClose }) => {
                 {gifts.map(gift => (
                   <div
                     key={gift.id}
-                    className={`p-4 rounded-xl border-2 text-center transition-all hover:scale-105 ${getRarityColor(gift.rarity)} ${getRarityGlow(gift.rarity)}`}
-                  >
-                    <div className="text-4xl mb-2">{gift.emoji}</div>
-                    <h4 className="font-semibold text-white mb-1">{gift.name}</h4>
-                    <p className="text-xs text-gray-400 mb-3">{gift.description}</p>
-                    
-                    <div className="flex items-center justify-center space-x-1 mb-2">
-                      <Coins className="h-4 w-4 text-yellow-400" />
-                      <span className="font-bold text-yellow-400">{gift.token_cost}</span>
-                    </div>
-                    
-                    <div className={`text-xs font-semibold uppercase ${getRarityColor(gift.rarity).split(' ')[0]}`}>
-                      {gift.rarity}
+                     className={`p-4 rounded-xl border-2 text-center transition-all hover:scale-105 ${getRarityColor(gift.rarity || 'common')} ${getRarityGlow(gift.rarity || 'common')}`}
+                   >
+                     <div className="text-4xl mb-2">{gift.emoji || '🎁'}</div>
+                     <h4 className="font-semibold text-white mb-1">{gift.name || 'Unknown Gift'}</h4>
+                     <p className="text-xs text-gray-400 mb-3">{gift.description || 'A special gift'}</p>
+                     
+                     <div className="flex items-center justify-center space-x-1 mb-2">
+                       <Coins className="h-4 w-4 text-yellow-400" />
+                       <span className="font-bold text-yellow-400">{gift.token_cost || 0}</span>
+                     </div>
+                     
+                     <div className={`text-xs font-semibold uppercase ${getRarityColor(gift.rarity || 'common').split(' ')[0]}`}>
+                       {gift.rarity || 'common'}
                     </div>
                   </div>
                 ))}
