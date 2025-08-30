@@ -1,9 +1,8 @@
-
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { toast } from '@/hooks/use-toast';
 
 export interface SupabaseImageUploadProps {
   type: 'avatar' | 'banner' | 'car' | 'post' | 'logo';
@@ -50,13 +49,13 @@ export const SupabaseImageUpload = ({
 
       // Validate file size
       if (file.size > maxSize * 1024 * 1024) {
-        toast.error(`File size must be less than ${maxSize}MB`);
+        toast({ title: 'File too large', description: `File size must be less than ${maxSize}MB` });
         return;
       }
 
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        toast.error('Please select an image file');
+        toast({ title: 'Invalid file', description: 'Please select an image file' });
         return;
       }
 
@@ -76,7 +75,7 @@ export const SupabaseImageUpload = ({
 
       if (error) {
         console.error('Upload error:', error);
-        toast.error(`Upload failed: ${error.message}`);
+        toast({ title: 'Upload failed', description: error.message });
         return;
       }
 
@@ -91,11 +90,11 @@ export const SupabaseImageUpload = ({
 
       onImageChange(publicUrl);
       setPreview(publicUrl);
-      toast.success('Image uploaded successfully!');
+      toast({ title: 'Success', description: 'Image uploaded successfully!' });
 
     } catch (error) {
       console.error('Unexpected error:', error);
-      toast.error('An unexpected error occurred');
+      toast({ title: 'Unexpected error', description: 'An unexpected error occurred' });
     } finally {
       setUploading(false);
     }

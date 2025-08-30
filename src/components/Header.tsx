@@ -123,11 +123,7 @@ export const Header: React.FC = () => {
 
   return (
     <>
-      <header className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b shadow-lg transition-all duration-300 ${
-        theme === 'dark' 
-          ? 'bg-black/95 border-gray-800/50 shadow-black/20' 
-          : 'bg-white/95 border-gray-200/50 shadow-gray-200/20'
-      }`}>
+      <header className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b shadow-lg transition-all duration-300 bg-gradient-to-r from-fedex-orange to-fedex-orange-dark border-transparent text-white`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
@@ -139,11 +135,9 @@ export const Header: React.FC = () => {
                   alt="OnlyRaceFans flag logo" 
                   className="h-7 w-7 rounded-2xl object-cover group-hover:opacity-90 transition-all duration-200 group-hover:scale-105"
                 />
-                <span className={`text-base font-extrabold tracking-tight select-none ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
+                <span className={`text-base font-extrabold tracking-tight select-none text-white`}>
                   OnlyRace
-                  <span className="text-fedex-orange">Fans</span>
+                  <span className="text-white">Fans</span>
                 </span>
               </div>
             </Link>
@@ -157,11 +151,7 @@ export const Header: React.FC = () => {
                     <button
                       key={`search-${idx}`}
                       onClick={() => setShowSearch((s) => !s)}
-                      className={`relative flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                        theme === 'dark'
-                          ? 'text-gray-300 hover:text-white hover:bg-gray-800/50 hover:shadow-md'
-                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100/80 hover:shadow-md'
-                      }`}
+                      className={`relative flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-white hover:text-white/90`}
                       title="Search"
                     >
                       <Icon className="h-4 w-4" />
@@ -177,9 +167,7 @@ export const Header: React.FC = () => {
                     className={`relative flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                       isActive(path)
                         ? 'bg-gradient-to-r from-fedex-orange to-fedex-orange-dark text-white shadow-lg shadow-fedex-orange/25'
-                        : theme === 'dark'
-                          ? 'text-gray-300 hover:text-white hover:bg-gray-800/50 hover:shadow-md'
-                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100/80 hover:shadow-md'
+                        : 'text-white hover:text-white/90'
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -370,8 +358,8 @@ export const Header: React.FC = () => {
                       isActive(path) 
                         ? 'bg-gradient-to-r from-fedex-orange to-fedex-orange-dark text-white shadow-lg' 
                         : theme === 'dark'
-                          ? 'text-gray-300 hover:text-white hover:bg-gray-800/80 hover:shadow-md'
-                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100/80 hover:shadow-md'
+                          ? 'text-gray-300 hover:text-white'
+                          : 'text-gray-700 hover:text-gray-900'
                     }`}
                   >
                     <Icon className="h-5 w-5" />
@@ -408,7 +396,7 @@ export const Header: React.FC = () => {
                         user.type === 'series' ? '/series-dashboard' : '/dashboard'
                       }
                       className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                        theme === 'dark' ? 'text-gray-300 hover:text-white hover:bg-gray-800/80 hover:shadow-md' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100/80 hover:shadow-md'
+                        theme === 'dark' ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-gray-900'
                       }`}
                     >
                       <Settings className="h-5 w-5" />
@@ -477,8 +465,8 @@ export const Header: React.FC = () => {
                 (isActive('/dashboard') || isActive('/fan-dashboard') || isActive('/track-dashboard') || isActive('/series-dashboard'))
                   ? 'text-fedex-orange bg-fedex-orange/20 scale-105 shadow-lg' 
                   : theme === 'dark'
-                    ? 'text-gray-400 hover:text-white hover:bg-gray-800/60 hover:scale-105'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/60 hover:scale-105'
+                    ? 'text-gray-400 hover:text-white'
+                    : 'text-gray-600 hover:text-gray-900'
               }`}
               aria-label="Dashboard"
             >
@@ -495,7 +483,7 @@ export const Header: React.FC = () => {
               <button
                 onClick={() => setShowGoLiveModal(true)}
                 className={`flex flex-col items-center space-y-1 px-2 py-2 rounded-xl transition-all duration-300 min-w-0 relative group ${
-                  theme === 'dark' ? 'text-gray-400 hover:text-white hover:bg-gray-800/60 hover:scale-105' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/60 hover:scale-105'
+                  theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
                 }`}
                 aria-label="Go Live"
               >
@@ -513,8 +501,8 @@ export const Header: React.FC = () => {
                     isActive('/feed')
                       ? 'text-fedex-orange bg-fedex-orange/20 scale-105 shadow-lg'
                       : theme === 'dark'
-                        ? 'text-gray-400 hover:text-white hover:bg-gray-800/60 hover:scale-105'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/60 hover:scale-105'
+                        ? 'text-gray-400 hover:text-white'
+                        : 'text-gray-600 hover:text-gray-900'
                   }`}
                   aria-label="Live"
                 >
@@ -531,8 +519,8 @@ export const Header: React.FC = () => {
                     isActive('/racers')
                       ? 'text-fedex-orange bg-fedex-orange/20 scale-105 shadow-lg'
                       : theme === 'dark'
-                        ? 'text-gray-400 hover:text-white hover:bg-gray-800/60 hover:scale-105'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/60 hover:scale-105'
+                        ? 'text-gray-400 hover:text-white'
+                        : 'text-gray-600 hover:text-gray-900'
                   }`}
                   aria-label="Racers"
                 >
@@ -549,8 +537,8 @@ export const Header: React.FC = () => {
                     isActive('/tracks')
                       ? 'text-fedex-orange bg-fedex-orange/20 scale-105 shadow-lg'
                       : theme === 'dark'
-                        ? 'text-gray-400 hover:text-white hover:bg-gray-800/60 hover:scale-105'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/60 hover:scale-105'
+                        ? 'text-gray-400 hover:text-white'
+                        : 'text-gray-600 hover:text-gray-900'
                   }`}
                   aria-label="Tracks"
                 >
@@ -575,8 +563,8 @@ export const Header: React.FC = () => {
                 isActive('/dashboard') || isActive('/fan-dashboard') || isActive('/track-dashboard') || isActive('/series-dashboard')
                   ? 'text-fedex-orange bg-fedex-orange/20 scale-105 shadow-lg' 
                   : theme === 'dark'
-                    ? 'text-gray-400 hover:text-white hover:bg-gray-800/60 hover:scale-105'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/60 hover:scale-105'
+                    ? 'text-gray-400 hover:text-white'
+                    : 'text-gray-600 hover:text-gray-900'
               }`}
               aria-label="Profile"
             >
