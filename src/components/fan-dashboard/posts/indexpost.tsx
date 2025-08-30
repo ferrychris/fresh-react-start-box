@@ -3,7 +3,8 @@ import LeaderBoard from './LeaderBoard'
 import { CreatePost } from './CreatePost'
 import PostsPanel from './PostsPanel'
 import { Post, PostCreationPayload, transformDbPostToUIPost } from './types'
-import { supabase, createFanPost, getFanPosts } from '../../../lib/supabase'
+import { supabase } from '../../../lib/supabase/client'
+import { createFanPost, getFanPosts } from '../../../lib/supabase/posts'
 import { uploadPostImage, uploadPostVideo, getPostPublicUrl } from '../../../lib/supabase/storage'
 import { useUser } from '../../../contexts/UserContext'
 import { toast } from 'react-toastify';
@@ -22,23 +23,41 @@ const IndexPost: React.FC = () => {
   }, [])
 
   const fetchPosts = async () => {
-    setLoading(true)
-    setError(null)
-    
     try {
+      setLoading(true)
+      setError(null)
+      
       if (!supabase) {
         throw new Error('Database not configured')
       }
       
       const data = await getFanPosts()
       
-      const transformedPosts: Post[] = data.map(transformDbPostToUIPost);
+      if (!data || data.length === 0) {
+        console.log('No fan posts found, showing empty state')
+        setPosts([])
+        return
+      }
+      
+      // Safely transform posts with error handling for each post
+      const transformedPosts: Post[] = data
+        .map(post => {
+          try {
+            return transformDbPostToUIPost(post)
+          } catch (transformError) {
+            console.error('Error transforming post:', transformError, post)
+            return null
+          }
+        })
+        .filter((post): post is Post => post !== null)
       
       setPosts(transformedPosts)
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
       console.error('Error fetching posts:', err)
       setError(errorMessage || 'Failed to load posts')
+      // Set empty posts array on error to avoid undefined state
+      setPosts([])
     } finally {
       setLoading(false)
     }

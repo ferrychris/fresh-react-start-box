@@ -74,44 +74,72 @@ export const getRacerPosts = async (racerId: string): Promise<DatabasePost[]> =>
 
 // Get all posts from the unified table for fan dashboard
 export const getFanPosts = async (): Promise<any[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('racer_posts')
-      .select(`
-        id,
-        created_at,
-        updated_at,
-        content,
-        media_urls,
-        post_type,
-        visibility,
-        likes_count,
-        comments_count,
-        user_id,
-        user_type,
-        racer_id,
-        total_tips,
-        allow_tips,
-        profiles (
-          name,
-          avatar,
-          user_type
-        )
-      `)
-      .eq('visibility', 'public')
-      .order('created_at', { ascending: false })
-      .limit(25);
-    
-    if (error) {
-      console.error('Error fetching posts:', error);
+  let retries = 0;
+  const maxRetries = 3;
+  
+  while (retries <= maxRetries) {
+    try {
+      const { data, error } = await supabase
+        .from('racer_posts')
+        .select(`
+          id,
+          created_at,
+          updated_at,
+          content,
+          media_urls,
+          post_type,
+          visibility,
+          likes_count,
+          comments_count,
+          user_id,
+          user_type,
+          racer_id,
+          total_tips,
+          allow_tips,
+          profiles (
+            name,
+            avatar,
+            user_type
+          )
+        `)
+        .eq('visibility', 'public')
+        // Removed .eq('user_type', 'fan') to show both racer and fan posts
+        .limit(10)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        if (error.message?.includes('JSON') && retries < maxRetries) {
+          console.warn(`JSON parsing error fetching posts, retrying... (${retries + 1}/${maxRetries})`);
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        console.error('Error fetching posts:', error);
+        return [];
+      }
+      
+      // Safely process the data to handle potential JSON issues
+      try {
+        const processedData = typeof data === 'string' ? JSON.parse(data) : data;
+        return processedData || [];
+      } catch (parseError) {
+        console.error('Error parsing post data:', parseError);
+        return [];
+      }
+    } catch (error) {
+      if (retries < maxRetries) {
+        console.warn(`Unexpected error fetching posts, retrying... (${retries + 1}/${maxRetries})`);
+        retries++;
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+        continue;
+      }
+      
+      console.error('Exception fetching posts:', error);
       return [];
     }
-    
-    return data || [];
-  } catch (error) {
-    console.error('Exception fetching posts:', error);
-    return [];
   }
+  
+  return [];
 };
 
 // Keyset-paginated posts for fan dashboard
@@ -152,6 +180,7 @@ export const getFanPostsPage = async ({
           )
         `)
         .eq('visibility', 'public')
+        // Removed .eq('user_type', 'fan') to include racer posts as well
         .not('created_at', 'is', null)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false });
