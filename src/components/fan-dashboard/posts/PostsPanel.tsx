@@ -149,7 +149,10 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
   };
 
   const handleLike = async (postId: string) => {
-    if (!user) return;
+    if (!user) {
+      toast.error('Please sign in to like posts');
+      return;
+    }
     
     // Set loading state for this specific post
     setIsLikeLoading(prev => ({ ...prev, [postId]: true }));
@@ -182,6 +185,12 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
           .from('post_likes')
           .insert([{ post_id: postId, user_id: user.id }]);
         if (error) throw error;
+        
+        // Update likes count in racer_posts table
+        await supabase
+          .from('racer_posts')
+          .update({ likes_count: supabase.rpc('increment_post_likes', { post_id: postId }) })
+          .eq('id', postId);
       } else {
         const { error } = await supabase
           .from('post_likes')
@@ -189,8 +198,13 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
           .eq('post_id', postId)
           .eq('user_id', user.id);
         if (error) throw error;
+        
+        // Update likes count in racer_posts table
+        await supabase
+          .from('racer_posts')
+          .update({ likes_count: supabase.rpc('decrement_post_likes', { post_id: postId }) })
+          .eq('id', postId);
       }
-      toast.success('Like updated successfully');
     } catch (error) {
       console.error('Error toggling like:', error);
       toast.error('Failed to update like');
@@ -198,6 +212,34 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
       setList(originalList);
     } finally {
       setIsLikeLoading(prev => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  const handleComment = (postId: string) => {
+    if (!user) {
+      toast.error('Please sign in to comment');
+      return;
+    }
+    // For now, just show a message. Can be expanded to open a comment modal
+    toast.success('Comment feature coming soon!');
+  };
+
+  const handleShare = async (post: Post) => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${post.userName}'s post`,
+          text: post.content,
+          url: window.location.href
+        });
+      } else {
+        // Fallback: copy to clipboard
+        await navigator.clipboard.writeText(`${post.content}\n\n${window.location.href}`);
+        toast.success('Post copied to clipboard!');
+      }
+    } catch (error) {
+      console.error('Error sharing:', error);
+      toast.error('Failed to share post');
     }
   };
 
@@ -409,11 +451,17 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
                     <Heart className={`w-4 h-4 ${post.isLiked ? 'fill-current' : ''} ${isLikeLoading[post.id] ? 'animate-pulse' : ''}`} />
                     <span>Like</span>
                   </button>
-                  <button className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+                  <button 
+                    onClick={() => handleComment(post.id)}
+                    className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all"
+                  >
                     <MessageCircle className="w-4 h-4" />
                     <span>Comment</span>
                   </button>
-                  <button className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+                  <button 
+                    onClick={() => handleShare(post)}
+                    className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all"
+                  >
                     <Share2 className="w-4 h-4" />
                     <span>Share</span>
                   </button>
