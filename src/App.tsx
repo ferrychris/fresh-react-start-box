@@ -87,23 +87,23 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
         <Route path="/racer/:id" element={<RacerProfile />} />
         <Route path="/racer/:id/sponsorship" element={<SponsorshipPackages />} />
         <Route path="/dashboard" element={
-          user?.type === 'racer' ? <Dashboard /> : <Navigate to="/" />
+          user?.user_type === 'racer' ? <Dashboard /> : <Navigate to="/" />
         } />
         <Route path="/fan-dashboard" element={
-          user?.type === 'fan' && user?.id ? <Navigate to={`/fan/${user.id}`} /> : <Navigate to="/" />
+          user?.user_type === 'fan' ? <FanDashboard viewedUserId={user.id} /> : <Navigate to="/" />
         } />
         <Route path="/fan/:id" element={<FanDashboard />} />
         <Route path="/track-dashboard" element={
-          user?.type === 'track' ? <TrackDashboard /> : <Navigate to="/" />
+          user?.user_type === 'track' ? <TrackDashboard /> : <Navigate to="/" />
         } />
         <Route path="/series-dashboard" element={
-          user?.type === 'series' ? <SeriesDashboard /> : <Navigate to="/" />
+          user?.user_type === 'series' ? <SeriesDashboard /> : <Navigate to="/" />
         } />
         <Route path="/series/:id" element={<SeriesProfile />} />
         <Route path="/sponsorships" element={<SponsorshipMarketplace />} />
         <Route path="/how-sponsorship-works" element={<HowSponsorshipWorks />} />
         <Route path="/admin" element={
-          user?.type === 'admin' ? <Admin /> : <Navigate to="/" />
+          user?.user_type === 'admin' ? <Admin /> : <Navigate to="/" />
         } />
         <Route path="/setup/racer" element={<RacerSetup />} />
         <Route path="/setup/fan" element={<FanSetup />} />
@@ -215,6 +215,7 @@ interface User {
   name: string;
   email: string;
   type: 'fan' | 'racer' | 'track' | 'series' | 'admin';
+  user_type: 'fan' | 'racer' | 'track' | 'series' | 'admin';
   profilePicture?: string;
   subscriptions?: string[];
   // Racer specific
@@ -334,6 +335,7 @@ function App() {
             name: profile.name,
             email: profile.email,
             type: profile.user_type,
+            user_type: profile.user_type,
             profilePicture: profile.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.name}`,
             profileComplete: profile.profile_complete
           };
@@ -370,6 +372,7 @@ function App() {
             name: authUser.email?.split('@')[0] || 'User',
             email: authUser.email || '',
             type: 'fan', // Default type, will be updated during setup
+            user_type: 'fan',
             profilePicture: `https://api.dicebear.com/7.x/initials/svg?seed=${authUser.email?.split('@')[0] || 'User'}`,
             profileComplete: false
           };
