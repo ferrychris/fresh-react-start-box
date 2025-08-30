@@ -100,6 +100,7 @@ export const getFanPosts = async (): Promise<any[]> => {
           content,
           media_urls,
           post_type,
+          visibility,
           likes_count,
           comments_count,
           racer_id,
