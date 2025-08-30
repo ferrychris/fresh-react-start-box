@@ -10,7 +10,7 @@ import {
   getFanActivity, 
   getFanNotifications,
   getFanStats,
-  getRacerPosts,
+  getFanPosts,
   supabase,
   type FanSubscription,
   type FanActivity 
@@ -53,7 +53,7 @@ export const FanDashboard: React.FC = () => {
     
     setPostsLoading(true);
     try {
-      const fanPosts = await getRacerPosts(user.id, user.id);
+      const fanPosts = await getFanPosts();
       setPosts(fanPosts);
     } catch (error) {
       console.error('Error loading fan posts:', error);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../../App';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '../../lib/supabase/client';
 
 // Import components
 import ProfileHeader from './ProfileHeader';

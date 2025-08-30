@@ -62,6 +62,45 @@ export const getRacerPosts = async (racerId: string): Promise<DatabasePost[]> =>
 };
 
 export const getFanPosts = async (): Promise<any[]> => {
+  // For fan dashboard, we want to get all public posts, not just specific racer posts
+  try {
+    const { data, error } = await supabase
+      .from('racer_posts')
+      .select(`
+        id,
+        created_at,
+        updated_at,
+        content,
+        media_urls,
+        post_type,
+        visibility,
+        likes_count,
+        comments_count,
+        racer_id,
+        total_tips,
+        allow_tips,
+        profiles:racer_id (
+          name,
+          avatar,
+          user_type
+        )
+      `)
+      .eq('visibility', 'public')
+      .order('created_at', { ascending: false })
+      .limit(25);
+    
+    if (error) {
+      console.error('Error fetching fan posts:', error);
+      return [];
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Exception fetching fan posts:', error);
+    return [];
+  }
+  
+  // Original function continues below
   // Check if we have a valid session first
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
