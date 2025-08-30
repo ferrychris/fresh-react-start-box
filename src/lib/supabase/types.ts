@@ -955,13 +955,23 @@ export interface GiftTransaction {
   token_amount: number;
   message?: string;
   created_at: string;
-  is_public: boolean;
-  // Extended properties for UI display
-  gift?: VirtualGift;
+  is_public?: boolean;
+  // Extended properties for UI display (from joined tables)
+  gift?: {
+    name: string;
+    image_url: string;
+    token_cost: number;
+    emoji?: string;
+    description?: string;
+    rarity?: string;
+  };
   sender?: {
     name: string;
     avatar?: string;
   };
+  // Support both gifts and virtual_gifts table references
+  gifts?: any;
+  profiles?: any;
 }
 
 // Additional interface definitions
@@ -986,6 +996,8 @@ export interface Notification {
   read: boolean;
   created_at: string;
   data?: Record<string, any>;
+  // Support both data and details for compatibility
+  details?: any;
 }
 
 export interface SubscriptionTier {
@@ -1025,6 +1037,8 @@ export interface PostComment {
   created_at: string;
   user_name?: string;
   user_avatar?: string;
+  comment_text?: string; // Alternative field name
+  profiles?: any; // Joined profile data
 }
 
 export interface DatabasePost {
@@ -1040,6 +1054,9 @@ export interface DatabasePost {
   comments_count: number;
   total_tips: number;
   allow_tips: boolean;
+  // Extended properties for joined data
+  racer?: any;
+  profiles?: any;
 }
 
 export interface LiveStream {
@@ -1063,4 +1080,7 @@ export interface FanStats {
   activity_streak: number;
   created_at: string;
   updated_at: string;
+  // Extended properties for UI
+  total_fans?: number;
+  super_fans?: number;
 }
