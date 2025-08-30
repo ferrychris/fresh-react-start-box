@@ -165,16 +165,16 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-xl">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-slate-900 rounded-xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-xl">
         {/* Header - Facebook Style */}
-        <div className="flex items-center justify-center relative p-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900">Create Post</h2>
+        <div className="flex items-center justify-center relative p-4 border-b border-slate-800">
+          <h2 className="text-lg font-semibold text-white">Create Post</h2>
           <button
             onClick={onClose}
-            className="absolute right-4 p-2 hover:bg-slate-100 rounded-full transition-colors"
+            className="absolute right-4 p-2 hover:bg-slate-800 rounded-full transition-colors"
           >
-            <X className="h-5 w-5 text-slate-600" />
+            <X className="h-5 w-5 text-slate-400" />
           </button>
         </div>
 
@@ -187,28 +187,28 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
                 {user?.avatar ? (
                   <img src={user.avatar} alt={user?.name || 'User'} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full bg-slate-200 flex items-center justify-center">
-                    <span className="text-slate-600 text-xl font-semibold">{user?.name?.charAt(0) || '?'}</span>
+                  <div className="w-full h-full bg-slate-700 flex items-center justify-center">
+                    <span className="text-slate-300 text-xl font-semibold">{user?.name?.charAt(0) || '?'}</span>
                   </div>
                 )}
               </div>
               <div>
-                <p className="text-slate-900 font-medium">{user?.name || 'User'}</p>
+                <p className="text-white font-medium">{user?.name || 'User'}</p>
                 <div className="flex items-center space-x-1 mt-0.5">
                   <button
                     type="button"
                     onClick={() => setVisibility('public')}
-                    className="flex items-center space-x-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 hover:bg-slate-200 border border-slate-200"
+                    className="flex items-center space-x-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700"
                   >
                     {visibility === 'public' ? (
-                      <Globe className="h-3 w-3 text-slate-600" />
+                      <Globe className="h-3 w-3 text-slate-300" />
                     ) : (
-                      <Users className="h-3 w-3 text-slate-600" />
+                      <Users className="h-3 w-3 text-slate-300" />
                     )}
-                    <span className="text-slate-600">
+                    <span className="text-slate-300">
                       {visibility === 'public' ? 'Public' : 'Racing Community'}
                     </span>
-                    <svg className="h-3 w-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
@@ -221,13 +221,13 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="What's on your mind about racing?"
-              className="w-full bg-transparent text-slate-900 placeholder-slate-400 text-base resize-none border-none outline-none min-h-[70px] py-1"
+              className="w-full bg-transparent text-white placeholder-slate-400 text-base resize-none border-none outline-none min-h-[70px] py-1"
               maxLength={500}
             />
 
             {/* Media Preview - Facebook Style */}
             {selectedFiles.length > 0 && (
-              <div className="rounded-lg overflow-hidden border border-slate-200">
+              <div className="rounded-lg overflow-hidden border border-slate-800">
                 <div className={`grid ${selectedFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-1`}>
                   {selectedFiles.map((file, index) => (
                     <div key={index} className="relative aspect-video">
@@ -247,7 +247,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
                       <button
                         type="button"
                         onClick={() => removeFile(index)}
-                        className="absolute top-2 right-2 p-1 bg-black/50 hover:bg-black/70 rounded-full transition-colors"
+                        className="absolute top-2 right-2 p-1 bg-black/60 hover:bg-black/80 rounded-full transition-colors"
                       >
                         <X className="h-4 w-4 text-white" />
                       </button>
@@ -259,29 +259,29 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
 
             {/* Add to Your Post - Facebook Style */}
             <div>
-              <div className="flex items-center justify-between py-3 px-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="flex items-center justify-between py-3 px-4 bg-slate-800/50 rounded-lg">
                 <div className="flex items-center space-x-2">
-                  <span className="text-slate-600 text-sm font-medium">Add to your post</span>
+                  <span className="text-slate-300 text-sm font-medium">Add to your post</span>
                   <button
                     type="button"
                     onClick={triggerFileSelect}
-                    className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                    className="p-2 hover:bg-slate-700 rounded-full transition-colors"
                     title="Photo/Video"
                   >
-                    <Image className="h-5 w-5 text-green-600" />
+                    <Image className="h-5 w-5 text-green-500" />
                   </button>
                   <button
                     type="button"
-                    className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                    className="p-2 hover:bg-slate-700 rounded-full transition-colors"
                     title="Tag location"
                   >
-                    <MapPin className="h-5 w-5 text-red-600" />
+                    <MapPin className="h-5 w-5 text-red-500" />
                   </button>
                 </div>
                 <button
                   type="submit"
                   disabled={isSubmitting || (!content.trim() && selectedFiles.length === 0)}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-md transition-colors text-sm"
+                  className="px-6 py-2 bg-fedex-orange hover:bg-fedex-orange-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-md transition-colors text-sm"
                 >
                   {isSubmitting ? 'Posting...' : 'Post'}
                 </button>

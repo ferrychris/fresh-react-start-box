@@ -303,7 +303,7 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
           {list.map((post) => (
             <div 
               key={post.id} 
-              className="bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+              className="bg-slate-900 border border-slate-800 rounded-xl shadow-sm hover:border-slate-700 transition-all overflow-hidden"
             >
               {/* Post Header - Facebook Style */}
               <div className="p-4">
@@ -316,7 +316,7 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
                     />
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="font-semibold text-slate-900 text-sm">
+                        <span className="font-semibold text-white text-sm">
                           {post.userName}
                         </span>
                         {post.userVerified && (
@@ -330,7 +330,7 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center space-x-1 text-xs text-slate-500">
+                      <div className="flex items-center space-x-1 text-xs text-slate-400">
                         <span>{post.timestamp}</span>
                         <span>•</span>
                         <span className={`${getUserTypeColor(post.userType)} font-medium`}>
@@ -339,18 +339,18 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
                       </div>
                     </div>
                   </div>
-                  <button className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                    <MoreHorizontal className="w-5 h-5 text-slate-500" />
+                  <button className="p-2 hover:bg-slate-800 rounded-full transition-colors">
+                    <MoreHorizontal className="w-5 h-5 text-slate-400" />
                   </button>
                 </div>
 
                 {/* Post Content */}
                 <div className="mt-3">
-                  <p className="text-slate-900 text-sm leading-relaxed">{post.content}</p>
+                  <p className="text-slate-100 text-sm leading-relaxed">{post.content}</p>
                   
                   {/* Location and Event Info */}
                   {(post.location || post.eventDate) && (
-                    <div className="flex items-center mt-2 text-xs text-slate-500 space-x-4">
+                    <div className="flex items-center mt-2 text-xs text-slate-400 space-x-4">
                       {post.location && (
                         <div className="flex items-center space-x-1">
                           <MapPin className="w-3 h-3" />
@@ -420,7 +420,7 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
 
               {/* Like/Comment Stats */}
               {(post.likes > 0 || post.comments > 0) && (
-                <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-100">
+                <div className="px-4 py-2 text-xs text-slate-400 border-b border-slate-800">
                   <div className="flex items-center justify-between">
                     {post.likes > 0 && (
                       <span className="flex items-center space-x-1">
@@ -438,25 +438,25 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
               )}
 
               {/* Action Buttons - Facebook Style */}
-              <div className="px-4 py-2 border-t border-slate-100">
+              <div className="px-4 py-2 border-t border-slate-800">
                 <div className="flex items-center justify-around">
                   <button
                     onClick={() => handleLike(post.id)}
                     disabled={isLikeLoading[post.id]}
                     className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                       post.isLiked 
-                        ? 'text-red-500 hover:bg-red-50' 
-                        : 'text-slate-600 hover:bg-slate-50'
+                        ? 'text-red-500 hover:bg-slate-800' 
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                     } ${isLikeLoading[post.id] ? 'opacity-50' : ''}`}
                   >
                     <Heart className={`w-4 h-4 ${post.isLiked ? 'fill-current' : ''} ${isLikeLoading[post.id] ? 'animate-pulse' : ''}`} />
                     <span>Like</span>
                   </button>
-                  <button className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all">
+                  <button className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
                     <MessageCircle className="w-4 h-4" />
                     <span>Comment</span>
                   </button>
-                  <button className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all">
+                  <button className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
                     <Share2 className="w-4 h-4" />
                     <span>Share</span>
                   </button>
