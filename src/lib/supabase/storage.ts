@@ -58,6 +58,18 @@ export const deleteRacerCarPhoto = async (photoUrl: string) => {
     }
 };
 
+export const uploadPostImage = async (userId: string, file: File) => {
+  // Store images under postimage bucket with user ID and timestamp
+  const path = `${userId}/posts/images/${Date.now()}-${file.name}`;
+  return uploadFile('postimage', path, file);
+};
+
+export const uploadPostVideo = async (userId: string, file: File) => {
+  // Store videos under postimage bucket with user ID and timestamp
+  const path = `${userId}/posts/videos/${Date.now()}-${file.name}`;
+  return uploadFile('postimage', path, file);
+};
+
 export const uploadImage = async (racerId: string, file: File) => {
   // Store images under posts/images with a timestamp to avoid name collisions
   const path = `${racerId}/posts/images/${Date.now()}-${file.name}`;
@@ -90,8 +102,14 @@ export const saveImageToAvatarsTable = async (
   }
 };
 
-export const getPublicUrl = (path: string) => {
+export const getPublicUrl = (bucket: string, path: string) => {
     if (!path) return null;
-    const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+    return data.publicUrl;
+};
+
+export const getPostPublicUrl = (path: string) => {
+    if (!path) return null;
+    const { data } = supabase.storage.from('postimage').getPublicUrl(path);
     return data.publicUrl;
 };

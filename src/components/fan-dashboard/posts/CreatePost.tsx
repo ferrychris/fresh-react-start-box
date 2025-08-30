@@ -1,8 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { X, Image, Video, Globe, Users, MapPin, Calendar, Upload, Trash2 } from 'lucide-react';
 import { Post, PostCreationPayload } from './types';
-import { createFanPost, supabase } from '../../../lib/supabase';
+import { createFanPost } from '../../../lib/supabase';
+import { uploadPostImage, uploadPostVideo, getPostPublicUrl } from '../../../lib/supabase/storage';
 import { ExtendedUser } from '../../../lib/supabase/types';
+import { useUser } from '../../../contexts/UserContext';
 
 interface CreatePostProps {
   onClose: () => void;
@@ -20,6 +22,7 @@ interface User {
 }
 
 export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }) => {
+  const { user } = useUser();
   const [content, setContent] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [mediaType, setMediaType] = useState<'photo' | 'video' | null>(null);
@@ -77,28 +80,65 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
       return;
     }
 
+    if (!user) {
+      alert('You must be logged in to create a post');
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
-      const payload: PostCreationPayload = {
+      // Upload media files first
+      const uploadedUrls: string[] = [];
+      
+      for (const file of selectedFiles) {
+        const isVideo = file.type.startsWith('video/');
+        
+        let result;
+        if (isVideo) {
+          result = await uploadPostVideo(user.id, file);
+        } else {
+          result = await uploadPostImage(user.id, file);
+        }
+        
+        if (result?.path) {
+          const publicUrl = getPostPublicUrl(result.path);
+          if (publicUrl) {
+            uploadedUrls.push(publicUrl);
+          }
+        }
+      }
+
+      // Determine post type
+      let postType = 'text';
+      if (selectedFiles.length > 0) {
+        const hasVideo = selectedFiles.some(file => file.type.startsWith('video/'));
+        if (hasVideo) {
+          postType = 'video';
+        } else {
+          postType = selectedFiles.length > 1 ? 'gallery' : 'photo';
+        }
+      }
+
+      // Create the fan post
+      await createFanPost({
+        fan_id: user.id,
         content: content.trim(),
-        mediaFiles: selectedFiles,
-        mediaType,
-        visibility,
-        location: location.trim() || undefined,
-        eventDate: eventDate || undefined,
-      };
+        media_urls: uploadedUrls,
+        post_type: postType,
+        visibility: visibility
+      });
 
       // Create mock post for immediate UI update
       const newPost: Post = {
         id: Date.now().toString(),
-        userId: 'current-user',
-        userName: 'You',
-        userAvatar: '',
+        userId: user.id,
+        userName: user.name || 'Fan',
+        userAvatar: user.avatar || '',
         userType: 'FAN',
         userVerified: false,
         content: content.trim(),
-        mediaUrls: [],
+        mediaUrls: uploadedUrls,
         timestamp: new Date().toLocaleDateString(),
         likes: 0,
         comments: 0,
@@ -108,6 +148,14 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
 
       onPostCreated(newPost);
       onClose();
+      
+      // Reset form
+      setContent('');
+      setSelectedFiles([]);
+      setMediaType(null);
+      setLocation('');
+      setEventDate('');
+      
     } catch (error) {
       console.error('Error creating post:', error);
       alert('Failed to create post. Please try again.');

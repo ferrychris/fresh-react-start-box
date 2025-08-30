@@ -161,7 +161,7 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ racerId, onPostCreated
           throw new Error(`Failed to upload ${file.name}`);
         }
 
-        const publicUrl = getPublicUrl(result.path);
+        const publicUrl = getPublicUrl('postimage', result.path);
         if (!publicUrl) {
           throw new Error(`Failed to get public URL for ${file.name}`);
         }
