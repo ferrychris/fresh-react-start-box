@@ -47,7 +47,7 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
     }
   }, []);
 
-  // Load first page
+  // Load first page - fetch all public posts
   const loadInitial = useCallback(async () => {
     try {
       setIsLoading(true);
