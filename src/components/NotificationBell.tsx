@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Bell, X, Check, CheckCheck, Clock, DollarSign, Users, Trophy } from 'lucide-react';
 import { 
@@ -42,21 +41,31 @@ export const NotificationBell: React.FC = () => {
     }
     
     try {
+      setLoading(true);
       const data = await getNotificationsForUser(user.id);
       setNotifications(data);
     } catch (error) {
       // Handle database connection errors gracefully
       if (error instanceof Error && (
         error.message.includes('Failed to fetch') || 
+        error.message.includes('connection closed') ||
+        error.message.includes('network') ||
         error.message.includes('schema cache') ||
-        error.message.includes('503')
+        error.message.includes('503') ||
+        error.message.includes('timeout')
       )) {
         console.warn('⚠️ Database temporarily unavailable - notifications disabled');
-        setNotifications([]);
+        // Don't clear existing notifications on temporary errors
+        // This prevents UI flickering on network issues
+        if (notifications.length === 0) {
+          setNotifications([]);
+        }
       } else {
         console.error('Error loading notifications:', error);
         setNotifications([]);
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -75,9 +84,15 @@ export const NotificationBell: React.FC = () => {
       setUnreadCount(count);
     } catch (error) {
       // Handle network errors gracefully
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      if (error instanceof Error && (
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('connection closed') ||
+        error.message.includes('network') ||
+        error.message.includes('timeout')
+      )) {
         console.warn('⚠️ Network error loading unread count - database may be unavailable');
-        setUnreadCount(0);
+        // Don't reset unread count on temporary errors
+        // This prevents badge flickering on network issues
       } else {
         console.error('Error loading unread count:', error);
         setUnreadCount(0);
@@ -93,17 +108,29 @@ export const NotificationBell: React.FC = () => {
     }
     
     try {
-      await markNotificationAsRead(notificationId);
+      // Optimistically update UI
       setNotifications(prev => 
         prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
+      
+      // Then perform the actual update
+      await markNotificationAsRead(notificationId);
     } catch (error) {
       // Handle network errors gracefully
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      if (error instanceof Error && (
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('connection closed') ||
+        error.message.includes('network') ||
+        error.message.includes('timeout')
+      )) {
         console.warn('⚠️ Network error marking notification as read - database may be unavailable');
+        // Keep optimistic UI update even on error
       } else {
         console.error('Error marking notification as read:', error);
+        // Revert optimistic update on non-network errors
+        loadNotifications();
+        loadUnreadCount();
       }
     }
   };
@@ -119,15 +146,27 @@ export const NotificationBell: React.FC = () => {
     
     setLoading(true);
     try {
-      await markAllNotificationsAsRead(user.id);
+      // Optimistically update UI
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
+      
+      // Then perform the actual update
+      await markAllNotificationsAsRead(user.id);
     } catch (error) {
       // Handle network errors gracefully
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      if (error instanceof Error && (
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('connection closed') ||
+        error.message.includes('network') ||
+        error.message.includes('timeout')
+      )) {
         console.warn('⚠️ Network error marking all as read - database may be unavailable');
+        // Keep optimistic UI update even on error
       } else {
         console.error('Error marking all as read:', error);
+        // Revert optimistic update on non-network errors
+        loadNotifications();
+        loadUnreadCount();
       }
     } finally {
       setLoading(false);

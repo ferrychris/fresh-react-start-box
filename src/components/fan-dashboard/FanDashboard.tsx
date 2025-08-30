@@ -159,7 +159,7 @@ const FanDashboard: React.FC = () => {
           .from('racer_profiles')
           .select('banner_photo_url, car_photos')
           .eq('id', id)
-          .single();
+          .maybeSingle();
           
         if (!racerError && racerData) {
           // First try to use banner_photo_url if available
@@ -196,7 +196,7 @@ const FanDashboard: React.FC = () => {
           .from('fan_stats')
           .select('*')
           .eq('fan_id', id)
-          .single();
+          .maybeSingle();
         
         if (!statsError || statsError.code === 'PGRST116') {
           statsData = data;
