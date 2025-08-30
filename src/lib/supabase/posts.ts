@@ -29,12 +29,7 @@ export const getPostsForRacer = async (racerId: string): Promise<{ data: Databas
           user_type,
           racer_id,
           total_tips,
-          allow_tips,
-          profiles:user_id (
-            name,
-            avatar,
-            user_type
-          )
+          allow_tips
         `)
         .or(`racer_id.eq.${racerId},user_id.eq.${racerId}`)
         .order('created_at', { ascending: false });
@@ -96,12 +91,7 @@ export const getFanPosts = async (): Promise<any[]> => {
         user_type,
         racer_id,
         total_tips,
-        allow_tips,
-        profiles:user_id (
-          name,
-          avatar,
-          user_type
-        )
+        allow_tips
       `)
       .eq('visibility', 'public')
       .order('created_at', { ascending: false })
@@ -116,6 +106,65 @@ export const getFanPosts = async (): Promise<any[]> => {
   } catch (error) {
     console.error('Exception fetching posts:', error);
     return [];
+  }
+};
+
+// Keyset-paginated posts for fan dashboard
+// Cursor format: { created_at: string; id: string }
+export const getFanPostsPage = async ({
+  limit = 5,
+  cursor
+}: {
+  limit?: number;
+  cursor?: { created_at: string; id: string } | null;
+}): Promise<{ data: any[]; nextCursor: { created_at: string; id: string } | null; error: any | null }> => {
+  try {
+    let query = supabase
+      .from('racer_posts')
+      .select(`
+        id,
+        created_at,
+        updated_at,
+        content,
+        media_urls,
+        post_type,
+        visibility,
+        likes_count,
+        comments_count,
+        user_id,
+        user_type,
+        racer_id,
+        total_tips,
+        allow_tips
+      `)
+      .eq('visibility', 'public')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(limit);
+
+    if (cursor?.created_at && cursor?.id) {
+      // Keyset pagination: (created_at, id) tuple
+      // Fetch rows strictly older than the cursor
+      query = query.or(
+        `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`
+      );
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching paginated posts:', error);
+      return { data: [], nextCursor: null, error };
+    }
+
+    const rows = data || [];
+    const last = rows[rows.length - 1];
+    const nextCursor = last ? { created_at: last.created_at, id: last.id } : null;
+
+    return { data: rows, nextCursor, error: null };
+  } catch (error) {
+    console.error('Exception fetching paginated posts:', error);
+    return { data: [], nextCursor: null, error };
   }
 };
 
@@ -570,4 +619,82 @@ export const createFanPost = async (post: {
       error: { message: error instanceof Error ? error.message : 'Unknown error creating fan post' } 
     };
   }
+};
+
+export const deletePostById = async (
+  postId: string
+): Promise<{ success: boolean; error: Error | null }> => {
+  if (!postId) {
+    return { success: false, error: new Error('Post ID is required') };
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    return { success: false, error: new Error('Authentication required to delete posts') };
+  }
+
+  const userId = session.user.id;
+  let retries = 0;
+  const maxRetries = 3;
+
+  while (retries <= maxRetries) {
+    try {
+      // Verify the post exists and is owned by the current user
+      const { data: post, error: fetchErr } = await supabase
+        .from('racer_posts')
+        .select('id, user_id')
+        .eq('id', postId)
+        .maybeSingle();
+
+      if (fetchErr) {
+        if (fetchErr.message?.includes('Failed to fetch') && retries < maxRetries) {
+          retries++;
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        return { success: false, error: new Error(fetchErr.message) };
+      }
+
+      if (!post) {
+        return { success: false, error: new Error('Post not found') };
+      }
+
+      if (post.user_id !== userId) {
+        return { success: false, error: new Error('You can only delete your own posts') };
+      }
+
+      // Optionally clean up dependent rows if cascade is not configured
+      try {
+        await supabase.from('post_likes').delete().eq('post_id', postId);
+      } catch {}
+      try {
+        await supabase.from('post_comments').delete().eq('post_id', postId);
+      } catch {}
+
+      const { error: delErr } = await supabase
+        .from('racer_posts')
+        .delete()
+        .eq('id', postId);
+
+      if (delErr) {
+        if (delErr.message?.includes('Failed to fetch') && retries < maxRetries) {
+          retries++;
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        return { success: false, error: new Error(delErr.message) };
+      }
+
+      return { success: true, error: null };
+    } catch (err) {
+      if (retries < maxRetries) {
+        retries++;
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+        continue;
+      }
+      return { success: false, error: err instanceof Error ? err : new Error('Unknown error deleting post') };
+    }
+  }
+
+  return { success: false, error: new Error('Failed to delete post after multiple attempts') };
 };

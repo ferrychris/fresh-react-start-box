@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Heart, MessageCircle, Share2, MoreHorizontal, Calendar, MapPin, Users, DollarSign, RefreshCw } from 'lucide-react';
 import { useUser } from '../../../contexts/UserContext';
 import toast from 'react-hot-toast';
 import CreatePost from './CreatePost';
-import { supabase, getFanPosts } from '../../../lib/supabase';
+import { supabase } from '../../../lib/supabase/client';
+import { getFanPostsPage } from '../../../lib/supabase/posts';
 import { Post, PostCreationPayload, DatabasePost, transformDbPostToUIPost } from './types'; // Import shared types
 
 // Post interface is now imported from types.ts
@@ -24,6 +25,12 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const { user } = useUser();
   const [isLoading, setIsLoading] = useState(false);
+
+  // Pagination state
+  const [cursor, setCursor] = useState<{ created_at: string; id: string } | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Mock posts data for development - wrapped in useMemo to avoid dependency array issues
   const mockPosts = useMemo((): Post[] => [
@@ -99,40 +106,70 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
     }
   ], []);
 
+  // Load first page
+  const loadInitial = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const { data, nextCursor, error } = await getFanPostsPage({ limit: 5, cursor: null });
+      if (error) throw error;
+
+      const transformed = (data as unknown as DatabasePost[]).map(transformDbPostToUIPost);
+      setList(transformed.length > 0 ? transformed : mockPosts);
+      setCursor(nextCursor);
+      setHasMore(!!nextCursor);
+    } catch (e) {
+      console.error('Error loading posts:', e);
+      toast.error('Failed to load posts');
+      setList(mockPosts);
+      setHasMore(false);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [mockPosts]);
+
+  // Load next page
+  const loadMore = useCallback(async () => {
+    if (!hasMore || isLoadingMore) return;
+    try {
+      setIsLoadingMore(true);
+      const { data, nextCursor, error } = await getFanPostsPage({ limit: 5, cursor });
+      if (error) throw error;
+
+      const transformed = (data as unknown as DatabasePost[]).map(transformDbPostToUIPost);
+      setList(prev => [...prev, ...transformed]);
+      setCursor(nextCursor);
+      setHasMore(!!nextCursor);
+    } catch (e) {
+      console.error('Error loading more posts:', e);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [cursor, hasMore, isLoadingMore]);
+
+  // Setup IntersectionObserver
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    const el = sentinelRef.current;
+    const observer = new IntersectionObserver(entries => {
+      const first = entries[0];
+      if (first.isIntersecting) {
+        loadMore();
+      }
+    }, { rootMargin: '200px' });
+
+    observer.observe(el);
+    return () => observer.unobserve(el);
+  }, [loadMore]);
+
   // Fetch posts from database or use provided posts
   useEffect(() => {
-    const fetchAllPosts = async () => {
-      try {
-        setIsLoading(true);
-        // Fetch recent posts using the modular getFanPosts function
-        const allDbPosts = await getFanPosts();
-        
-        const transformedPosts = allDbPosts.map(transformDbPostToUIPost);
-        
-        const sortedPosts = transformedPosts.sort((a, b) => 
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-        );
-        
-        if (sortedPosts.length > 0) {
-          setList(sortedPosts);
-        } else {
-          setList(mockPosts); // Fallback to mock data
-        }
-      } catch (error) {
-        console.error('Error fetching posts:', error);
-        toast.error('Failed to load posts');
-        setList(mockPosts); // Fallback to mock data on error
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     if (posts && posts.length > 0) {
       setList(posts);
+      setHasMore(false);
     } else {
-      fetchAllPosts();
+      loadInitial();
     }
-  }, [posts, mockPosts]);
+  }, [posts, loadInitial]);
 
   const handleCreate = (post: Post) => {
     if (onCreatePost) {
@@ -142,37 +179,14 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
     setShowCreatePostModal(false);
   };
 
-  // Function to refresh posts from the database
+  // Function to refresh posts from the database (reload first page)
   const refreshPosts = async () => {
     setIsRefreshing(true);
     try {
-      const { data, error } = await supabase
-        .from('posts')
-        .select(`
-          id, created_at, content, media_urls, post_type, likes_count, comments_count,
-          fan_id, racer_id,
-          profiles ( name, avatar, user_type ),
-          racer:racers ( id, username, profile_photo_url )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (error) {
-        console.error('Error refreshing posts:', error);
-      }
-      const allDbPosts: DatabasePost[] = (data as unknown as DatabasePost[]) || [];
-      
-      const transformedPosts = allDbPosts.map(transformDbPostToUIPost);
-      
-      const sortedPosts = transformedPosts.sort((a, b) => 
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      );
-      
-      if (sortedPosts.length > 0) {
-        setList(sortedPosts);
-        toast.success('Posts refreshed');
-      } else {
-        toast('No new posts found.');
-      }
+      setCursor(null);
+      setHasMore(true);
+      await loadInitial();
+      toast.success('Posts refreshed');
     } catch (error) {
       console.error('Error refreshing posts:', error);
       toast.error('Failed to refresh posts');
@@ -464,6 +478,13 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
               </div>
             </div>
           ))}
+
+          {/* Sentinel for infinite scroll */}
+          {hasMore && (
+            <div ref={sentinelRef} className="py-6 flex justify-center items-center text-slate-400">
+              {isLoadingMore ? 'Loading more…' : 'Scroll to load more'}
+            </div>
+          )}
         </div>
       )}
     </div>
