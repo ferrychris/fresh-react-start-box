@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../../App';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 // Import components
 import ProfileHeader from './ProfileHeader';
@@ -14,17 +14,22 @@ import IndexPost from './posts/indexpost';
 // Define types for our data structures
 interface FanProfile {
   id: string;
-  username: string;
+  username?: string;
   name: string;
-  avatar_url: string;
+  avatar_url?: string;
   avatar?: string | null;
   banner_image?: string | null;
-  fan_type: string;
+  fan_type?: string;
+  user_type?: string;
   created_at: string;
-  points: number;
-  streak_days: number;
-  favorites_count: number;
-  badges_count: number;
+  points?: number;
+  streak_days?: number;
+  favorites_count?: number;
+  badges_count?: number;
+  email: string;
+  profile_complete: boolean;
+  updated_at: string;
+  avatars?: string | null;
 }
 
 interface FanStats {
@@ -169,8 +174,11 @@ const FanDashboard: React.FC = () => {
           // If no banner_photo_url, fall back to car_photos
           else if (racerData.car_photos) {
             const carPhotos = racerData.car_photos;
-            if (Array.isArray(carPhotos) && carPhotos.length > 0 && carPhotos[0].url && typeof carPhotos[0].url === 'string') {
-              resolvedBanner = carPhotos[0].url;
+            if (Array.isArray(carPhotos) && carPhotos.length > 0) {
+              const firstPhoto = carPhotos[0];
+              if (firstPhoto && typeof firstPhoto === 'object' && 'url' in firstPhoto && typeof firstPhoto.url === 'string') {
+                resolvedBanner = firstPhoto.url;
+              }
             }
           }
         }
@@ -252,7 +260,18 @@ const FanDashboard: React.FC = () => {
       }
       
       // Format the data
-      setFanProfile(fanData);
+      if (fanData) {
+        setFanProfile({
+          ...fanData,
+          username: fanData.name || 'user',
+          avatar_url: fanData.avatar || fanData.avatars || '',
+          fan_type: fanData.user_type || 'Racing Fan',
+          points: 0,
+          streak_days: 0,
+          favorites_count: 0,
+          badges_count: 0
+        });
+      }
       
       // Set default stats with more descriptive placeholders if statsData is null
       setStats({
