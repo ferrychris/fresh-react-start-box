@@ -14,19 +14,23 @@ import {
   Edit3,
   X
 } from 'lucide-react';
+import { supabase } from '../integrations/supabase/client';
 import { 
-  supabase,
   getCommentsForPost, 
   togglePostLike,
-  addPostComment,
-  type PostComment, 
-  type DatabasePost
-} from '../lib/supabase';
+  addPostComment
+} from '../lib/supabase/posts';
+import { type PostComment } from '../lib/supabase/types';
 import { useApp } from '../App';
 import { SuperFanBadge } from './SuperFanBadge';
 
 // Define a more complete Post type for the component
-export type Post = DatabasePost & {
+export type Post = {
+  id: string;
+  racer_id: string;
+  created_at: string;
+  updated_at: string;
+  content: string;
   post_type: 'text' | 'photo' | 'gallery' | 'video';
   media_urls: string[];
   visibility: 'public' | 'fans_only';
@@ -265,38 +269,34 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
             <img
               src={
                 post.racer_profiles?.profile_photo_url || 
-                post.racer?.profile_photo_url || 
                 post.racer_profiles?.profiles?.avatar || 
-                post.profiles?.avatar || 
                 `https://api.dicebear.com/7.x/initials/svg?seed=${
                   post.racer_profiles?.profiles?.name || 
-                  post.profiles?.name || 
                   post.racer_profiles?.username || 
-                  post.racer?.username || 
                   'User'
                 }&backgroundColor=ff6600&textColor=ffffff`
               }
-              alt={post.racer_profiles?.profiles?.name || post.profiles?.name || post.racer_profiles?.username || post.racer?.username || 'User'}
+              alt={post.racer_profiles?.profiles?.name || post.racer_profiles?.username || 'User'}
               className="w-12 h-12 rounded-full object-cover"
             />
             <div>
               <div className="flex items-center space-x-2">
                 <h4 className="font-semibold text-white">
-                  {post.racer_profiles?.profiles?.name || post.profiles?.name || post.racer_profiles?.username || post.racer?.username || 'Unknown User'}
+                  {post.racer_profiles?.profiles?.name || post.racer_profiles?.username || 'Unknown User'}
                 </h4>
                 <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-                  {(post.racer || post.racer_profiles) && (post.racer_profiles?.profiles?.user_type === 'racer' || post.profiles?.user_type === 'racer') && (
+                  {post.racer_profiles && post.racer_profiles?.profiles?.user_type === 'racer' && (
                     <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                       <span className="text-white text-xs">✓</span>
                     </div>
                   )}
-                  {(post.racer_profiles?.profiles?.user_type === 'racer' || post.profiles?.user_type === 'racer') && (
+                  {post.racer_profiles?.profiles?.user_type === 'racer' && (
                     <div className="bg-green-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
                       <span className="hidden sm:inline">VERIFIED RACER</span>
                       <span className="sm:hidden">RACER</span>
                     </div>
                   )}
-                  {(post.racer_profiles?.profiles?.user_type === 'fan' || post.profiles?.user_type === 'fan') && (
+                  {post.racer_profiles?.profiles?.user_type === 'fan' && (
                     <div className="bg-purple-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
                       <span className="hidden sm:inline">RACING FAN</span>
                       <span className="sm:hidden">FAN</span>
@@ -322,7 +322,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
                   ) : (
                     <>
                       <Users className="h-3 w-3" />
-                      <span>{post.profiles?.user_type === 'fan' ? 'Racing Community' : 'Fans Only'}</span>
+                      <span>Fans Only</span>
                     </>
                   )}
                 </div>
