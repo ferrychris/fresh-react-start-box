@@ -46,7 +46,7 @@ export interface DatabasePost {
   };
 }
 
-import { getPostPublicUrl } from '../../../lib/supabase/storage';
+import { getPostPublicUrl, getFanPostPublicUrl } from '../../../lib/supabase/storage';
 
 // Helper function to transform database posts into UI-ready posts
 export const transformDbPostToUIPost = (post: DatabasePost): Post => {
@@ -76,11 +76,31 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
     }
   } catch {}
 
+  const userIdForPath = post.user_id || post.racer_id || post.fan_id || '';
+  const isFanPost = (post.user_type || '').toLowerCase() === 'fan';
+
   const normalizedMedia: string[] = mediaArray
     .filter((u): u is string => typeof u === 'string' && u.length > 0)
     .map((u) => {
       const isHttp = /^https?:\/\//i.test(u);
-      return isHttp ? u : (getPostPublicUrl(u) || u);
+      if (isHttp) return u;
+
+      // Allow data URLs as-is
+      if (u.startsWith('data:image') || u.startsWith('data:video')) return u;
+
+      // If looks like raw base64 image, wrap as data URL
+      const base64Re = /^[A-Za-z0-9+/=]+$/;
+      if (!/\//.test(u) && base64Re.test(u) && u.length % 4 === 0) {
+        return `data:image/png;base64,${u}`;
+      }
+
+      // Otherwise treat non-http strings as storage paths (filename or full path)
+      const looksLikeStoragePath = /\//.test(u);
+      const path = looksLikeStoragePath ? u : (userIdForPath ? `${userIdForPath}/posts/images/${u}` : u);
+
+      // Choose resolver by post type or path hint
+      const resolver = isFanPost || /^postimage\//i.test(path) ? getFanPostPublicUrl : getPostPublicUrl;
+      return resolver(path) || path;
     })
     .filter(Boolean);
 
@@ -94,11 +114,25 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
     ? (videoExtensions.test(orderedMedia[0]) ? 'video' : 'image')
     : undefined;
 
+  // Normalize avatar: support http(s), storage paths, or raw base64
+  const rawAvatar = (post as any)?.profiles?.avatar || (post as any)?.profiles?.avatar_url || post.racer?.profile_photo_url || '';
+  const userAvatar = (() => {
+    if (!rawAvatar) return '';
+    if (/^https?:\/\//i.test(rawAvatar)) return rawAvatar;
+    if (rawAvatar.startsWith('data:image')) return rawAvatar;
+    const base64Re = /^[A-Za-z0-9+/=]+$/;
+    if (base64Re.test(rawAvatar) && rawAvatar.length % 4 === 0) {
+      return `data:image/png;base64,${rawAvatar}`;
+    }
+    // Otherwise treat as storage path
+    return getPostPublicUrl(rawAvatar) || rawAvatar;
+  })();
+
   return {
     id: post.id,
     userId: post.user_id || post.racer_id || post.fan_id || '',
     userName: post.profiles?.name || post.racer?.username || 'Unknown User',
-    userAvatar: post.profiles?.avatar || post.racer?.profile_photo_url || '',
+    userAvatar,
     userType: (post.user_type?.toUpperCase() as 'RACER' | 'FAN' | 'TRACK' | 'SERIES') || 'FAN',
     userVerified: post.user_type === 'racer',
     content: post.content,

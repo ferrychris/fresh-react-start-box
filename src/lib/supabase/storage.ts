@@ -1,6 +1,7 @@
 import { supabase } from './client';
 
 const BUCKET_NAME = 'racer-photos';
+const FAN_POST_BUCKET = 'postimage';
 
 // Generic file upload with retry logic
 export const uploadFile = async (bucket: string, path: string, file: File) => {
@@ -179,6 +180,41 @@ export const uploadVideo = async (racerId: string, file: File) => {
   return uploadFile(BUCKET_NAME, path, file);
 };
 
+// Fan-specific upload to the postimage bucket
+export const uploadFanPostImage = async (userId: string, file: File) => {
+  if (!userId) {
+    console.error('uploadFanPostImage: No user ID provided');
+    return { error: new Error('User ID is required to upload images') };
+  }
+  if (!file || !(file instanceof File)) {
+    console.error('uploadFanPostImage: Invalid file object');
+    return { error: new Error('Valid file object is required') };
+  }
+  const MAX_SIZE = 10 * 1024 * 1024;
+  if (file.size > MAX_SIZE) {
+    return { error: new Error('File size exceeds the 10MB limit') };
+  }
+  const path = `${userId}/posts/images/${Date.now()}-${file.name}`;
+  return uploadFile(FAN_POST_BUCKET, path, file);
+};
+
+export const uploadFanPostVideo = async (userId: string, file: File) => {
+  if (!userId) {
+    console.error('uploadFanPostVideo: No user ID provided');
+    return { error: new Error('User ID is required to upload videos') };
+  }
+  if (!file || !(file instanceof File)) {
+    console.error('uploadFanPostVideo: Invalid file object');
+    return { error: new Error('Valid file object is required') };
+  }
+  const MAX_SIZE = 50 * 1024 * 1024;
+  if (file.size > MAX_SIZE) {
+    return { error: new Error('File size exceeds the 50MB limit') };
+  }
+  const path = `${userId}/posts/videos/${Date.now()}-${file.name}`;
+  return uploadFile(FAN_POST_BUCKET, path, file);
+};
+
 // Persist uploaded image info to avatars table (for avatar/banner images)
 export const saveImageToAvatarsTable = async (
   userId: string,
@@ -217,6 +253,17 @@ export const getPostPublicUrl = (path: string) => {
     return data.publicUrl;
   } catch (err) {
     console.error(`Error getting public URL for ${BUCKET_NAME}/${path}:`, err);
+    return null;
+  }
+};
+
+export const getFanPostPublicUrl = (path: string) => {
+  if (!path) return null;
+  try {
+    const { data } = supabase.storage.from(FAN_POST_BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  } catch (err) {
+    console.error(`Error getting public URL for ${FAN_POST_BUCKET}/${path}:`, err);
     return null;
   }
 };

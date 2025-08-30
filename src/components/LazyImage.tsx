@@ -47,11 +47,32 @@ const LazyImage: React.FC<LazyImageProps> = ({
     setIsLoaded(false);
     if (onError) {
       onError(e);
-    } else {
-      const target = e.target as HTMLImageElement;
-      target.src = 'https://placehold.co/400x300/1e293b/475569?text=Image+Not+Available';
     }
   };
+
+  // Sanitize/normalize the incoming src
+  const safeSrc = (() => {
+    if (!src) return '';
+    // Already safe schemes
+    if (/^(https?:|data:|blob:)/i.test(src)) return src;
+
+    // Looks like raw base64 (no slash, valid base64 charset), wrap as PNG data URL
+    const base64Re = /^[A-Za-z0-9+/=]+$/;
+    if (!/\//.test(src) && base64Re.test(src) && src.length % 4 === 0) {
+      return `data:image/png;base64,${src}`;
+    }
+
+    // Try to detect obviously invalid URLs early
+    try {
+      // Will throw on invalid absolute URLs; relative ones will throw here, which we consider not safe
+      // We only allow absolute http(s), data, blob above
+      // eslint-disable-next-line no-new
+      new URL(src);
+      return src;
+    } catch {
+      return '';
+    }
+  })();
 
   return (
     <div ref={imgRef} className={`relative overflow-hidden ${className}`}>
@@ -65,22 +86,24 @@ const LazyImage: React.FC<LazyImageProps> = ({
       
       {isInView && (
         <>
-          {!isLoaded && !error && (
+          {(!isLoaded || error || !safeSrc) && (
             <img
               src={placeholder}
               alt="Loading..."
               className={`absolute inset-0 w-full h-full object-cover ${className}`}
             />
           )}
-          <img
-            src={src}
-            alt={alt}
-            onLoad={handleLoad}
-            onError={handleError}
-            className={`w-full h-full object-cover transition-opacity duration-300 ${
-              isLoaded ? 'opacity-100' : 'opacity-0'
-            } ${className}`}
-          />
+          {!error && safeSrc && (
+            <img
+              src={safeSrc}
+              alt={alt}
+              onLoad={handleLoad}
+              onError={handleError}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${
+                isLoaded ? 'opacity-100' : 'opacity-0'
+              } ${className}`}
+            />
+          )}
         </>
       )}
     </div>

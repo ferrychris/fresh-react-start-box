@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Heart, MessageCircle, Share2, MoreHorizontal, Calendar, MapPin, Users, DollarSign, RefreshCw } from 'lucide-react';
 import { useUser } from '../../../contexts/UserContext';
 import toast from 'react-hot-toast';
@@ -31,85 +31,21 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
   const [cursor, setCursor] = useState<{ created_at: string; id: string } | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [prefetch, setPrefetch] = useState<{ data: DatabasePost[]; nextCursor: { created_at: string; id: string } | null } | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // Mock posts data for development - wrapped in useMemo to avoid dependency array issues
-  const mockPosts = useMemo((): Post[] => [
-    {
-      id: '550e8400-e29b-41d4-a716-446655440010',
-      userId: '550e8400-e29b-41d4-a716-446655440002',
-      userType: 'RACER',
-      userName: 'Jake Johnson',
-      userAvatar: 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
-      userVerified: true,
-      carNumber: '23',
-      content: 'Just finished qualifying for tomorrow\'s Charlotte 400! P3 starting position - feeling good about our chances. The car is handling perfectly and the team has been working overtime. Ready to put on a show for all the fans! 🏁',
-      mediaUrls: ['https://images.pexels.com/photos/358070/pexels-photo-358070.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=2'],
-      mediaType: 'image',
-      location: 'Charlotte Motor Speedway',
-      eventDate: '2024-02-15',
-      likes: 247,
-      comments: 18,
-      shares: 12,
-      isLiked: false,
-      timestamp: '2 hours ago',
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
-      userId: 'b2c3d4e5-f6a7-8901-2345-67890abcdef0',
-      userName: 'Monaco Grand Prix',
-      userAvatar: 'https://i.imgur.com/7mMrwrK.jpg',
-      userType: 'TRACK',
-      userVerified: true,
-      content: 'Preparations are underway for the most glamorous race of the season! 🏎️ #MonacoGP',
-      mediaUrls: ['https://i.imgur.com/XzSdKrL.jpg'],
-      mediaType: 'image',
-      timestamp: '1 day ago',
-      likes: 856,
-      comments: 42,
-      shares: 21,
-      isLiked: true,
-      location: 'Monte Carlo, Monaco',
-      eventDate: '2023-05-28',
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 'c3d4e5f6-a7b8-9012-3456-7890abcdef01',
-      userId: 'd4e5f6a7-b8c9-0123-4567-890abcdef012',
-      userName: 'Formula 1',
-      userAvatar: 'https://i.imgur.com/QmHPGVW.jpg',
-      userType: 'SERIES',
-      userVerified: true,
-      content: 'The championship battle heats up as we head to Barcelona! Who\'s your pick for the win?',
-      mediaUrls: ['https://i.imgur.com/vQ8hFaH.mp4'],
-      mediaType: 'video',
-      timestamp: '3 days ago',
-      likes: 2453,
-      comments: 312,
-      shares: 98,
-      isLiked: false,
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 'e5f6a7b8-c9d0-1234-5678-90abcdef0123',
-      userId: 'f6a7b8c9-d0e1-2345-6789-0abcdef01234',
-      userName: 'F1 Enthusiast',
-      userAvatar: 'https://i.imgur.com/JxU3Z5I.jpg',
-      userType: 'FAN',
-      userVerified: false,
-      content: 'Just got my tickets for the US Grand Prix! Anyone else going to be in Austin?',
-      mediaUrls: [],
-      timestamp: '5 days ago',
-      likes: 124,
-      comments: 43,
-      shares: 5,
-      isLiked: false,
-      location: 'Austin, Texas',
-      eventDate: '2023-10-22',
-      updated_at: new Date().toISOString()
+  // Helper: prefetch next page in background
+  const prefetchNext = useCallback(async (cur: { created_at: string; id: string } | null) => {
+    if (!cur) return setPrefetch(null);
+    try {
+      const { data, nextCursor, error } = await getFanPostsPage({ limit: 5, cursor: cur });
+      if (error) throw error;
+      setPrefetch({ data: data as unknown as DatabasePost[], nextCursor });
+    } catch (e) {
+      // Silent fail; we'll fetch on demand
+      setPrefetch(null);
     }
-  ], []);
+  }, []);
 
   // Load first page
   const loadInitial = useCallback(async () => {
@@ -119,37 +55,49 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
       if (error) throw error;
 
       const transformed = (data as unknown as DatabasePost[]).map(transformDbPostToUIPost);
-      setList(transformed.length > 0 ? transformed : mockPosts);
+      setList(transformed);
       setCursor(nextCursor);
       setHasMore(!!nextCursor);
+      // Kick off background prefetch of the next page
+      prefetchNext(nextCursor);
     } catch (e) {
       console.error('Error loading posts:', e);
       toast.error('Failed to load posts');
-      setList(mockPosts);
+      setList([]);
       setHasMore(false);
     } finally {
       setIsLoading(false);
     }
-  }, [mockPosts]);
+  }, [prefetchNext]);
 
   // Load next page
   const loadMore = useCallback(async () => {
     if (!hasMore || isLoadingMore) return;
     try {
       setIsLoadingMore(true);
-      const { data, nextCursor, error } = await getFanPostsPage({ limit: 5, cursor });
-      if (error) throw error;
-
-      const transformed = (data as unknown as DatabasePost[]).map(transformDbPostToUIPost);
-      setList(prev => [...prev, ...transformed]);
-      setCursor(nextCursor);
-      setHasMore(!!nextCursor);
+      if (prefetch) {
+        const transformed = (prefetch.data as unknown as DatabasePost[]).map(transformDbPostToUIPost);
+        setList(prev => [...prev, ...transformed]);
+        setCursor(prefetch.nextCursor);
+        setHasMore(!!prefetch.nextCursor);
+        // Chain next prefetch
+        await prefetchNext(prefetch.nextCursor);
+        setPrefetch(null);
+      } else {
+        const { data, nextCursor, error } = await getFanPostsPage({ limit: 5, cursor });
+        if (error) throw error;
+        const transformed = (data as unknown as DatabasePost[]).map(transformDbPostToUIPost);
+        setList(prev => [...prev, ...transformed]);
+        setCursor(nextCursor);
+        setHasMore(!!nextCursor);
+        await prefetchNext(nextCursor);
+      }
     } catch (e) {
       console.error('Error loading more posts:', e);
     } finally {
       setIsLoadingMore(false);
     }
-  }, [cursor, hasMore, isLoadingMore]);
+  }, [cursor, hasMore, isLoadingMore, prefetch, prefetchNext]);
 
   // Setup IntersectionObserver
   useEffect(() => {
@@ -160,7 +108,7 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
       if (first.isIntersecting) {
         loadMore();
       }
-    }, { rootMargin: '200px' });
+    }, { rootMargin: '400px' });
 
     observer.observe(el);
     return () => observer.unobserve(el);
@@ -394,14 +342,14 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
                     <video 
                       src={post.mediaUrls[0]} 
                       controls 
-                      className="w-full max-h-[500px] object-cover" 
+                      className="w-full max-h-[280px] object-cover" 
                       poster={post.mediaUrls[0] + '?poster=true'}
                     />
                   ) : post.mediaUrls.length === 1 ? (
                     <LazyImage
                       src={post.mediaUrls[0]}
                       alt="Post media"
-                      className="w-full max-h-[500px] object-cover"
+                      className="w-full max-h-[280px] object-cover"
                     />
                   ) : (
                     <div className={`grid ${post.mediaUrls.length === 2 ? 'grid-cols-2' : 'grid-cols-2'} gap-0.5`}>
@@ -413,7 +361,7 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
                           <LazyImage
                             src={url}
                             alt={`Post media ${index + 1}`}
-                            className="w-full h-[200px] object-cover"
+                            className="w-full h-[140px] object-cover"
                           />
                           {index === 3 && post.mediaUrls.length > 4 && (
                             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">

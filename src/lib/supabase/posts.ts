@@ -103,7 +103,6 @@ export const getFanPosts = async (): Promise<any[]> => {
           )
         `)
         .eq('visibility', 'public')
-        // Removed .eq('user_type', 'fan') to show both racer and fan posts
         .limit(10)
         .order('created_at', { ascending: false });
       
@@ -180,7 +179,6 @@ export const getFanPostsPage = async ({
           )
         `)
         .eq('visibility', 'public')
-        // Removed .eq('user_type', 'fan') to include racer posts as well
         .not('created_at', 'is', null)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false });

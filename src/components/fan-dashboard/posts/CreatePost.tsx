@@ -2,7 +2,14 @@ import React, { useState, useRef } from 'react';
 import { X, Image, Video, Globe, Users, MapPin, Calendar, Upload, Trash2 } from 'lucide-react';
 import { Post, PostCreationPayload } from './types';
 import { createFanPost } from '../../../lib/supabase';
-import { uploadPostImage, uploadPostVideo, getPostPublicUrl } from '../../../lib/supabase/storage';
+import {
+  uploadPostImage,
+  uploadPostVideo,
+  getPostPublicUrl,
+  uploadFanPostImage,
+  uploadFanPostVideo,
+  getFanPostPublicUrl,
+} from '../../../lib/supabase/storage';
 import { ExtendedUser } from '../../../lib/supabase/types';
 import { useUser } from '../../../contexts/UserContext';
 
@@ -31,7 +38,6 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
   const [eventDate, setEventDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -74,7 +80,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!content.trim() && selectedFiles.length === 0) {
       alert('Please add some content or media to your post');
       return;
@@ -86,37 +92,38 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
     }
 
     setIsSubmitting(true);
-    
+
     try {
       // Upload media files first
       const uploadedUrls: string[] = [];
       let uploadError = false;
-      
+
       for (const file of selectedFiles) {
         const isVideo = file.type.startsWith('video/');
-        
+        const isFan = user?.user_type === 'fan';
+
         let result;
         if (isVideo) {
-          result = await uploadPostVideo(user.id, file);
+          result = isFan ? await uploadFanPostVideo(user.id, file) : await uploadPostVideo(user.id, file);
         } else {
-          result = await uploadPostImage(user.id, file);
+          result = isFan ? await uploadFanPostImage(user.id, file) : await uploadPostImage(user.id, file);
         }
-        
+
         if (result?.error) {
           console.error('Error uploading file:', result.error);
           alert(`Error uploading ${isVideo ? 'video' : 'image'}: ${result.error.message || 'Unknown error'}`);
           uploadError = true;
           break;
         }
-        
+
         if (result?.path) {
-          const publicUrl = getPostPublicUrl(result.path);
+          const publicUrl = (isFan ? getFanPostPublicUrl : getPostPublicUrl)(result.path);
           if (publicUrl) {
             uploadedUrls.push(publicUrl);
           }
         }
       }
-      
+
       if (uploadError) {
         setIsSubmitting(false);
         return;
@@ -125,7 +132,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
       // Determine post type
       let postType = 'text';
       if (selectedFiles.length > 0) {
-        const hasVideo = selectedFiles.some(file => file.type.startsWith('video/'));
+        const hasVideo = selectedFiles.some((file) => file.type.startsWith('video/'));
         if (hasVideo) {
           postType = 'video';
         } else {
@@ -139,9 +146,9 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
         content: content.trim(),
         media_urls: uploadedUrls,
         post_type: postType,
-        visibility: visibility
+        visibility: visibility,
       });
-      
+
       if (postError) {
         console.error('Error creating post:', postError);
         alert(`Failed to create post: ${postError.message || 'Unknown error'}`);
@@ -169,14 +176,13 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
 
       onPostCreated(newPost);
       onClose();
-      
+
       // Reset form
       setContent('');
       setSelectedFiles([]);
       setMediaType(null);
       setLocation('');
       setEventDate('');
-      
     } catch (error) {
       console.error('Error creating post:', error);
       alert('Failed to create post. Please try again.');

@@ -73,13 +73,11 @@ interface ActivityItem {
 
 interface RacerData {
   racer_id: string;
-  racers: {
-    name: string;
-    avatar_url: string;
-    country_flag: string;
-    next_race_track?: string;
-    next_race_date?: string;
-  };
+  racer_profiles: {
+    username: string | null;
+    profile_photo_url: string | null;
+    country: string | null;
+  } | null;
   last_tipped: string | null;
   total_tipped: number;
   subscription_tier: string | null;
@@ -222,7 +220,7 @@ const FanDashboard: React.FC = () => {
           .from('fan_favorite_racers')
           .select(`
             racer_id,
-            racers:racer_id (name, avatar_url, country_flag, next_race_track, next_race_date),
+            racer_profiles!fan_favorite_racers_racer_id_fkey (username, profile_photo_url, country),
             last_tipped,
             total_tipped,
             subscription_tier
@@ -312,15 +310,15 @@ const FanDashboard: React.FC = () => {
       } else {
         const formattedRacers = racersData.map((item: RacerData) => ({
           id: item.racer_id,
-          name: item.racers?.name || 'Unknown Racer',
-          avatarUrl: item.racers?.avatar_url || '/default-avatar.png',
-          flag: item.racers?.country_flag || '/default-flag.png',
+          name: item.racer_profiles?.username || 'Unknown Racer',
+          avatarUrl: item.racer_profiles?.profile_photo_url || '/default-avatar.png',
+          flag: item.racer_profiles?.country || '/default-flag.png',
           lastTipped: item.last_tipped ? (new Date(item.last_tipped).toLocaleDateString() as string | null) : null,
           totalTipped: item.total_tipped || 0,
           subscription: item.subscription_tier || 'None',
           nextRace: {
-            track: item.racers?.next_race_track || 'Unknown',
-            date: item.racers?.next_race_date ? (new Date(item.racers.next_race_date).toLocaleDateString() as string) : 'Unknown'
+            track: 'Unknown',
+            date: 'Unknown'
           }
         }));
         setFavoriteRacers(formattedRacers);
