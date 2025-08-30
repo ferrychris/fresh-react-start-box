@@ -272,8 +272,8 @@ export const getCommentsForPost = async (postId: string): Promise<PostComment[]>
             comment_text: comment.comment_text || '',
             created_at: comment.created_at,
             user: {
-              name: Array.isArray(comment.profiles) ? comment.profiles[0]?.name : comment.profiles?.name || 'User',
-              avatar: Array.isArray(comment.profiles) ? (comment.profiles[0]?.avatar_url || comment.profiles[0]?.avatar) : (comment.profiles?.avatar_url || comment.profiles?.avatar) || ''
+              name: Array.isArray(comment.profiles) ? comment.profiles[0]?.name : (comment.profiles as any)?.name || 'User',
+              avatar: Array.isArray(comment.profiles) ? (comment.profiles[0]?.avatar_url || comment.profiles[0]?.avatar) : ((comment.profiles as any)?.avatar_url || (comment.profiles as any)?.avatar) || ''
             }
           };
         } catch (err) {
@@ -394,8 +394,8 @@ export const addCommentToPost = async (
           comment_text: data.comment_text,
           created_at: data.created_at,
           user: {
-            name: Array.isArray(data.profiles) ? data.profiles[0]?.name : data.profiles?.name || 'User',
-            avatar: Array.isArray(data.profiles) ? (data.profiles[0]?.avatar_url || data.profiles[0]?.avatar) : (data.profiles?.avatar_url || data.profiles?.avatar) || ''
+            name: Array.isArray(data.profiles) ? data.profiles[0]?.name : (data.profiles as any)?.name || 'User',
+            avatar: Array.isArray(data.profiles) ? (data.profiles[0]?.avatar_url || data.profiles[0]?.avatar) : ((data.profiles as any)?.avatar_url || (data.profiles as any)?.avatar) || ''
           }
         };
 
