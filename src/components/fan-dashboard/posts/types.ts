@@ -17,14 +17,14 @@ export interface Post {
   shares: number;
   isLiked: boolean;
   timestamp: string;
-  updated_at?: string;
+  updated_at: string;
 }
 
 // Represents the structure of post data coming from the database
 export interface DatabasePost {
   id: string;
   created_at: string;
-  updated_at?: string;
+  updated_at: string;
   content: string;
   media_urls: string[];
   post_type: 'text' | 'photo' | 'video' | 'gallery';
@@ -80,7 +80,7 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
     shares: 0,
     isLiked: false,
     carNumber: post.user_type === 'racer' ? '23' : undefined,
-    updated_at: post.updated_at
+    updated_at: post.updated_at || post.created_at
   };
 };
 

@@ -52,7 +52,8 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
       comments: 18,
       shares: 12,
       isLiked: false,
-      timestamp: '2 hours ago'
+      timestamp: '2 hours ago',
+      updated_at: new Date().toISOString()
     },
     {
       id: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
@@ -70,7 +71,8 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
       shares: 21,
       isLiked: true,
       location: 'Monte Carlo, Monaco',
-      eventDate: '2023-05-28'
+      eventDate: '2023-05-28',
+      updated_at: new Date().toISOString()
     },
     {
       id: 'c3d4e5f6-a7b8-9012-3456-7890abcdef01',
@@ -86,7 +88,8 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
       likes: 2453,
       comments: 312,
       shares: 98,
-      isLiked: false
+      isLiked: false,
+      updated_at: new Date().toISOString()
     },
     {
       id: 'e5f6a7b8-c9d0-1234-5678-90abcdef0123',
@@ -103,7 +106,8 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
       shares: 5,
       isLiked: false,
       location: 'Austin, Texas',
-      eventDate: '2023-10-22'
+      eventDate: '2023-10-22',
+      updated_at: new Date().toISOString()
     }
   ], []);
 

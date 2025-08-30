@@ -164,6 +164,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
         comments: 0,
         shares: 0,
         isLiked: false,
+        updated_at: new Date().toISOString(),
       };
 
       onPostCreated(newPost);
