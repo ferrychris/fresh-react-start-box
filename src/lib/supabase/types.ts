@@ -19,10 +19,12 @@ export interface FanStats {
 export interface DatabasePost {
   id: string;
   created_at: string;
+  updated_at?: string;
   content: string;
   media_urls?: string[] | null;
   likes_count: number;
   racer_id?: string;
+  user_id?: string;
   fan_id?: string;
   visibility?: string;
   user_type?: 'racer' | 'fan' | 'track';

@@ -5,7 +5,8 @@ import toast from 'react-hot-toast';
 import CreatePost from './CreatePost';
 import { supabase } from '../../../lib/supabase/client';
 import { getFanPostsPage } from '../../../lib/supabase/posts';
-import { Post, PostCreationPayload, DatabasePost, transformDbPostToUIPost } from './types'; // Import shared types
+import { Post, PostCreationPayload, DatabasePost, transformDbPostToUIPost } from './types';
+import LazyImage from '../../LazyImage';
 
 // Post interface is now imported from types.ts
 
@@ -323,7 +324,7 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
               <div className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <img
+                    <LazyImage
                       src={post.userAvatar}
                       alt={post.userName}
                       className="w-10 h-10 rounded-full object-cover"
@@ -393,15 +394,10 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
                       poster={post.mediaUrls[0] + '?poster=true'}
                     />
                   ) : post.mediaUrls.length === 1 ? (
-                    <img
+                    <LazyImage
                       src={post.mediaUrls[0]}
                       alt="Post media"
                       className="w-full max-h-[500px] object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.onerror = null;
-                        target.src = 'https://placehold.co/800x400?text=Image+Not+Available';
-                      }}
                     />
                   ) : (
                     <div className={`grid ${post.mediaUrls.length === 2 ? 'grid-cols-2' : 'grid-cols-2'} gap-0.5`}>
@@ -410,15 +406,10 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
                           key={index} 
                           className={`relative ${post.mediaUrls.length === 3 && index === 2 ? 'col-span-2' : ''}`}
                         >
-                          <img
+                          <LazyImage
                             src={url}
                             alt={`Post media ${index + 1}`}
                             className="w-full h-[200px] object-cover"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.onerror = null;
-                              target.src = 'https://placehold.co/400x200?text=Image+Not+Available';
-                            }}
                           />
                           {index === 3 && post.mediaUrls.length > 4 && (
                             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">

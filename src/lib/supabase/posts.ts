@@ -91,7 +91,12 @@ export const getFanPosts = async (): Promise<any[]> => {
         user_type,
         racer_id,
         total_tips,
-        allow_tips
+        allow_tips,
+        profiles (
+          name,
+          avatar,
+          user_type
+        )
       `)
       .eq('visibility', 'public')
       .order('created_at', { ascending: false })
@@ -139,7 +144,12 @@ export const getFanPostsPage = async ({
           user_type,
           racer_id,
           total_tips,
-          allow_tips
+          allow_tips,
+          profiles (
+            name,
+            avatar,
+            user_type
+          )
         `)
         .eq('visibility', 'public')
         .not('created_at', 'is', null)
