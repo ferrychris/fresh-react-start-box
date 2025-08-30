@@ -504,14 +504,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
               {comments.map((comment) => (
                 <div key={comment.id} className="flex items-start space-x-3">
                   <img
-                    src={comment.profiles.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.profiles.name}`}
-                    alt={comment.profiles.name}
-                    className="w-8 h-8 rounded-full"
+                    src={comment.user?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user?.name || 'User'}`}
+                    alt={comment.user?.name || 'User'}
+                    className="w-8 h-8 rounded-full object-cover"
                   />
                   <div className="flex-1 bg-gray-800 rounded-lg p-3">
                     <div className="flex items-center space-x-2 mb-1">
-                      <span className="font-semibold text-sm">{comment.profiles.name}</span>
-                      <SuperFanBadge type="fan" size="sm" />
+                      <span className="font-semibold text-sm text-white">{comment.user?.name || 'User'}</span>
+                      <span className="text-xs text-gray-400">{formatTimeAgo(comment.created_at)}</span>
                     </div>
                     <p className="text-sm text-gray-300">{comment.comment_text}</p>
                   </div>
@@ -522,9 +522,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
             {user && (
               <div className="flex items-center space-x-3">
                 <img
-                  src={user.profilePicture || `https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`}
-                  alt={user.name}
-                  className="w-8 h-8 rounded-full"
+                  src={(user as any).avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${user.name || 'User'}`}
+                  alt={user.name || 'User'}
+                  className="w-8 h-8 rounded-full object-cover"
                 />
                 <div className="flex-1 flex space-x-2">
                   <input
@@ -532,12 +532,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
                     placeholder="Write a comment..."
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
-                    className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-fedex-purple"
-                    onKeyPress={(e) => e.key === 'Enter' && handleComment()}
+                    className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
+                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleComment()}
                   />
                   <button
                     onClick={handleComment}
-                    className="px-4 py-2 bg-fedex-orange hover:bg-fedex-orange-dark rounded-lg font-semibold transition-colors"
+                    disabled={!newComment.trim()}
+                    className="px-4 py-2 bg-primary hover:bg-primary/80 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold text-white transition-colors"
                   >
                     Post
                   </button>

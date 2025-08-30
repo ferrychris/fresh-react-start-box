@@ -264,6 +264,7 @@ export const getCommentsForPost = async (postId: string): Promise<PostComment[]>
       // Process comments with defensive coding
       return (comments || []).map(comment => {
         try {
+          const profiles = comment.profiles as any;
           return {
             id: comment.id,
             post_id: comment.post_id,
@@ -272,8 +273,8 @@ export const getCommentsForPost = async (postId: string): Promise<PostComment[]>
             comment_text: comment.comment_text || '',
             created_at: comment.created_at,
             user: {
-              name: Array.isArray(comment.profiles) ? comment.profiles[0]?.name : (comment.profiles as any)?.name || 'User',
-              avatar: Array.isArray(comment.profiles) ? (comment.profiles[0]?.avatar_url || comment.profiles[0]?.avatar) : ((comment.profiles as any)?.avatar_url || (comment.profiles as any)?.avatar) || ''
+              name: profiles?.name || 'User',
+              avatar: profiles?.avatar || profiles?.avatar_url || ''
             }
           };
         } catch (err) {
@@ -311,6 +312,16 @@ export const getCommentsForPost = async (postId: string): Promise<PostComment[]>
 
 // Alias for getCommentsForPost to maintain compatibility with PostCard.tsx
 export const getPostComments = getCommentsForPost;
+
+// Alias for addCommentToPost to maintain compatibility with PostCard.tsx
+export const addPostComment = async (postId: string, userId: string, commentText: string): Promise<PostComment | null> => {
+  const result = await addCommentToPost(postId, userId, commentText);
+  if (result.error) {
+    console.error('Error in addPostComment:', result.error);
+    throw result.error;
+  }
+  return result.data;
+};
 
 export const addCommentToPost = async (
   postId: string,
