@@ -90,6 +90,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
     try {
       // Upload media files first
       const uploadedUrls: string[] = [];
+      let uploadError = false;
       
       for (const file of selectedFiles) {
         const isVideo = file.type.startsWith('video/');
@@ -101,12 +102,24 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
           result = await uploadPostImage(user.id, file);
         }
         
+        if (result?.error) {
+          console.error('Error uploading file:', result.error);
+          alert(`Error uploading ${isVideo ? 'video' : 'image'}: ${result.error.message || 'Unknown error'}`);
+          uploadError = true;
+          break;
+        }
+        
         if (result?.path) {
           const publicUrl = getPostPublicUrl(result.path);
           if (publicUrl) {
             uploadedUrls.push(publicUrl);
           }
         }
+      }
+      
+      if (uploadError) {
+        setIsSubmitting(false);
+        return;
       }
 
       // Determine post type
@@ -121,13 +134,20 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
       }
 
       // Create the fan post
-      await createFanPost({
+      const { error: postError } = await createFanPost({
         fan_id: user.id,
         content: content.trim(),
         media_urls: uploadedUrls,
         post_type: postType,
         visibility: visibility
       });
+      
+      if (postError) {
+        console.error('Error creating post:', postError);
+        alert(`Failed to create post: ${postError.message || 'Unknown error'}`);
+        setIsSubmitting(false);
+        return;
+      }
 
       // Create mock post for immediate UI update
       const newPost: Post = {

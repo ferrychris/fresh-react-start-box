@@ -78,18 +78,55 @@ export const markAllNotificationsAsRead = async (userId: string) => {
 };
 
 export const getUnreadNotificationCount = async (userId: string): Promise<number> => {
-  const { count, error } = await sb
-    .from('notifications')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('read', false);
-  
-  if (error) {
-    console.error('Error getting unread notification count:', error);
+  if (!userId) {
+    console.warn('getUnreadNotificationCount called with no userId');
     return 0;
   }
+
+  // Retry logic
+  const maxRetries = 3;
+  let retries = 0;
   
-  return count || 0;
+  while (retries < maxRetries) {
+    try {
+      // Check if we have a valid session first
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) {
+        console.warn('No active session when fetching notification count');
+        return 0;
+      }
+      
+      const { count, error } = await sb
+        .from('notifications')
+        .select('*', { count: 'exact', head: true})
+        .eq('user_id', userId)
+        .eq('read', false);
+      
+      if (error) {
+        if (error.message.includes('Failed to fetch') && retries < maxRetries - 1) {
+          console.warn(`Retry ${retries + 1}/${maxRetries} for notification count`);
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * retries)); // Exponential backoff
+          continue;
+        }
+        console.error('Error getting unread notification count:', error);
+        return 0;
+      }
+      
+      return count || 0;
+    } catch (err) {
+      if (retries < maxRetries - 1) {
+        console.warn(`Retry ${retries + 1}/${maxRetries} for notification count after exception`);
+        retries++;
+        await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+        continue;
+      }
+      console.error('Exception getting unread notification count:', err);
+      return 0;
+    }
+  }
+  
+  return 0;
 };
 
 // Add missing fan stats function
@@ -352,18 +389,64 @@ export const updateTrackProfile = async (trackId: string, updates: any) => {
   return data;
 };
 
-export const createTrackPost = async (post: any) => {
-  const { data, error } = await sb
-    .from('racer_posts')
-    .insert([post])
-    .select()
-    .single();
-  
-  if (error) {
-    console.error('Error creating track post:', error);
-    throw error;
+export const createTrackPost = async (post: any): Promise<{ data: any | null; error: any | null }> => {
+  try {
+    // Validate required fields
+    if (!post.racer_id) {
+      return { data: null, error: { message: 'Track ID is required' } };
+    }
+    
+    // Check if we have a valid session first
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      return { data: null, error: { message: 'Authentication required to create track posts' } };
+    }
+    
+    // Create the post with retry logic
+    let retries = 0;
+    const maxRetries = 3;
+    
+    while (retries < maxRetries) {
+      try {
+        const { data, error } = await sb.from('racer_posts').insert([post]).select();
+        
+        if (error) {
+          if (error.message?.includes('Failed to fetch') && retries < maxRetries - 1) {
+            console.warn(`Network error creating track post, retrying... (${retries + 1}/${maxRetries})`);
+            retries++;
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries))); // Exponential backoff
+            continue;
+          }
+          
+          console.error('Error creating track post:', error);
+          return { data: null, error };
+        }
+        
+        return { data, error: null };
+      } catch (err) {
+        if (retries < maxRetries - 1) {
+          console.warn(`Unexpected error creating track post, retrying... (${retries + 1}/${maxRetries})`);
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries))); // Exponential backoff
+          continue;
+        }
+        
+        console.error('Exception creating track post:', err);
+        return { 
+          data: null, 
+          error: { message: err instanceof Error ? err.message : 'Unknown error creating track post' } 
+        };
+      }
+    }
+    
+    return { data: null, error: { message: 'Maximum retries reached while creating track post' } };
+  } catch (err) {
+    console.error('Unhandled exception in createTrackPost:', err);
+    return { 
+      data: null, 
+      error: { message: err instanceof Error ? err.message : 'Unknown error creating track post' } 
+    };
   }
-  return data;
 };
 
 // Explicit re-exports for commonly used track helpers
@@ -782,22 +865,78 @@ export const createFanProfile = async (payload: {
   }
 };
 
-// Add missing post functions
-export const addPostComment = async (postId: string, userId: string, content: string) => {
-  const { data, error } = await sb
-    .from('post_interactions')
-    .insert([{
-      post_id: postId,
-      user_id: userId,
-      interaction_type: 'comment',
-      comment_text: content
-    }])
-    .select()
-    .single();
-  
-  if (error) {
-    console.error('Error adding post comment:', error);
-    throw error;
+export const addPostComment = async (postId: string, userId: string, content: string): Promise<{ data: any | null; error: any | null }> => {
+  try {
+    // Validate required fields
+    if (!postId || !userId || !content) {
+      return { 
+        data: null, 
+        error: { message: 'Post ID, user ID, and comment content are required' } 
+      };
+    }
+    
+    // Check if we have a valid session first
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      return { data: null, error: { message: 'Authentication required to add comments' } };
+    }
+    
+    // Ensure the authenticated user matches the userId
+    if (session.user.id !== userId) {
+      return { data: null, error: { message: 'You can only add comments as yourself' } };
+    }
+    
+    // Add comment with retry logic
+    let retries = 0;
+    const maxRetries = 3;
+    
+    while (retries < maxRetries) {
+      try {
+        const { data, error } = await sb
+          .from('post_interactions')
+          .insert([{
+            post_id: postId,
+            user_id: userId,
+            interaction_type: 'comment',
+            comment_text: content
+          }])
+          .select();
+        
+        if (error) {
+          if (error.message?.includes('Failed to fetch') && retries < maxRetries - 1) {
+            console.warn(`Network error adding comment, retrying... (${retries + 1}/${maxRetries})`);
+            retries++;
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries))); // Exponential backoff
+            continue;
+          }
+          
+          console.error('Error adding post comment:', error);
+          return { data: null, error };
+        }
+        
+        return { data: data?.[0] || null, error: null };
+      } catch (err) {
+        if (retries < maxRetries - 1) {
+          console.warn(`Unexpected error adding comment, retrying... (${retries + 1}/${maxRetries})`);
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries))); // Exponential backoff
+          continue;
+        }
+        
+        console.error('Exception adding post comment:', err);
+        return { 
+          data: null, 
+          error: { message: err instanceof Error ? err.message : 'Unknown error adding comment' } 
+        };
+      }
+    }
+    
+    return { data: null, error: { message: 'Maximum retries reached while adding comment' } };
+  } catch (err) {
+    console.error('Unhandled exception in addPostComment:', err);
+    return { 
+      data: null, 
+      error: { message: err instanceof Error ? err.message : 'Unknown error adding comment' } 
+    };
   }
-  return data;
 };
