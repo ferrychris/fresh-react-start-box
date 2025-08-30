@@ -955,14 +955,112 @@ export interface GiftTransaction {
   token_amount: number;
   message?: string;
   created_at: string;
+  is_public: boolean;
   // Extended properties for UI display
-  gift?: {
-    name: string;
-    image_url: string;
-    token_cost: number;
-  };
+  gift?: VirtualGift;
   sender?: {
     name: string;
     avatar?: string;
   };
+}
+
+// Additional interface definitions
+export interface VirtualGift {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  token_cost: number;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  image_url: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  created_at: string;
+  data?: Record<string, any>;
+}
+
+export interface SubscriptionTier {
+  id: string;
+  racer_id: string;
+  tier_name: string;
+  name?: string;
+  description?: string;
+  price_cents: number;
+  benefits: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  stripe_price_id?: string;
+}
+
+export interface SponsorshipPackage {
+  id: string;
+  racer_id: string;
+  package_name: string;
+  description: string;
+  price_cents: number;
+  duration_races: number;
+  car_placement: string;
+  benefits: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  stripe_price_id?: string;
+}
+
+export interface PostComment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  user_name?: string;
+  user_avatar?: string;
+}
+
+export interface DatabasePost {
+  id: string;
+  racer_id: string;
+  content: string;
+  post_type: 'text' | 'photo' | 'video' | 'gallery';
+  media_urls: string[];
+  visibility: 'public' | 'fans_only';
+  created_at: string;
+  updated_at: string;
+  likes_count: number;
+  comments_count: number;
+  total_tips: number;
+  allow_tips: boolean;
+}
+
+export interface LiveStream {
+  id: string;
+  streamer_id: string;
+  title: string;
+  description?: string;
+  is_live: boolean;
+  viewer_count: number;
+  started_at: string;
+  ended_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FanStats {
+  fan_id: string;
+  total_tips: number;
+  active_subscriptions: number;
+  support_points: number;
+  activity_streak: number;
+  created_at: string;
+  updated_at: string;
 }

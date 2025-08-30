@@ -34,10 +34,16 @@ export * from './supabase/types';
 export { gifts };
 export { tokens };
 
+// Add missing exports
+export { PostComment, DatabasePost, LiveStream, FanStats } from './supabase/types';
+
 // Add missing notification functions
 export const getNotificationsForUser = async (userId: string, limit: number = 20) => {
   return notifications.getNotifications(userId);
 };
+
+// Export notifications namespace
+export { notifications };
 
 export const markAllNotificationsAsRead = async (userId: string) => {
   const { error } = await sb
@@ -103,6 +109,21 @@ export const TOKEN_PACKAGES = [
   { tokens: 1000, price: 74.99, bonus: 150 },
   { tokens: 2500, price: 174.99, bonus: 500 },
 ];
+
+// Add missing gift functions
+export const getVirtualGifts = async () => {
+  const { data, error } = await sb
+    .from('virtual_gifts')
+    .select('*')
+    .eq('is_active', true)
+    .order('token_cost', { ascending: true });
+  
+  if (error) {
+    console.error('Error getting virtual gifts:', error);
+    return [];
+  }
+  return data || [];
+};
 
 // Add missing fan functions
 export const becomeFan = async (fanId: string, racerId: string) => {
@@ -689,4 +710,24 @@ export const createFanProfile = async (payload: {
     console.error('[fans.createFanProfile] unexpected error:', e);
     throw e;
   }
+};
+
+// Add missing post functions
+export const addPostComment = async (postId: string, userId: string, content: string) => {
+  const { data, error } = await sb
+    .from('post_interactions')
+    .insert([{
+      post_id: postId,
+      user_id: userId,
+      interaction_type: 'comment',
+      comment_text: content
+    }])
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('Error adding post comment:', error);
+    throw error;
+  }
+  return data;
 };
