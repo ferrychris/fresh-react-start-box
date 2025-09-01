@@ -2,27 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { 
   Heart, 
   MessageCircle, 
+  MoreHorizontal, 
   DollarSign, 
   Share2, 
   Globe, 
   Users, 
   ChevronLeft,
   ChevronRight,
-  MoreHorizontal,
   Clock,
   Trash2,
   Edit3,
   X
 } from 'lucide-react';
-import { supabase } from '../integrations/supabase/client';
-import { 
-  getCommentsForPost, 
-  togglePostLike,
-  addPostComment
-} from '../lib/supabase/posts';
-import { type PostComment } from '../lib/supabase/types';
-import { useApp } from '../App';
-import { SuperFanBadge } from './SuperFanBadge';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { useApp } from '@/contexts/AppContext';
+import { useUser } from '@/contexts/UserContext';
+import { Post, PostComment } from '@/types';
+import { formatTimeAgo } from '@/lib/utils';
+import { getPostLikers, likePost, unlikePost, addCommentToPost, getPostComments, deletePost } from '@/lib/supabase/posts';
 
 // Define a more complete Post type for the component
 export type Post = {
@@ -67,11 +65,18 @@ interface PostCardProps {
   onPostDeleted?: () => void;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDeleted }) => {
-  const { user } = useApp();
+export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpdate, onPostDeleted }) => {
+  const { setShowAuthModal } = useApp();
+  const { user } = useUser();
+  const [post, setPost] = useState(initialPost);
   const [isLiked, setIsLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState<number>(post.likes_count || 0);
+  const [commentsCount, setCommentsCount] = useState<number>(post.comments_count || 0);
+  const [likeBusy, setLikeBusy] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<PostComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [hasMoreComments, setHasMoreComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [showTipModal, setShowTipModal] = useState(false);
   const [tipAmount, setTipAmount] = useState(5);
@@ -82,78 +87,109 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
 
   useEffect(() => {
     const checkLike = async () => {
-      if (!user) return;
-      const { data, error } = await supabase
-        .from('post_likes')
-        .select('user_id')
-        .eq('post_id', post.id)
-        .eq('user_id', user.id)
-        .single();
-      
-      if (error && error.code !== 'PGRST116') { // Ignore 'exact one row' error
+      if (!user) {
+        setIsLiked(false);
+        return;
+      }
+      const { data, error } = await getPostLikers(post.id, user.id);
+
+      if (error) {
         console.error('Error checking post like:', error);
       }
       setIsLiked(!!data);
     };
 
     checkLike();
-  }, [post.id, user]);
+    setLikesCount(post.likes_count || 0);
+    setCommentsCount(post.comments_count || 0);
+  }, [post.id, user, post.likes_count, post.comments_count]);
 
   const handleLike = async () => {
-    if (!user) return;
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    if (likeBusy) return; // prevent rapid clicks
+    setLikeBusy(true);
     
     const wasLiked = isLiked;
+    const prevCount = likesCount;
+
+    // Optimistic UI update
     setIsLiked(!wasLiked);
+    setLikesCount(prev => prev + (wasLiked ? -1 : 1));
     
     try {
-      const result = await togglePostLike(post.id, user.id);
-      if (result && typeof result === 'object' && 'liked' in result) {
-        setIsLiked(result.liked);
+      if (wasLiked) {
+        await unlikePost(post.id, user.id);
+      } else {
+        await likePost(post.id, user.id);
       }
+
       onPostUpdate?.();
     } catch (error) {
       console.error('Error toggling like:', error);
       // Revert optimistic update on error
       setIsLiked(wasLiked);
+      setLikesCount(prevCount);
+    }
+    finally {
+      setLikeBusy(false);
+    }
+  };
+
+  const fetchComments = async (limit: number, offset: number) => {
+    setCommentsLoading(true);
+    const { data, error } = await getPostComments(post.id, limit, offset);
+    if (data) {
+      setComments(prev => (offset === 0 ? data : [...prev, ...data]));
+      setHasMoreComments(data.length === limit);
+    } else {
+      console.error('Failed to fetch comments:', error);
+      setHasMoreComments(false);
+    }
+    setCommentsLoading(false);
+  };
+
+  const toggleComments = () => {
+    const willShow = !showComments;
+    setShowComments(willShow);
+    if (willShow && comments.length === 0) {
+      fetchComments(2, 0);
+    }
+  };
+
+  const handleComment = async () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    if (!newComment.trim()) return;
+    
+    setCommentsCount(prev => prev + 1);
+    try {
+      const result = await addCommentToPost(post.id, user.id, newComment.trim());
+      if (result.data) {
+        // Add the new comment to the top of the list
+        setComments(prev => [result.data, ...prev]);
+      }
+      setNewComment('');
+    } catch (error) {
+      console.error('Failed to add comment:', error);
+      // Revert optimistic update on failure
+      setCommentsCount(prev => prev - 1);
     }
   };
 
   const handleTip = async () => {
-    if (!user || tipAmount <= 0) return;
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    if (tipAmount <= 0) return;
     
     alert('Tipping functionality is temporarily disabled.');
     setShowTipModal(false);
-  };
-
-  const handleComment = async () => {
-    if (!user || !newComment.trim()) return;
-    
-    try {
-      await addPostComment(post.id, user.id, newComment.trim());
-      setNewComment('');
-      loadComments();
-      onPostUpdate?.();
-    } catch (error) {
-      console.error('Error adding comment:', error);
-    }
-  };
-
-  const loadComments = async () => {
-    if (!post.id) return;
-    try {
-      const fetchedComments = await getCommentsForPost(post.id);
-      setComments(fetchedComments || []);
-    } catch (error) {
-      console.error('Error fetching comments:', error);
-      setComments([]);
-    }
-  };
-
-  const toggleComments = () => {
-    if (!showComments) {
-      loadComments();
-    }
-    setShowComments(!showComments);
   };
 
   const handleDeletePost = async () => {
@@ -164,8 +200,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
     
     setLoading(true);
     try {
-      const { error } = await supabase.from('racer_posts').delete().match({ id: post.id });
-      if (error) throw error;
+      await deletePost(post.id);
 
       onPostDeleted?.();
       setShowDeleteConfirm(false);
@@ -179,23 +214,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
     }
   };
 
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
-    if (diffInHours < 1) return 'Just now';
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    return `${Math.floor(diffInHours / 24)}d ago`;
-  };
-
   const PostMedia: React.FC = () => {
     if (post.post_type === 'video' && post.media_urls.length > 0) {
       return (
         <div className="relative bg-gray-900 rounded-lg overflow-hidden">
           <video
             src={post.media_urls[0]}
-            className="w-full h-64 sm:h-80 object-cover"
+            className="w-full h-48 sm:h-64 object-cover"
             poster={post.media_urls[0] + '#t=0.1'}
             controls
             preload="metadata"
@@ -219,7 +244,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
            post.media_urls[currentImageIndex]?.includes('.ogg') ? (
             <video
               src={post.media_urls[currentImageIndex]}
-              className="w-full h-64 sm:h-80 object-cover"
+              className="w-full h-48 sm:h-64 object-cover"
               controls
               preload="metadata"
             >
@@ -229,7 +254,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
             <img
               src={post.media_urls[currentImageIndex]}
               alt={`Post image ${currentImageIndex + 1}`}
-              className="w-full h-64 sm:h-80 object-cover"
+              className="w-full h-48 sm:h-64 object-cover"
+              loading="lazy"
+              decoding="async"
+              sizes="(max-width: 640px) 100vw, 640px"
             />
           )}
           {post.media_urls.length > 1 && (
@@ -398,7 +426,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
                 <button
                   onClick={handleDeletePost}
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors flex items-center justify-center space-x-2"
+                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors"
                 >
                   {loading ? (
                     <>
@@ -427,7 +455,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
 
         {/* Post Content */}
         <div className="mb-4">
-          <p className="text-gray-100 leading-relaxed whitespace-pre-wrap">{post.content}</p>
+          <p
+            className="text-gray-100 leading-relaxed whitespace-pre-wrap"
+            style={{
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {post.content}
+          </p>
         </div>
       </div>
 
@@ -439,15 +477,15 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
       )}
 
       {/* Engagement Stats */}
-      {(post.likes_count > 0 || post.comments_count > 0 || post.total_tips > 0) && (
+      {(likesCount > 0 || commentsCount > 0 || post.total_tips > 0) && (
         <div className="px-6 py-2 text-sm text-gray-400 border-t border-gray-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              {post.likes_count > 0 && (
-                <span>{post.likes_count} {post.likes_count === 1 ? 'like' : 'likes'}</span>
+              {likesCount > 0 && (
+                <span>{likesCount} {likesCount === 1 ? 'like' : 'likes'}</span>
               )}
-             {post.comments_count > 0 && (
-                <span>{post.comments_count} {post.comments_count === 1 ? 'comment' : 'comments'}</span>
+              {commentsCount > 0 && (
+                <span>{commentsCount} {commentsCount === 1 ? 'comment' : 'comments'}</span>
               )}
             </div>
             {post.total_tips > 0 && (
@@ -463,15 +501,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
           <div className="flex items-center space-x-6">
             <button
               onClick={handleLike}
+              disabled={likeBusy}
               className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all ${
-                isLiked 
-                  ? 'bg-fedex-orange/20 text-fedex-orange' 
-                  : 'hover:bg-gray-800 text-gray-400 hover:text-fedex-orange'
-              }`}
+                isLiked
+                  ? 'bg-red-500/20 text-red-500'
+                  : 'hover:bg-gray-800 text-gray-400 hover:text-red-500'
+              } ${likeBusy ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
               <Heart className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
               <span className="font-semibold">
-                {post.likes_count > 0 ? `${post.likes_count}` : 'Like'}
+                {likesCount}
               </span>
             </button>
             
@@ -480,7 +519,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
               className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-fedex-purple transition-all"
             >
               <MessageCircle className="h-5 w-5" />
-              <span className="font-semibold">Comment</span>
+              <span className="font-semibold">{commentsCount}</span>
             </button>
             
             {post.allow_tips && (
@@ -501,7 +540,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
 
         {/* Comments Section */}
         {showComments && (
-          <div className="mt-4 pt-4 border-t border-gray-800">
+          <div className="mt-4 pt-4">
+            <h4 className="text-md font-semibold text-white mb-3">
+              {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
+            </h4>
             <div className="space-y-3 mb-4">
               {comments.map((comment) => (
                 <div key={comment.id} className="flex items-start space-x-3">
@@ -510,7 +552,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
                     alt={comment.user?.name || 'User'}
                     className="w-8 h-8 rounded-full object-cover"
                   />
-                  <div className="flex-1 bg-gray-800 rounded-lg p-3">
+                  <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-1">
                       <span className="font-semibold text-sm text-white">{comment.user?.name || 'User'}</span>
                       <span className="text-xs text-gray-400">{formatTimeAgo(comment.created_at)}</span>
@@ -519,6 +561,15 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdate, onPostDe
                   </div>
                 </div>
               ))}
+              {commentsLoading && <div className="text-center text-gray-400">Loading...</div>}
+              {hasMoreComments && !commentsLoading && (
+                <button 
+                  onClick={() => fetchComments(5, comments.length)}
+                  className="w-full text-center text-fedex-purple font-semibold py-2"
+                >
+                  View more comments
+                </button>
+              )}
             </div>
             
             {user && (

@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { X, Image, Video, Globe, Users, MapPin, Calendar, Upload, Trash2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { X, Image, Video, Globe, Users, MapPin, Calendar, Upload, Trash2, Smile } from 'lucide-react';
 import { Post, PostCreationPayload } from './types';
 import { createFanPost } from '../../../lib/supabase';
 import {
@@ -16,19 +16,10 @@ import { useUser } from '../../../contexts/UserContext';
 interface CreatePostProps {
   onClose: () => void;
   onPostCreated: (post: Post) => void;
+  autoOpen?: 'media' | 'feeling' | null;
 }
 
-// Make ExtendedUser compatible with User from App context
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  user_type: 'racer' | 'fan' | 'track' | 'series';
-  avatar?: string;
-  banner_image?: string;
-}
-
-export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }) => {
+export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, autoOpen = null }) => {
   const { user } = useUser();
   const [content, setContent] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -38,6 +29,19 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
   const [eventDate, setEventDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showFeelingPicker, setShowFeelingPicker] = useState(false);
+  const [selectedFeeling, setSelectedFeeling] = useState<{ emoji: string; label: string } | null>(null);
+
+  useEffect(() => {
+    if (autoOpen === 'media') {
+      // Slight delay to allow modal to render
+      setTimeout(() => {
+        fileInputRef.current?.click();
+      }, 0);
+    } else if (autoOpen === 'feeling') {
+      setShowFeelingPicker(true);
+    }
+  }, [autoOpen]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -140,10 +144,17 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
         }
       }
 
+      const composedContent = (() => {
+        if (selectedFeeling) {
+          return `is feeling ${selectedFeeling.label} ${selectedFeeling.emoji}${content.trim() ? ' — ' + content.trim() : ''}`;
+        }
+        return content.trim();
+      })();
+
       // Create the fan post
       const { error: postError } = await createFanPost({
         fan_id: user.id,
-        content: content.trim(),
+        content: composedContent,
         media_urls: uploadedUrls,
         post_type: postType,
         visibility: visibility,
@@ -164,7 +175,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
         userAvatar: user.avatar || '',
         userType: 'FAN',
         userVerified: false,
-        content: content.trim(),
+        content: composedContent,
         mediaUrls: uploadedUrls,
         timestamp: new Date().toLocaleDateString(),
         likes: 0,
@@ -183,6 +194,8 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
       setMediaType(null);
       setLocation('');
       setEventDate('');
+      setSelectedFeeling(null);
+      setShowFeelingPicker(false);
     } catch (error) {
       console.error('Error creating post:', error);
       alert('Failed to create post. Please try again.');
@@ -219,8 +232,8 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
                   </div>
                 )}
               </div>
-              <div>
-                <p className="text-white font-medium">{user?.name || 'User'}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-medium truncate">{user?.name || 'User'}</p>
                 <div className="flex items-center space-x-1 mt-0.5">
                   <button
                     type="button"
@@ -240,6 +253,20 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
                     </svg>
                   </button>
                 </div>
+                {selectedFeeling && (
+                  <div className="mt-2 inline-flex items-center px-2 py-1 rounded-full bg-slate-800 text-slate-300 text-xs">
+                    <span className="mr-1">{selectedFeeling.emoji}</span>
+                    <span>feeling {selectedFeeling.label}</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFeeling(null)}
+                      className="ml-2 text-slate-400 hover:text-white"
+                      aria-label="Clear feeling"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -286,7 +313,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
 
             {/* Add to Your Post - Facebook Style */}
             <div>
-              <div className="flex items-center justify-between py-3 px-4 bg-slate-800/50 rounded-lg">
+              <div className="relative flex items-center justify-between py-3 px-4 bg-slate-800/50 rounded-lg">
                 <div className="flex items-center space-x-2">
                   <span className="text-slate-300 text-sm font-medium">Add to your post</span>
                   <button
@@ -296,6 +323,14 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
                     title="Photo/Video"
                   >
                     <Image className="h-5 w-5 text-green-500" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowFeelingPicker((s) => !s)}
+                    className="p-2 hover:bg-slate-700 rounded-full transition-colors"
+                    title="Feeling/Activity"
+                  >
+                    <Smile className="h-5 w-5 text-yellow-400" />
                   </button>
                   <button
                     type="button"
@@ -312,6 +347,43 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated }
                 >
                   {isSubmitting ? 'Posting...' : 'Post'}
                 </button>
+
+                {/* Feeling Picker */}
+                {showFeelingPicker && (
+                  <div className="mt-2 p-3 bg-slate-800 rounded-lg border border-slate-700">
+                    <p className="text-slate-300 text-sm mb-2">How are you feeling?</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { emoji: '😊', label: 'happy' },
+                        { emoji: '😢', label: 'sad' },
+                        { emoji: '😡', label: 'angry' },
+                        { emoji: '😴', label: 'sleepy' },
+                        { emoji: '🤩', label: 'excited' },
+                        { emoji: '🤒', label: 'sick' },
+                      ].map((f) => (
+                        <button
+                          key={f.label}
+                          type="button"
+                          onClick={() => {
+                            setSelectedFeeling(f);
+                            setShowFeelingPicker(false);
+                          }}
+                          className={`flex items-center justify-center space-x-2 px-3 py-2 rounded-md border transition-colors ${
+                            selectedFeeling?.label === f.label ? 'bg-slate-700 border-slate-600' : 'bg-slate-900 border-slate-800 hover:bg-slate-800'
+                          }`}
+                        >
+                          <span className="text-lg">{f.emoji}</span>
+                          <span className="text-slate-300 capitalize text-sm">{f.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                    {selectedFeeling && (
+                      <div className="mt-2 text-slate-400 text-sm">
+                        Selected: <span className="text-slate-200">{selectedFeeling.emoji} feeling {selectedFeeling.label}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

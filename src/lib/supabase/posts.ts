@@ -144,7 +144,7 @@ export const getFanPosts = async (): Promise<any[]> => {
 // Keyset-paginated posts for fan dashboard
 // Cursor format: { created_at: string; id: string }
 export const getFanPostsPage = async ({
-  limit = 5,
+  limit = 10,
   cursor
 }: {
   limit?: number;
@@ -176,11 +176,15 @@ export const getFanPostsPage = async ({
         `)
         .eq('visibility', 'public')
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .limit(limit);
 
       if (cursor?.created_at && cursor?.id) {
-        // Add cursor filtering for pagination
-        query = query.lt('created_at', cursor.created_at);
+        // Proper keyset pagination: (created_at < cursor.created_at)
+        // OR (created_at = cursor.created_at AND id < cursor.id)
+        query = query.or(
+          `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`
+        );
       }
 
       const { data, error } = await query;
@@ -223,10 +227,14 @@ export const getFanPostsPage = async ({
   return { data: [], nextCursor: null, error: { message: 'Failed to fetch paginated posts after multiple attempts' } };
 };
 
-export const getCommentsForPost = async (postId: string): Promise<PostComment[]> => {
+export async function getPostComments(
+  postId: string, 
+  limit: number = 10, 
+  offset: number = 0
+): Promise<{ data: PostComment[] | null, error: any }> {
   if (!postId) {
-    console.error('getCommentsForPost called without a valid postId');
-    return [];
+    console.error('getPostComments called without a valid postId');
+    return { data: null, error: { message: 'Post ID is required' } };
   }
 
   let retries = 0;
@@ -244,12 +252,12 @@ export const getCommentsForPost = async (postId: string): Promise<PostComment[]>
           created_at,
           profiles (
             name,
-            avatar,
-            avatar_url
+            avatar
           )
         `)
         .eq('post_id', postId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
 
       if (error) {
         if (retries < maxRetries && error.message?.includes('Failed to fetch')) {
@@ -260,10 +268,10 @@ export const getCommentsForPost = async (postId: string): Promise<PostComment[]>
         }
         
         console.error('Error fetching comments:', error);
-        return [];
+        return { data: null, error };
       }
 
-      return (comments || []).map(comment => {
+      return { data: (comments || []).map(comment => {
         try {
           const profiles = comment.profiles as any;
           return {
@@ -275,7 +283,7 @@ export const getCommentsForPost = async (postId: string): Promise<PostComment[]>
             created_at: comment.created_at,
             user: {
               name: profiles?.name || 'User',
-              avatar: profiles?.avatar || profiles?.avatar_url || ''
+              avatar: profiles?.avatar || ''
             }
           };
         } catch (err) {
@@ -293,7 +301,7 @@ export const getCommentsForPost = async (postId: string): Promise<PostComment[]>
             }
           };
         }
-      });
+      }), error: null };
     } catch (error) {
       if (retries < maxRetries) {
         console.warn(`Unexpected error fetching comments, retrying... (${retries + 1}/${maxRetries})`);
@@ -303,24 +311,11 @@ export const getCommentsForPost = async (postId: string): Promise<PostComment[]>
       }
       
       console.error('Error fetching comments:', error);
-      return [];
+      return { data: null, error };
     }
   }
   
-  return [];
-};
-
-// Alias for getCommentsForPost to maintain compatibility with PostCard.tsx
-export const getPostComments = getCommentsForPost;
-
-// Alias for addCommentToPost to maintain compatibility with PostCard.tsx
-export const addPostComment = async (postId: string, userId: string, commentText: string): Promise<PostComment | null> => {
-  const result = await addCommentToPost(postId, userId, commentText);
-  if (result.error) {
-    console.error('Error in addPostComment:', result.error);
-    throw result.error;
-  }
-  return result.data;
+  return { data: null, error: { message: 'Failed to fetch comments after multiple attempts' } };
 };
 
 export const addCommentToPost = async (
@@ -373,8 +368,7 @@ export const addCommentToPost = async (
           created_at,
           profiles (
             name,
-            avatar,
-            avatar_url
+            avatar
           )
         `)
         .single();
@@ -391,38 +385,44 @@ export const addCommentToPost = async (
         return { data: null, error };
       }
 
-      try {
-        const comment: PostComment = {
-          id: data.id,
-          post_id: data.post_id,
-          user_id: data.user_id,
-          content: data.comment_text,
-          comment_text: data.comment_text,
-          created_at: data.created_at,
-          user: {
-            name: Array.isArray(data.profiles) ? data.profiles[0]?.name : (data.profiles as any)?.name || 'User',
-            avatar: Array.isArray(data.profiles) ? (data.profiles[0]?.avatar_url || data.profiles[0]?.avatar) : ((data.profiles as any)?.avatar_url || (data.profiles as any)?.avatar) || ''
-          }
-        };
-
-        // Increment the comments count for the post in unified table
-        try {
-          await supabase
-            .from('racer_posts')
-            .update({ comments_count: supabase.rpc('increment') })
-            .eq('id', postId);
-        } catch (updateError) {
-          console.warn('Failed to update comment count:', updateError);
-        }
-
-        return { data: comment, error: null };
-      } catch (processingError) {
-        console.error('Error processing comment data:', processingError);
-        return { 
-          data: null, 
-          error: new Error('Error processing comment data') 
-        };
+      if (!data) {
+        throw new Error('Failed to add comment: No data returned.');
       }
+
+      // After adding comment, update the comments_count on the racer_posts table
+      const { count, error: countError } = await supabase
+        .from('post_comments')
+        .select('*', { count: 'exact', head: true })
+        .eq('post_id', postId);
+
+      if (countError) {
+        console.warn('Failed to fetch comment count after adding new comment:', countError);
+      } else {
+        const { error: updateError } = await supabase
+          .from('racer_posts')
+          .update({ comments_count: count || 0 })
+          .eq('id', postId);
+
+        if (updateError) {
+          console.warn('Failed to update post with new comment count:', updateError);
+        }
+      }
+
+      // Map the returned data to the PostComment type
+      const mappedComment: PostComment = {
+        id: data.id,
+        post_id: data.post_id,
+        user_id: data.user_id,
+        content: data.comment_text,
+        comment_text: data.comment_text,
+        created_at: data.created_at,
+        user: {
+          name: Array.isArray(data.profiles) ? data.profiles[0]?.name : (data.profiles as any)?.name || 'User',
+          avatar: Array.isArray(data.profiles) ? data.profiles[0]?.avatar : ((data.profiles as any)?.avatar) || ''
+        }
+      };
+
+      return { data: mappedComment, error: null };
     } catch (error) {
       if (retries < maxRetries) {
         console.warn(`Unexpected error adding comment, retrying... (${retries + 1}/${maxRetries})`);
@@ -448,11 +448,12 @@ export const addCommentToPost = async (
 export const togglePostLike = async (
   postId: string, 
   userId: string
-): Promise<{ liked: boolean; error: Error | null }> => {
+): Promise<{ liked: boolean; likesCount: number | null; error: Error | null }> => {
   if (!postId || !userId) {
     console.error('togglePostLike called with invalid parameters', { postId, userId });
     return { 
       liked: false, 
+      likesCount: null,
       error: new Error('Missing required parameters: postId and userId are required') 
     };
   }
@@ -462,6 +463,7 @@ export const togglePostLike = async (
     console.error('No active session when attempting to toggle like');
     return { 
       liked: false, 
+      likesCount: null,
       error: new Error('Authentication required to like posts') 
     };
   }
@@ -470,6 +472,7 @@ export const togglePostLike = async (
     console.error('User ID mismatch when toggling like', { sessionUserId: session.user.id, providedUserId: userId });
     return { 
       liked: false, 
+      likesCount: null,
       error: new Error('You can only like posts as yourself') 
     };
   }
@@ -484,10 +487,11 @@ export const togglePostLike = async (
         .select('id')
         .eq('post_id', postId)
         .eq('user_id', userId)
-        .single();
-
-      if (checkError && !checkError.message.includes('No rows found')) {
-        if (retries < maxRetries && checkError.message?.includes('Failed to fetch')) {
+        .limit(1) // Ensure we only get one record, even if duplicates exist
+        .maybeSingle(); // Returns null instead of error if no like is found
+ 
+      if (checkError) {
+        if (checkError.message?.includes('Failed to fetch') && retries < maxRetries) {
           console.warn(`Network error checking like status, retrying... (${retries + 1}/${maxRetries})`);
           retries++;
           await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
@@ -495,7 +499,7 @@ export const togglePostLike = async (
         }
         
         console.error('Error checking like status:', checkError);
-        return { liked: false, error: new Error(checkError.message) };
+        return { liked: false, likesCount: null, error: new Error(checkError.message) };
       }
 
       let liked = false;
@@ -507,7 +511,7 @@ export const togglePostLike = async (
           .eq('id', existingLike.id);
 
         if (unlikeError) {
-          if (retries < maxRetries && unlikeError.message?.includes('Failed to fetch')) {
+          if (unlikeError.message?.includes('Failed to fetch') && retries < maxRetries) {
             console.warn(`Network error unliking post, retrying... (${retries + 1}/${maxRetries})`);
             retries++;
             await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
@@ -515,7 +519,7 @@ export const togglePostLike = async (
           }
           
           console.error('Error unliking post:', unlikeError);
-          return { liked: false, error: new Error(unlikeError.message) };
+          return { liked: false, likesCount: null, error: new Error(unlikeError.message) };
         }
         
         liked = false;
@@ -528,7 +532,7 @@ export const togglePostLike = async (
           });
 
         if (likeError) {
-          if (retries < maxRetries && likeError.message?.includes('Failed to fetch')) {
+          if (likeError.message?.includes('Failed to fetch') && retries < maxRetries) {
             console.warn(`Network error liking post, retrying... (${retries + 1}/${maxRetries})`);
             retries++;
             await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
@@ -536,25 +540,28 @@ export const togglePostLike = async (
           }
           
           console.error('Error liking post:', likeError);
-          return { liked: false, error: new Error(likeError.message) };
+          return { liked: false, likesCount: null, error: new Error(likeError.message) };
         }
         
         liked = true;
       }
 
-      // Update the likes count on the unified post table
+      // Update the likes count via RPC on the server and get the new count
+      let newLikesCount: number | null = null;
       try {
-        await supabase
-          .from('racer_posts')
-          .update({ 
-            likes_count: supabase.rpc(liked ? 'increment_post_likes' : 'decrement_post_likes', { post_id: postId })
-          })
-          .eq('id', postId);
+        const rpcName = liked ? 'increment_post_likes' : 'decrement_post_likes';
+        const { data, error: rpcError } = await supabase.rpc(rpcName, { post_id_param: postId });
+
+        if (rpcError) {
+          console.warn('Failed to update like count via RPC:', rpcError);
+        } else {
+          newLikesCount = data;
+        }
       } catch (updateError) {
-        console.warn('Failed to update like count:', updateError);
+        console.warn('Exception during RPC call for like count:', updateError);
       }
 
-      return { liked, error: null };
+      return { liked, likesCount: newLikesCount, error: null };
     } catch (error) {
       if (retries < maxRetries) {
         console.warn(`Unexpected error toggling like, retrying... (${retries + 1}/${maxRetries})`);
@@ -566,6 +573,7 @@ export const togglePostLike = async (
       console.error('Error toggling post like:', error);
       return { 
         liked: false, 
+        likesCount: null,
         error: error instanceof Error ? error : new Error('Unknown error toggling like') 
       };
     }
@@ -573,6 +581,7 @@ export const togglePostLike = async (
   
   return { 
     liked: false, 
+    likesCount: null,
     error: new Error('Failed to toggle like after multiple attempts') 
   };
 };
@@ -752,4 +761,108 @@ export const deletePostById = async (
   }
 
   return { success: false, error: new Error('Failed to delete post after multiple attempts') };
+};
+
+// Alias for backward compatibility
+export const deletePost = async (postId: string): Promise<void> => {
+  const { success, error } = await deletePostById(postId);
+  if (error) {
+    throw error;
+  }
+};
+
+export const tipPost = async (
+  postId: string,
+  amountCents: number = 500
+): Promise<{ data: { total_tips: number } | null; error: any | null }> => {
+  try {
+    // 1) Validate input
+    if (!postId) {
+      return { data: null, error: { message: 'Post ID is required' } };
+    }
+    if (!Number.isFinite(amountCents) || amountCents <= 0) {
+      return { data: null, error: { message: 'Tip amount must be a positive number (in cents)' } };
+    }
+
+    // 2) Check authentication
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      return { data: null, error: { message: 'Authentication required to tip' } };
+    }
+
+    // 3) Fetch current post to verify allow_tips and read current total_tips
+    let retries = 0;
+    const maxRetries = 3;
+    while (retries <= maxRetries) {
+      try {
+        const { data: post, error: fetchErr } = await supabase
+          .from('racer_posts')
+          .select('id, allow_tips, total_tips')
+          .eq('id', postId)
+          .maybeSingle();
+
+        if (fetchErr) {
+          if (fetchErr.message?.includes('Failed to fetch') && retries < maxRetries) {
+            retries++;
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+            continue;
+          }
+          return { data: null, error: fetchErr };
+        }
+
+        if (!post) {
+          return { data: null, error: { message: 'Post not found' } };
+        }
+
+        if (post.allow_tips === false) {
+          return { data: null, error: { message: 'Tipping is disabled for this post' } };
+        }
+
+        const newTotal = (post.total_tips || 0) + amountCents;
+
+        // 4) Update total_tips
+        const { error: updateErr } = await supabase
+          .from('racer_posts')
+          .update({ total_tips: newTotal })
+          .eq('id', postId);
+
+        if (updateErr) {
+          if (updateErr.message?.includes('Failed to fetch') && retries < maxRetries) {
+            retries++;
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+            continue;
+          }
+          return { data: null, error: updateErr };
+        }
+
+        return { data: { total_tips: newTotal }, error: null };
+      } catch (err) {
+        if (retries < maxRetries) {
+          retries++;
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        return { data: null, error: { message: err instanceof Error ? err.message : 'Unknown error tipping post' } };
+      }
+    }
+
+    return { data: null, error: { message: 'Failed to tip after multiple attempts' } };
+  } catch (err) {
+    return { data: null, error: { message: err instanceof Error ? err.message : 'Unknown error in tipPost' } };
+  }
+};
+
+// Checks if a user has liked a post.
+export const getPostLikers = async (postId: string, userId: string) => {
+  if (!postId || !userId) {
+    console.error('getPostLikers called with invalid parameters');
+    return { data: null, error: { message: 'Post ID and User ID are required' } };
+  }
+
+  return await supabase
+    .from('post_likes')
+    .select('user_id')
+    .eq('post_id', postId)
+    .eq('user_id', userId)
+    .maybeSingle();
 };

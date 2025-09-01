@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Heart, MessageCircle, Share, MoreHorizontal, Play, Calendar, MapPin, Users, DollarSign, Crown } from 'lucide-react';
+import { getFanPosts, tipPost } from '../../lib/supabase/posts';
 
 interface Post {
   id: string;
@@ -26,94 +27,58 @@ interface GrandstandPostsProps {
   showComposer?: boolean;
 }
 
-const mockPosts: Post[] = [
-  {
-    id: '550e8400-e29b-41d4-a716-446655440010',
-    userId: '550e8400-e29b-41d4-a716-446655440002',
-    userType: 'RACER',
-    userName: 'Jake Johnson',
-    userAvatar: 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
-    userVerified: true,
-    carNumber: '23',
-    content: 'Just finished qualifying for tomorrow\'s Charlotte 400! P3 starting position - feeling good about our chances. The car is handling perfectly and the team has been working overtime. Ready to put on a show for all the fans! 🏁',
-    mediaUrls: ['https://images.pexels.com/photos/358070/pexels-photo-358070.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=2'],
-    mediaType: 'image',
-    location: 'Charlotte Motor Speedway',
-    eventDate: '2024-02-15',
-    likes: 247,
-    comments: 18,
-    shares: 12,
-    isLiked: false,
-    timestamp: '2 hours ago',
-    createdAt: '2024-02-14T16:00:00Z'
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440011',
-    userId: '550e8400-e29b-41d4-a716-446655440003',
-    userType: 'RACER',
-    userName: 'Sarah Martinez',
-    userAvatar: 'https://images.pexels.com/photos/1130626/pexels-photo-1130626.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
-    userVerified: true,
-    carNumber: '7',
-    content: 'Behind the scenes at the shop! Working on some suspension adjustments for this weekend. The sprint car is looking fast and I can\'t wait to get back on the dirt. Thanks to all my subscribers for the support - it means everything! 💪',
-    mediaUrls: ['https://images.pexels.com/photos/3593922/pexels-photo-3593922.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=2'],
-    mediaType: 'image',
-    likes: 189,
-    comments: 24,
-    shares: 8,
-    isLiked: true,
-    timestamp: '4 hours ago',
-    createdAt: '2024-02-14T14:00:00Z'
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440012',
-    userId: '550e8400-e29b-41d4-a716-446655440007',
-    userType: 'TRACK',
-    userName: 'Charlotte Motor Speedway',
-    userAvatar: 'https://images.pexels.com/photos/358070/pexels-photo-358070.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
-    userVerified: true,
-    content: 'RACE DAY TOMORROW! 🏁 The Charlotte 400 Late Model Championship race starts at 7 PM. Gates open at 5 PM. Don\'t miss what promises to be an incredible night of racing! Tickets still available at the gate.',
-    mediaUrls: ['https://images.pexels.com/photos/3593922/pexels-photo-3593922.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=2'],
-    mediaType: 'image',
-    location: 'Charlotte Motor Speedway',
-    eventDate: '2024-02-15',
-    likes: 156,
-    comments: 31,
-    shares: 22,
-    isLiked: false,
-    timestamp: '6 hours ago',
-    createdAt: '2024-02-14T12:00:00Z'
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440016',
-    userId: '550e8400-e29b-41d4-a716-446655440001',
-    userType: 'FAN',
-    userName: 'Racing Fan',
-    userAvatar: 'https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
-    userVerified: false,
-    content: 'Can\'t wait for the Charlotte 400 tomorrow! 🏁 Been following Jake Johnson all season and he\'s been absolutely crushing it. That P3 qualifying position has me so hyped! Going to be cheering loud from the stands. Let\'s go #23! 🏎️💨 #Charlotte400 #LateModel #TeamJake',
-    mediaUrls: ['https://images.pexels.com/photos/3593922/pexels-photo-3593922.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=2'],
-    mediaType: 'image',
-    location: 'Charlotte Motor Speedway',
-    likes: 34,
-    comments: 8,
-    shares: 3,
-    isLiked: false,
-    timestamp: '1 hour ago',
-    createdAt: '2024-02-14T17:00:00Z'
-  }
-];
-
 const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
-  const [posts, setPosts] = useState<Post[]>(mockPosts);
-  const [loading] = useState(false);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tipping, setTipping] = useState<Record<string, boolean>>({});
 
-  // We're using mock data for now, but this would be replaced with a real API call
-  // useEffect(() => {
-  //   loadPosts();
-  // }, []);
-
-  // Post creation would be implemented here in the future when integrating with Supabase
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const rows = await getFanPosts();
+        if (!isMounted) return;
+        const mapped: Post[] = (rows || []).map((r: any): Post => {
+          const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+          const displayName = profile?.name || 'User';
+          const avatar = profile?.avatar || profile?.avatar_url || '';
+          const userType = (r.user_type || 'fan').toString().toUpperCase();
+          return {
+            id: r.id,
+            userId: r.user_id || r.racer_id || 'unknown',
+            userType: ['RACER','TRACK','SERIES','FAN'].includes(userType) ? userType : 'FAN',
+            userName: displayName,
+            userAvatar: avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
+            userVerified: false,
+            carNumber: undefined,
+            content: r.content || '',
+            mediaUrls: r.media_urls || [],
+            mediaType: Array.isArray(r.media_urls) && r.media_urls.length > 0 ? (r.post_type === 'video' ? 'video' : 'image') : undefined,
+            location: undefined,
+            eventDate: undefined,
+            likes: r.likes_count ?? 0,
+            comments: r.comments_count ?? 0,
+            shares: 0,
+            isLiked: false,
+            timestamp: r.created_at || new Date().toISOString(),
+            createdAt: r.created_at || new Date().toISOString(),
+          };
+        });
+        setPosts(mapped);
+      } catch (e: any) {
+        console.error('Failed to load posts', e);
+        if (!isMounted) return;
+        setError(e?.message || 'Failed to load posts');
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    load();
+    return () => { isMounted = false; };
+  }, []);
 
   const handleLike = (postId: string) => {
     setPosts(posts.map(post => 
@@ -125,6 +90,23 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
           }
         : post
     ));
+  };
+
+  const handleTip = async (postId: string) => {
+    if (!postId || tipping[postId]) return;
+    setTipping(prev => ({ ...prev, [postId]: true }));
+    try {
+      const { error } = await tipPost(postId, 500);
+      if (error) {
+        console.error('Tip failed:', error);
+        alert(error.message || 'Failed to tip');
+      }
+    } catch (e: any) {
+      console.error('Exception in tip:', e);
+      alert(e?.message || 'Failed to tip');
+    } finally {
+      setTipping(prev => ({ ...prev, [postId]: false }));
+    }
   };
 
   const getUserTypeColor = (userType: string) => {
@@ -145,6 +127,21 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
       case 'FAN': return '👥';
       default: return '👤';
     }
+  };
+
+  const formatRelativeTime = (isoString: string): string => {
+    if (!isoString) return 'just now';
+    const then = new Date(isoString).getTime();
+    const now = Date.now();
+    if (Number.isNaN(then)) return 'just now';
+    const diffSec = Math.max(0, Math.floor((now - then) / 1000));
+    if (diffSec < 60) return 'just now';
+    const mins = Math.floor(diffSec / 60);
+    if (mins < 60) return `${mins}m`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d`;
   };
 
   return (
@@ -170,6 +167,8 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
             </div>
             <p className="text-sm text-gray-400">Loading posts...</p>
           </div>
+        ) : error ? (
+          <div className="p-8 text-center text-red-400">{error}</div>
         ) : (
           <div className="space-y-6">
             {posts.map((post) => (
@@ -202,7 +201,7 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
                             {getUserTypeIcon(post.userType)} {post.userType}
                           </span>
                           <span className="text-gray-500">•</span>
-                          <span className="text-gray-400 group-hover:text-gray-300 transition-colors duration-300">{post.timestamp}</span>
+                          <span className="text-gray-400 group-hover:text-gray-300 transition-colors duration-300">{formatRelativeTime(post.createdAt)}</span>
                         </div>
                       </div>
                     </div>
@@ -282,10 +281,12 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
                     {post.userType === 'RACER' && (
                       <div className="flex items-center space-x-2">
                         <button 
-                          className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 text-sm flex items-center space-x-1"
+                          onClick={() => handleTip(post.id)}
+                          aria-label="Tip"
+                          className={`w-9 h-9 rounded-full transition-colors duration-200 flex items-center justify-center ${tipping[post.id] ? 'bg-green-700 cursor-not-allowed opacity-80' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                          disabled={!!tipping[post.id]}
                         >
-                          <DollarSign className="w-3 h-3" />
-                          <span>Tip $5</span>
+                          <DollarSign className="w-4 h-4" />
                         </button>
                         <button 
                           className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm flex items-center space-x-1"

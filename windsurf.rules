@@ -1,0 +1,137 @@
+# Windsurf Rules
+
+## Scope & Goals
+- __Project__: `fresh-react-start-box/` (React + TypeScript + Vite)
+- __Backends & Services__: Supabase (auth, DB, storage), Stripe (billing), Context7 (documentation), shadcn/ui
+- __Primary Goals__: High-quality, type-safe React app with resilient networking, clear error handling, and secure integration patterns.
+
+## Coding Standards
+- __Language__: TypeScript strict mode. Prefer explicit types for public exported APIs.
+- __React__:
+  - Functional components and hooks only. Avoid classes.
+  - Co-locate component, styles, and tests within `src/components/ComponentName/` when growing complexity.
+  - Keep props minimal; lift state up only when required. Derive from props/state instead of duplicating.
+  - Use Suspense-ready patterns when possible; avoid blocking renders.
+- __State & Context__:
+  - Use existing contexts in `src/contexts/` (e.g., `UserContext`, `ThemeContext`). Avoid creating parallel auth contexts.
+  - Export `useXxx` hooks from each context; do not export raw context unless needed.
+- __Styling__:
+  - Tailwind + shadcn/ui. Prefer utility classes and component primitives from shadcn.
+  - Keep className readable. Extract complex variants into helpers if needed.
+- __Imports__:
+  - Use relative imports within `src/` (e.g., `../contexts/UserContext`). Avoid deep relative traversals from outside `src/`.
+  - Do not import from non-existent modules. Validate file paths with a quick search before adding imports.
+
+## File & Directory Layout
+- `src/components/` UI components, collocated subfolders for complex components
+- `src/contexts/` React contexts (`UserContext`, `ThemeContext`, etc.)
+- `src/data/` client data-access utilities (Supabase/Stripe wrappers)
+- `supabase/` SQL migrations and Edge Functions
+- Keep barrel files (`index.ts`) minimal and explicit when helpful
+
+## Error Handling (Standard Pattern)
+- All async functions returning data should use: `{ data: T | null, error: { message: string; code?: string } | null }`.
+- Apply retries for transient network issues with exponential backoff.
+- Validate inputs early; return human-readable errors.
+- Authentication checks before DB operations.
+
+Example pattern (adapt as needed):
+```ts
+export async function exampleOp(params: X): Promise<{ data: Y | null; error: { message: string; code?: string } | null }> {
+  try {
+    // 1) Input validation
+    if (!params?.id) return { data: null, error: { message: 'id is required' } };
+
+    // 2) Auth check
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) return { data: null, error: { message: 'Authentication required', code: 'AUTH_REQUIRED' } };
+
+    // 3) Retry wrapper
+    let attempts = 0; const max = 3;
+    while (attempts < max) {
+      try {
+        const { data, error } = await sb.from('table').select('*').eq('id', params.id).single();
+        if (error) {
+          const transient = error.message?.includes('Failed to fetch');
+          if (transient && attempts < max - 1) { attempts++; await new Promise(r => setTimeout(r, 1000 * 2 ** attempts)); continue; }
+          return { data: null, error: { message: error.message } };
+        }
+        return { data, error: null };
+      } catch (e) {
+        if (attempts < max - 1) { attempts++; await new Promise(r => setTimeout(r, 1000 * 2 ** attempts)); continue; }
+        return { data: null, error: { message: e instanceof Error ? e.message : 'Unknown error' } };
+      }
+    }
+    return { data: null, error: { message: 'Maximum retries reached' } };
+  } catch (e) {
+    return { data: null, error: { message: e instanceof Error ? e.message : 'Unknown error' } };
+  }
+}
+```
+
+## Supabase Best Practices
+- Use the singleton Supabase client. Never expose service-role keys to the client.
+- RLS: Ensure policies are in place for every table; validate storage bucket policies.
+- SQL migrations live under `supabase/migrations/`. Never hardcode UUIDs returned by migrations in subsequent code.
+- Edge Functions (Deno):
+  - Use Web Crypto API. Avoid Node-only APIs or polyfills.
+  - Validate all env vars; fail fast with clear messages.
+  - Keep responses fast; acknowledge events then process if long-running.
+
+## Stripe Best Practices
+- Webhook verification in Edge Runtime must not rely on Node sync crypto.
+  - Prefer Deno-compatible verification (Web Crypto API) or async-safe patterns.
+- Process subscription lifecycle comprehensively:
+  - `checkout.session.completed`, `customer.subscription.created|updated|deleted`, `invoice.payment_succeeded`
+- Never create ghost profiles. Map customers to existing users via metadata or email, then persist mapping.
+- Price-to-tier mapping must be centralized and auditable. Avoid scattering IDs in code.
+
+## Context7 Documentation Usage
+- Always resolve a library ID before fetching docs.
+  - Call `resolve-library-id` with the library name.
+  - Then call `get-library-docs` with the returned `/org/project(/version)` ID.
+- Prefer docs with higher trust scores and coverage.
+- Limit to relevant topics (e.g., `hooks`, `routing`) to reduce noise.
+- Cite specific APIs and versions when adding or updating code based on docs.
+
+## Tool Calling Etiquette (Windsurf / MCP)
+- Use search tools before editing to verify paths and references.
+- Batch independent reads/searches in parallel for speed.
+- Explain why you’re calling each tool. Avoid unnecessary calls.
+- When proposing edits:
+  - Use minimal diffs. Do not include unchanged code; use `{{ ... }}` placeholders when required by the tool.
+  - Keep imports at the top; never add imports mid-file.
+  - Break very large edits into smaller, sequential proposals.
+- In chat mode: never write files directly; propose edits.
+
+## Security
+- Never commit secrets. Use environment variables (`.env`, project settings).
+- Validate all external inputs. Sanitize user-generated content where displayed.
+- Handle PII carefully; log only necessary identifiers.
+- Use constant-time comparisons for signature checks.
+
+## Testing & QA
+- Add unit tests for logic utilities. Prefer integration tests for data access.
+- Add descriptive logging for complex flows (auth, payments, uploads).
+- On bugs: reproduce with a minimal case, add guardrails, then fix root cause.
+
+## Git Hygiene
+- Small, focused commits with clear messages.
+- Reference files and functions in PR descriptions.
+- Include migration notes and env var changes in PRs.
+
+## Frontend Patterns
+- Prefer controlled inputs. Debounce expensive operations.
+- Accessibility: proper roles, labels, focus management.
+- Performance: memoize heavy computations; lazy-load large routes/components.
+- Error boundaries for critical surfaces.
+
+## Conventions for This Repo
+- Auth: use `UserContext` (`src/contexts/UserContext.tsx`) with `user.user_type` for role-like checks.
+- Theme: use `ThemeContext` for light/dark toggling with localStorage persistence.
+- UI: utilize shadcn/ui primitives; keep consistency in spacing and sizing.
+
+## When Unsure
+- Search the codebase first.
+- Check Context7 docs for the exact API.
+- Ask for clarification or leave a concise TODO with context and next steps.

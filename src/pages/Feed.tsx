@@ -25,6 +25,8 @@ import { getRacerPosts, supabase } from '../lib/supabase';
 import { PostCreator } from '../components/PostCreator';
 import { LiveStreamIndicator } from '../components/LiveStreamIndicator';
 
+const PAGE_SIZE = 5;
+
 interface Post {
   id: string;
   racerId: string;
@@ -70,11 +72,12 @@ export const Feed: React.FC = () => {
   const feedRef = useRef<HTMLDivElement>(null);
   const [realPosts, setRealPosts] = useState<any[]>([]);
   const [fanPosts, setFanPosts] = useState<any[]>([]);
-
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
     // Load posts immediately without loading state
-    loadPublicPosts();
+    loadPublicPosts(false);
     loadFanPosts();
     
     // Hide loading popup after 3 seconds regardless of data load status
@@ -85,14 +88,17 @@ export const Feed: React.FC = () => {
     return () => clearTimeout(popupTimer);
   }, []);
 
-  const loadPublicPosts = async () => {
+  const loadPublicPosts = async (append: boolean) => {
     try {
       // Check if Supabase is configured
       if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
         console.warn('⚠️ Supabase not configured - using empty posts array');
-        setRealPosts([]);
+        if (!append) setRealPosts([]);
         return;
       }
+
+      if (append) setIsLoadingMore(true);
+      const offset = append ? realPosts.length : 0;
 
       const { data, error } = await supabase
         .from('racer_posts')
@@ -113,26 +119,34 @@ export const Feed: React.FC = () => {
         `)
         .eq('visibility', 'public')
         .order('created_at', { ascending: false })
-        .limit(20);
+        .range(offset, offset + PAGE_SIZE - 1);
       
       if (error) {
         console.error('Error with racer_posts query:', error);
-        setRealPosts([]);
+        if (!append) setRealPosts([]);
         return;
       } else {
-        console.log('Loaded posts:', data?.length || 0);
-        setRealPosts(data || []);
+        const newItems = data || [];
+        console.log('Loaded posts:', newItems.length, 'append:', append, 'offset:', offset);
+        if (append) {
+          setRealPosts(prev => [...prev, ...newItems]);
+        } else {
+          setRealPosts(newItems);
+        }
+        // if fewer than PAGE_SIZE, no more to load
+        if (newItems.length < PAGE_SIZE) setHasMore(false);
         // Hide loading popup once posts are loaded
         setShowLoadingPopup(false);
       }
     } catch (error) {
       console.error('Error loading public posts:', error);
       // Set empty array on any error to prevent crashes
-      setRealPosts([]);
+      if (!append) setRealPosts([]);
       // Hide loading popup even on error
       setShowLoadingPopup(false);
     }
     setLoading(false);
+    setIsLoadingMore(false);
   };
 
   const loadFanPosts = async () => {
@@ -156,7 +170,7 @@ export const Feed: React.FC = () => {
         `)
         .eq('visibility', 'public')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(PAGE_SIZE);
       
       if (error) {
         // Handle specific database errors gracefully
@@ -188,9 +202,9 @@ export const Feed: React.FC = () => {
     const handleScroll = () => {
       if (feedRef.current) {
         const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
-        if (scrollTop + clientHeight >= scrollHeight - 1000 && !loading) {
-          // Load more posts
-          setPage(prev => prev + 1);
+        if (scrollTop + clientHeight >= scrollHeight - 800 && !loading && !isLoadingMore && hasMore) {
+          // Load next batch
+          loadPublicPosts(true);
         }
       }
     };
@@ -200,7 +214,7 @@ export const Feed: React.FC = () => {
       feedElement.addEventListener('scroll', handleScroll);
       return () => feedElement.removeEventListener('scroll', handleScroll);
     }
-  }, [loading]);
+  }, [loading, isLoadingMore, hasMore, realPosts.length]);
 
   const handleLike = (postId: string) => {
     setPosts(posts.map(post => 
@@ -643,7 +657,7 @@ export const Feed: React.FC = () => {
         )}
 
         {/* Load More */}
-        {loading && realPosts.length > 0 && (
+        {(loading || isLoadingMore) && realPosts.length > 0 && (
           <div className="text-center py-8">
             <div className="inline-flex items-center space-x-2 text-gray-400">
               <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />

@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { X, User, Mail, Lock, Eye, EyeOff, Trophy, Heart, Flag, Building } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '@/contexts/AppContext';
 import { supabase } from '../lib/supabase';
 import { cardPrimaryButton, secondaryButton } from '../styles/buttons';
 
-export const AuthModal: React.FC = () => {
+interface AuthModalProps {
+  onClose?: () => void;
+}
+
+export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   const { setShowAuthModal, setUser, redirectToSetup } = useApp();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [userType, setUserType] = useState<'racer' | 'fan' | 'track' | 'series'>('racer');
@@ -102,6 +106,7 @@ export const AuthModal: React.FC = () => {
         
         setUser(userData);
         setShowAuthModal(false);
+        onClose?.();
         
         // Navigate based on profile completion and user type
         if (!profile.profile_complete) {
@@ -255,6 +260,7 @@ export const AuthModal: React.FC = () => {
       
       // Step 5: Close modal and redirect
       setShowAuthModal(false);
+      onClose?.();
       
       console.log('🚀 Redirecting to setup...');
       
@@ -404,6 +410,7 @@ export const AuthModal: React.FC = () => {
               onClick={() => {
                 setShowAuthModal(false);
                 resetForm();
+                onClose?.();
               }}
               className="p-2 hover:bg-gray-800 rounded-full transition-colors"
             >

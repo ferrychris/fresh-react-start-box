@@ -96,10 +96,10 @@ export const getUnreadNotificationCount = async (userId: string): Promise<number
         return 0;
       }
       
-      // Use a lightweight GET instead of HEAD to avoid network/proxy issues with HEAD requests
+      // Use planned/estimated count to reduce compute overhead
       const { count, error } = await sb
         .from('notifications')
-        .select('id', { count: 'exact' })
+        .select('id', { count: 'planned' })
         .eq('user_id', userId)
         .eq('read', false)
         .limit(1); // minimize payload
@@ -201,7 +201,7 @@ export const getVirtualGifts = async () => {
   }
 };
 
-export const getRacerGifts = async (racerId: string) => {
+export const getRacerGifts = async (racerId: string, limit: number = 50) => {
   try {
     const { data, error } = await sb
       .from('virtual_gifts')
@@ -218,7 +218,8 @@ export const getRacerGifts = async (racerId: string) => {
         )
       `)
       .eq('receiver_id', racerId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(limit);
     
     if (error) {
       console.error('Error getting racer gifts:', error);
@@ -298,7 +299,7 @@ export const checkFanStatus = async (fanId: string, racerId: string) => {
   return data;
 };
 
-export const getRacerFans = async (racerId: string) => {
+export const getRacerFans = async (racerId: string, limit: number = 100) => {
   const { data, error } = await sb
     .from('fan_connections')
     .select(`
@@ -309,7 +310,8 @@ export const getRacerFans = async (racerId: string) => {
       )
     `)
     .eq('racer_id', racerId)
-    .order('became_fan_at', { ascending: false });
+    .order('became_fan_at', { ascending: false })
+    .limit(limit);
   
   if (error) {
     console.error('Error getting racer fans:', error);
@@ -347,19 +349,74 @@ export const createSeriesProfile = async (profile: any) => {
   return data;
 };
 
-export const updateSeriesProfile = async (seriesId: string, updates: any) => {
-  const { data, error } = await sb
-    .from('series_profiles')
-    .update(updates)
-    .eq('id', seriesId)
-    .select()
-    .single();
-  
-  if (error) {
-    console.error('Error updating series profile:', error);
-    throw error;
+export const updateSeriesProfile = async (
+  seriesId: string,
+  updates: Partial<{
+    series_name: string;
+    contact_person: string | null;
+    category: string | null;
+    season: string | null;
+    phone?: string | null;
+    website?: string | null;
+    show_contact_for_sponsorship?: boolean;
+  }>
+) => {
+  try {
+    if (!seriesId) throw new Error('seriesId is required');
+
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) throw new Error('Authentication required');
+
+    // Only persist known fields to avoid accidental broad updates
+    const allowed: Record<string, any> = {};
+    const keys: (keyof typeof updates)[] = [
+      'series_name',
+      'contact_person',
+      'category',
+      'season',
+      'phone',
+      'website',
+      'show_contact_for_sponsorship',
+    ];
+    for (const k of keys) {
+      if (k in updates) (allowed as any)[k] = (updates as any)[k];
+    }
+    (allowed as any).updated_at = new Date().toISOString();
+
+    let retries = 0;
+    const maxRetries = 3;
+    while (retries < maxRetries) {
+      try {
+        const { data, error } = await sb
+          .from('series_profiles')
+          .update(allowed)
+          .eq('id', seriesId)
+          .select('*')
+          .single();
+        if (error) {
+          if (error.message?.includes('Failed to fetch') && retries < maxRetries - 1) {
+            retries++;
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+            continue;
+          }
+          console.error('Error updating series profile:', error);
+          throw error;
+        }
+        return data;
+      } catch (err) {
+        if (retries < maxRetries - 1) {
+          retries++;
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw new Error('Maximum retries reached while updating series profile');
+  } catch (e) {
+    console.error('[series.updateSeriesProfile] error:', e);
+    throw e;
   }
-  return data;
 };
 
 export const getTrackProfile = async (trackId: string) => {
@@ -636,7 +693,7 @@ export const calculateRevenueSplit = async (totalCents: number) => {
 };
 
 // Add missing fan subscription and activity functions
-export const getFanSubscriptions = async (fanId: string) => {
+export const getFanSubscriptions = async (fanId: string, limit: number = 100) => {
   const { data, error } = await sb
     .from('fan_connections')
     .select(`
@@ -649,7 +706,9 @@ export const getFanSubscriptions = async (fanId: string) => {
       )
     `)
     .eq('fan_id', fanId)
-    .eq('is_subscribed', true);
+    .eq('is_subscribed', true)
+    .order('became_fan_at', { ascending: false })
+    .limit(limit);
   
   if (error) {
     console.error('Error getting fan subscriptions:', error);
@@ -754,13 +813,14 @@ export const getRacerEarnings = async (racerId: string): Promise<RacerEarnings> 
   return defaults;
 };
 
-export const getRacerTransactions = async (racerId: string) => {
+export const getRacerTransactions = async (racerId: string, limit: number = 100) => {
   try {
     const { data, error } = await sb
       .from('transactions')
       .select('*')
       .eq('racer_id', racerId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(limit);
     if (error) {
       console.error('[earnings.getRacerTransactions] error:', error);
       return [] as any[];
@@ -808,7 +868,24 @@ export const getFanCountsForRacers = async (
 ): Promise<Record<string, number>> => {
   if (!Array.isArray(racerIds) || racerIds.length === 0) return {};
   try {
-    // Fetch connections for all provided racer IDs and aggregate in-memory
+    // Prefer RPC for server-side aggregation if available
+    try {
+      const { data: rpcData, error: rpcError } = await sb
+        .rpc('get_fan_counts', { racer_ids: racerIds });
+      if (!rpcError && Array.isArray(rpcData)) {
+        const map: Record<string, number> = {};
+        for (const row of rpcData as any[]) {
+          map[row.racer_id] = Number(row.fan_count) || 0;
+        }
+        // Ensure all requested IDs exist in the map
+        for (const id of racerIds) if (!(id in map)) map[id] = 0;
+        return map;
+      }
+    } catch (_) {
+      // fall through to client-side fallback
+    }
+
+    // Fallback: minimal select + in-memory count
     const { data, error } = await sb
       .from('fan_connections')
       .select('racer_id')
@@ -822,7 +899,6 @@ export const getFanCountsForRacers = async (
       const rid = (row as any).racer_id as string;
       counts[rid] = (counts[rid] || 0) + 1;
     }
-    // Ensure all requested IDs exist in the map
     for (const id of racerIds) if (!(id in counts)) counts[id] = 0;
     return counts;
   } catch (e) {
@@ -940,5 +1016,142 @@ export const addPostComment = async (postId: string, userId: string, content: st
       data: null, 
       error: { message: err instanceof Error ? err.message : 'Unknown error adding comment' } 
     };
+  }
+};
+
+// Minimal helper to create a notification (useful for testing Realtime and reducing ad-hoc SQL)
+export const createNotification = async (params: {
+  user_id: string;
+  type: string;
+  title?: string;
+  message?: string;
+  data?: Record<string, any>;
+}): Promise<{ data: any | null; error: any | null }> => {
+  try {
+    if (!params?.user_id || !params?.type) {
+      return { data: null, error: { message: 'user_id and type are required' } };
+    }
+
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      return { data: null, error: { message: 'Authentication required' } };
+    }
+
+    const payload = {
+      user_id: params.user_id,
+      type: params.type,
+      title: params.title ?? null,
+      message: params.message ?? null,
+      data: params.data ?? null,
+      read: false,
+      created_at: new Date().toISOString(),
+    };
+
+    let retries = 0;
+    const maxRetries = 3;
+    while (retries < maxRetries) {
+      try {
+        const { data, error } = await sb
+          .from('notifications')
+          .insert([payload])
+          .select('id, user_id, type, title, message, read, created_at')
+          .single();
+        if (error) {
+          if (error.message?.includes('Failed to fetch') && retries < maxRetries - 1) {
+            retries++;
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+            continue;
+          }
+          return { data: null, error };
+        }
+        return { data, error: null };
+      } catch (err) {
+        if (retries < maxRetries - 1) {
+          retries++;
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        return { data: null, error: { message: err instanceof Error ? err.message : 'Unknown error' } };
+      }
+    }
+    return { data: null, error: { message: 'Maximum retries reached creating notification' } };
+  } catch (e) {
+    return { data: null, error: { message: e instanceof Error ? e.message : 'Unknown error' } };
+  }
+};
+
+// Subscribed-only fan counts via RPC with safe fallback
+export const getSubscribedFanCountsForRacers = async (
+  racerIds: string[]
+): Promise<Record<string, number>> => {
+  if (!Array.isArray(racerIds) || racerIds.length === 0) return {};
+  try {
+    // Try RPC first (server-side aggregation)
+    try {
+      const { data: rpcData, error: rpcError } = await sb
+        .rpc('get_subscribed_fan_counts', { racer_ids: racerIds });
+      if (!rpcError && Array.isArray(rpcData)) {
+        const map: Record<string, number> = {};
+        for (const row of rpcData as any[]) {
+          map[(row as any).racer_id] = Number((row as any).subscribed_count) || 0;
+        }
+        for (const id of racerIds) if (!(id in map)) map[id] = 0;
+        return map;
+      }
+    } catch (_) {
+      // fall through
+    }
+
+    // Fallback: minimal select and in-memory count
+    const { data, error } = await sb
+      .from('fan_connections')
+      .select('racer_id')
+      .in('racer_id', racerIds)
+      .eq('is_subscribed', true);
+    if (error) throw error;
+
+    const counts: Record<string, number> = {};
+    for (const row of (data || []) as any[]) {
+      const rid = (row as any).racer_id as string;
+      counts[rid] = (counts[rid] || 0) + 1;
+    }
+    for (const id of racerIds) if (!(id in counts)) counts[id] = 0;
+    return counts;
+  } catch (e) {
+    console.error('[fans.getSubscribedFanCountsForRacers] error:', e);
+    // Return zeros to keep UI resilient
+    return racerIds.reduce((acc, id) => { acc[id] = 0; return acc; }, {} as Record<string, number>);
+  }
+};
+
+// Daily fan counts (total and subscribed) from materialized view
+export const getDailyFanCounts = async (
+  racerId: string,
+  options?: { since?: string; until?: string; limit?: number }
+): Promise<Array<{ day: string; total_fans: number; subscribed_fans: number }>> => {
+  try {
+    let q = sb
+      .from('mv_fan_counts_daily')
+      .select('day, total_fans, subscribed_fans')
+      .eq('racer_id', racerId)
+      .order('day', { ascending: true });
+
+    if (options?.since) q = q.gte('day', options.since);
+    if (options?.until) q = q.lte('day', options.until);
+    if (options?.limit) q = q.limit(options.limit);
+
+    const { data, error } = await q;
+    if (error) {
+      console.error('[fans.getDailyFanCounts] error:', error);
+      return [];
+    }
+    return (data || []).map((r: any) => ({
+      day: r.day,
+      total_fans: Number(r.total_fans) || 0,
+      subscribed_fans: Number(r.subscribed_fans) || 0,
+    }));
+  } catch (e) {
+    console.error('[fans.getDailyFanCounts] exception:', e);
+    return [];
   }
 };

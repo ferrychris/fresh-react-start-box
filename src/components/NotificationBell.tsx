@@ -5,7 +5,8 @@ import {
   markNotificationAsRead, 
   markAllNotificationsAsRead,
   getUnreadNotificationCount,
-  type Notification
+  type Notification,
+  supabase
 } from '../lib/supabase';
 import { useApp } from '../App';
 
@@ -21,14 +22,51 @@ export const NotificationBell: React.FC = () => {
       loadNotifications();
       loadUnreadCount();
       
-      // Poll for new notifications every 30 seconds
-      const interval = setInterval(() => {
-        loadUnreadCount();
-      }, 30000);
-      
-      return () => clearInterval(interval);
+      // Realtime: subscribe to notification changes for this user
+      const channel = supabase
+        .channel(`notif-${user.id}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        }, () => {
+          // Keep it lightweight: only refresh counts on every change
+          // Load full list only when dropdown is opened by the user
+          loadUnreadCount();
+        })
+        .subscribe();
+
+      // Fallback polling (visibility-aware, low frequency)
+      let interval: number | undefined;
+      const startPolling = () => {
+        if (document.visibilityState === 'visible') {
+          interval = window.setInterval(() => {
+            loadUnreadCount();
+          }, 120000); // 2 minutes
+        }
+      };
+      startPolling();
+
+      const handleVisibility = () => {
+        if (document.visibilityState === 'visible') {
+          // Immediately refresh when tab becomes visible
+          loadUnreadCount();
+          if (!interval) startPolling();
+        } else if (interval) {
+          clearInterval(interval);
+          interval = undefined;
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibility);
+
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibility);
+        if (interval) clearInterval(interval);
+        supabase.removeChannel(channel);
+      };
     }
-  }, [user]);
+  }, [user?.id]);
 
   const loadNotifications = async () => {
     if (!user) return;
