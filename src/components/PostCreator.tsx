@@ -14,7 +14,7 @@ import {
   Images
 } from 'lucide-react';
 import { createRacerPost, createFanPost, uploadImage, uploadVideo, getPublicUrl } from '../lib/supabase';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 
 interface PostCreatorProps {
   racerId: string;

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { HeroSection } from '../components/home/HeroSection';
 import FeaturedRacersSection from '../components/home/FeaturedRacersSection';

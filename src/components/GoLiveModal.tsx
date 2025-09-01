@@ -18,7 +18,7 @@ import {
   Share2,
   Send
 } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { supabase } from '../lib/supabase';
 import { GiftModal } from './GiftModal';
 import { TokenStore } from './TokenStore';

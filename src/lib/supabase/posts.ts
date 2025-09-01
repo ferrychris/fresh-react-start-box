@@ -866,3 +866,26 @@ export const getPostLikers = async (postId: string, userId: string) => {
     .eq('user_id', userId)
     .maybeSingle();
 };
+
+// Adds a like to a post for a user.
+export const likePost = async (postId: string, userId: string) => {
+  const { error } = await supabase
+    .from('post_likes')
+    .insert({ post_id: postId, user_id: userId });
+  if (error) {
+    console.error('Error adding like:', error);
+    throw error;
+  }
+};
+
+// Removes a like from a post for a user.
+export const unlikePost = async (postId: string, userId: string) => {
+  const { error } = await supabase
+    .from('post_likes')
+    .delete()
+    .match({ post_id: postId, user_id: userId });
+  if (error) {
+    console.error('Error removing like:', error);
+    throw error;
+  }
+};

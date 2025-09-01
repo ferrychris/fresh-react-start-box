@@ -17,7 +17,7 @@ import {
   Heart,
   Share2
 } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { supabase, checkTrackFollow, getTrackFollowerCount, toggleTrackFollow } from '../lib/supabase';
 import { ShareModal } from '../components/ShareModal';
 import { DynamicMetaTags } from '../components/DynamicMetaTags';
@@ -397,7 +397,7 @@ export const TrackProfile: React.FC = () => {
               </button>
               
               <button className="px-4 md:px-6 lg:px-8 py-2 md:py-3 lg:py-4 bg-fedex-orange hover:bg-fedex-orange-dark text-white rounded-lg font-bold text-sm md:text-base lg:text-lg transition-all">
-                <Bell className="inline h-4 w-4 md:h-5 md:w-5 mr-1 md:mr-2" />
+                <Bell className="inline h-4 w-4 mr-1 md:mr-2" />
                 Get Event Notifications
               </button>
               
@@ -408,7 +408,7 @@ export const TrackProfile: React.FC = () => {
                 }}
                 className="px-4 md:px-6 lg:px-8 py-2 md:py-3 lg:py-4 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-lg font-bold text-sm md:text-base lg:text-lg transition-all"
               >
-                <Heart className="inline h-4 w-4 md:h-5 md:w-5 mr-1 md:mr-2" />
+                <Heart className="inline h-4 w-4 mr-1 md:mr-2" />
                 Donate to Track
               </button>
               
@@ -419,7 +419,7 @@ export const TrackProfile: React.FC = () => {
                   rel="noopener noreferrer"
                   className="px-4 md:px-6 lg:px-8 py-2 md:py-3 lg:py-4 border-2 border-fedex-orange text-fedex-orange hover:bg-fedex-orange hover:text-white rounded-lg font-bold text-sm md:text-base lg:text-lg transition-all"
                 >
-                  <Globe className="inline h-4 w-4 md:h-5 md:w-5 mr-1 md:mr-2" />
+                  <Globe className="inline h-4 w-4 mr-1 md:mr-2" />
                   Visit Website
                 </a>
               )}
@@ -428,7 +428,7 @@ export const TrackProfile: React.FC = () => {
                 onClick={() => setShowShareModal(true)}
                 className="px-4 md:px-6 lg:px-8 py-2 md:py-3 lg:py-4 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-bold text-sm md:text-base lg:text-lg transition-all"
               >
-                <Share2 className="inline h-4 w-4 md:h-5 md:w-5 mr-1 md:mr-2" />
+                <Share2 className="inline h-4 w-4 mr-1 md:mr-2" />
                 Share Track
               </button>
             </div>

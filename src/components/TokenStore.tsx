@@ -18,7 +18,7 @@ import {
   type VirtualGift 
 } from '../lib/supabase';
 import { supabase } from '../lib/supabase';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 
 interface TokenStoreProps {
   onClose: () => void;

@@ -6,7 +6,7 @@ import {
   gifts as supabaseGifts,
 } from '../lib/supabase';
 import type { UserTokens, VirtualGift } from '../lib/supabase/types';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 
 interface GiftModalProps {
   racerId: string;

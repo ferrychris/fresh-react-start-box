@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DollarSign, Heart, X } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { createCheckoutSession } from '../lib/stripe';
 
 interface TipModalProps {

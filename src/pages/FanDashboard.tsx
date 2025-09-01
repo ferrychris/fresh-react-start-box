@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Heart, Bell, CreditCard, TrendingUp, Star, MessageCircle, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { PostCreator } from '../components/PostCreator';
 import { PostCard } from '../components/PostCard';
 import Feed from './Feed';
@@ -354,7 +354,9 @@ export const FanDashboard: React.FC = () => {
             <button
               onClick={() => setActiveTab('feeds')}
               className={`flex flex-col items-center justify-center space-y-1 py-3 rounded-lg transition-all ${
-                activeTab === 'feeds' ? 'bg-fedex-orange/20 text-fedex-orange' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                activeTab === 'feeds'
+                  ? 'bg-fedex-orange/20 text-fedex-orange'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
               aria-label="Feeds"
             >
@@ -364,7 +366,9 @@ export const FanDashboard: React.FC = () => {
             <button
               onClick={() => setActiveTab('subscriptions')}
               className={`flex flex-col items-center justify-center space-y-1 py-3 rounded-lg transition-all ${
-                activeTab === 'subscriptions' ? 'bg-fedex-orange/20 text-fedex-orange' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                activeTab === 'subscriptions'
+                  ? 'bg-fedex-orange/20 text-fedex-orange'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
               aria-label="Subscriptions"
             >
@@ -374,7 +378,9 @@ export const FanDashboard: React.FC = () => {
             <button
               onClick={() => setActiveTab('activity')}
               className={`flex flex-col items-center justify-center space-y-1 py-3 rounded-lg transition-all ${
-                activeTab === 'activity' ? 'bg-fedex-orange/20 text-fedex-orange' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                activeTab === 'activity'
+                  ? 'bg-fedex-orange/20 text-fedex-orange'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
               aria-label="Activity"
             >
@@ -384,7 +390,9 @@ export const FanDashboard: React.FC = () => {
             <button
               onClick={() => setActiveTab('payments')}
               className={`flex flex-col items-center justify-center space-y-1 py-3 rounded-lg transition-all ${
-                activeTab === 'payments' ? 'bg-fedex-orange/20 text-fedex-orange' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                activeTab === 'payments'
+                  ? 'bg-fedex-orange/20 text-fedex-orange'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
               aria-label="Payments"
             >
@@ -394,7 +402,9 @@ export const FanDashboard: React.FC = () => {
             <button
               onClick={() => setActiveTab('notifications')}
               className={`flex flex-col items-center justify-center space-y-1 py-3 rounded-lg transition-all ${
-                activeTab === 'notifications' ? 'bg-fedex-orange/20 text-fedex-orange' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                activeTab === 'notifications'
+                  ? 'bg-fedex-orange/20 text-fedex-orange'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
               aria-label="Notifications"
             >

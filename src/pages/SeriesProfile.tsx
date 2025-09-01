@@ -21,7 +21,7 @@ import {
   Award,
   Zap
 } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { supabase } from '../lib/supabase';
 import { DynamicMetaTags } from '../components/DynamicMetaTags';
 
@@ -749,14 +749,17 @@ export const SeriesProfile: React.FC = () => {
                 >
                   {followLoading ? 'Updating...' : isFollowing ? 'Following' : 'Follow Series'}
                 </button>
+                
                 <button className="w-full px-4 py-3 bg-fedex-orange hover:bg-fedex-orange-dark text-white rounded-lg font-semibold transition-colors">
                   <Bell className="inline h-4 w-4 mr-2" />
                   Get Notifications
                 </button>
+                
                 <button className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-semibold transition-colors">
                   <Calendar className="inline h-4 w-4 mr-2" />
                   View Full Schedule
                 </button>
+                
                 <button className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-lg font-semibold transition-colors">
                   <Heart className="inline h-4 w-4 mr-2" />
                   Support Series

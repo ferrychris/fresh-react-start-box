@@ -17,7 +17,7 @@ import {
   Crown,
   Trophy
 } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import {
   getRacerEarnings,
   getRacerFanStats,

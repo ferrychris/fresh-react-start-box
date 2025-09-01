@@ -8,7 +8,7 @@ import {
 } from 'react-icons/fa';
 import { FiTrendingUp } from 'react-icons/fi';
 import { Link, useLocation } from 'react-router-dom';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { 
   updateProfile, 
   updateRacerProfile, 
@@ -1454,7 +1454,7 @@ export const Dashboard: React.FC = () => {
                         socialLinksCount >= 2
                       ].filter(Boolean).length / 8) * 100}%` 
                     }}
-                  />
+                  ></div>
                 </div>
               </div>
             </div>

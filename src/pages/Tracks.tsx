@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Filter, MapPin, Flag, Users, Star, Calendar, Trophy, Heart, DollarSign } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { supabase, getTrackFollowerCount } from '../lib/supabase';
 
 export const Tracks: React.FC = () => {

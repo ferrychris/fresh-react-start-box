@@ -18,7 +18,7 @@ import {
   Trash2,
   Move
 } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { 
   getRacerSponsorshipSpots, 
   createSponsorshipSpot, 

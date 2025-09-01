@@ -19,7 +19,7 @@ import {
   Globe
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { 
   getSeriesProfile, 
   updateSeriesProfile, 

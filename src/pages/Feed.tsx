@@ -18,7 +18,7 @@ import {
   MoreHorizontal,
   Zap
 } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { raceClasses } from '../data/raceClasses';
 import { PostCard } from '../components/PostCard';
 import { getRacerPosts, supabase } from '../lib/supabase';

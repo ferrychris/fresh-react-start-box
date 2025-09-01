@@ -28,7 +28,7 @@ import { TrackingDashboard } from '../components/TrackingDashboard';
 import { raceClasses } from '../data/raceClasses';
 import { ImageUpload } from '../components/ImageUpload';
 import { PostCreator } from '../components/PostCreator';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { 
   updateTrackProfile, 
   type TrackProfile,

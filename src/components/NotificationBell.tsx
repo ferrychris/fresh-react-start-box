@@ -8,7 +8,7 @@ import {
   type Notification,
   supabase
 } from '../lib/supabase';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 
 export const NotificationBell: React.FC = () => {
   const { user } = useApp();

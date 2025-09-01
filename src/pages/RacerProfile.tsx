@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Share2, Calendar, MapPin, Users, Image, UserPlus, UserCheck, Loader2 } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import type { Racer } from '../types';
 import { SuperFanBadge } from '../components/SuperFanBadge';
 import { SupabaseImageUpload } from '../components/SupabaseImageUpload';

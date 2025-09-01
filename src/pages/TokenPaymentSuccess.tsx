@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle, Coins, ArrowRight, Sparkles } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { tokens as supabaseTokens } from '../lib/supabase';
 
 export const TokenPaymentSuccess: React.FC = () => {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Filter, MapPin, Trophy, Users, Star, Zap, DollarSign, TrendingUp, X, Heart } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { raceClasses } from '../data/raceClasses';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../contexts/ThemeContext';

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useApp } from '../../App';
+import { useApp } from '../../contexts/AppContext';
 import { supabase } from '../../lib/supabase/client';
 
 // Import components

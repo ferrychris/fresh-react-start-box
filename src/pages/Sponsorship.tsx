@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { MapPin, DollarSign, Zap, Car, Trophy, Users, Star, Calendar } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 
 export const Sponsorship: React.FC = () => {
   const { racers } = useApp();

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Play, Heart, MessageCircle, Share2, Users, Eye, Filter, Search } from 'lucide-react';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { raceClasses } from '../data/raceClasses';
 
 export const RacerTV: React.FC = () => {

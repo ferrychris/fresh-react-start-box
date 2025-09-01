@@ -8,7 +8,7 @@ import {
   Search,
   ChevronDown
 } from 'lucide-react';
-import { useApp } from '../../App';
+import { useApp } from '../../contexts/AppContext';
 import { updateProfile, updateRacerProfile, supabase } from '../../lib/supabase';
 import { SupabaseImageUpload } from '../../components/SupabaseImageUpload';
 import { raceClasses } from '../../data/raceClasses';

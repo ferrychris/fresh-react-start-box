@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ExternalLink, CheckCircle, AlertCircle, DollarSign, Clock } from 'lucide-react';
 import { getRacerEarnings } from '../lib/supabase';
 import { createConnectAccount } from '../lib/stripe';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { primaryButton, outlineButton } from '../styles/buttons';
 
 interface ConnectAccountSetupProps {
