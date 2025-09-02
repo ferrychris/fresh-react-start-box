@@ -154,17 +154,24 @@ export default function Grandstand() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      {/* Guest Header */}
+    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black">
+      {/* Modern Header Section */}
       {!user && (
-        <div className="max-w-2xl mx-auto">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="w-10 h-10 lg:w-12 lg:h-12 bg-orange-500/20 rounded-2xl flex items-center justify-center">
-              <Trophy className="w-5 h-5 lg:w-6 lg:h-6 text-orange-400" />
-            </div>
-            <div>
-              <h1 className="text-2xl lg:text-3xl font-bold text-white racing-number">Grandstand</h1>
-              <p className="text-slate-400 text-sm lg:text-base">Latest from the racing community</p>
+        <div className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-purple-600/5 to-green-600/10"></div>
+          <div className="relative max-w-4xl mx-auto px-4 py-12">
+            <div className="text-center animate-fade-in">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-orange-500 to-red-600 rounded-3xl shadow-2xl mb-6 animate-scale-in">
+                <Trophy className="w-10 h-10 text-white" />
+              </div>
+              <h1 className="text-5xl lg:text-6xl font-bold text-white mb-4 tracking-tight">
+                <span className="bg-gradient-to-r from-white via-gray-100 to-gray-300 bg-clip-text text-transparent">
+                  Grandstand
+                </span>
+              </h1>
+              <p className="text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed">
+                Where the racing community comes together to share moments, stories, and passion for the sport
+              </p>
             </div>
           </div>
         </div>
