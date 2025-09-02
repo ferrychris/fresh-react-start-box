@@ -144,6 +144,74 @@ export const getAllPublicPosts = async (): Promise<DatabasePost[]> => {
   return [];
 };
 
+// Get posts for a specific fan (their own posts)
+export const getPostsForFan = async (fanId: string): Promise<DatabasePost[]> => {
+  if (!fanId) {
+    console.error('getPostsForFan called without a valid fanId');
+    return [];
+  }
+
+  let retries = 0;
+  const maxRetries = 3;
+
+  while (retries <= maxRetries) {
+    try {
+      const { data, error } = await supabase
+        .from('racer_posts')
+        .select(`
+          id,
+          content,
+          media_urls,
+          created_at,
+          updated_at,
+          post_type,
+          visibility,
+          likes_count,
+          comments_count,
+          total_tips,
+          allow_tips,
+          user_id,
+          user_type,
+          racer_id,
+          profiles!racer_posts_user_id_fkey (
+            id,
+            name,
+            email,
+            user_type,
+            avatar
+          )
+        `)
+        .eq('user_id', fanId)
+        .eq('user_type', 'fan')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        if (error.message?.includes('Failed to fetch') && retries < maxRetries) {
+          console.warn(`Network error fetching posts for fan, retrying... (${retries + 1}/${maxRetries})`);
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        console.error('Error fetching posts for fan:', error);
+        return [];
+      }
+
+      return (data || []) as DatabasePost[];
+    } catch (err) {
+      if (retries < maxRetries) {
+        console.warn(`Unexpected error fetching posts for fan, retrying... (${retries + 1}/${maxRetries})`);
+        retries++;
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+        continue;
+      }
+      console.error('Exception fetching posts for fan:', err);
+      return [];
+    }
+  }
+
+  return [];
+};
+
 // Keyset-paginated posts for fan dashboard
 // Cursor format: { created_at: string; id: string }
 export const getFanPostsPage = async ({

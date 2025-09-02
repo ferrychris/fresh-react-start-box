@@ -10,11 +10,7 @@ import { LiveStreamIndicator } from '../components/LiveStreamIndicator';
 export const Racers: React.FC = () => {
   const { racers, loadRacers } = useApp();
   const { theme } = useTheme();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterClass, setFilterClass] = useState('all');
-  const [filterLocation, setFilterLocation] = useState('all');
   const [sortBy, setSortBy] = useState('popular');
-  const [showSearch, setShowSearch] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     activeRacers: 0,
@@ -90,36 +86,9 @@ export const Racers: React.FC = () => {
   };
 
   const filteredRacers = useMemo(() => {
-    console.log('Filtering racers:', racers.length, 'total racers');
-    
-    return racers.filter(racer => {
-      // Show racers even if their profile is not complete, but they have basic info
-      // Only filter out if they have no name or essential information
-      if (!racer.name || racer.name.trim() === '') {
-        console.log('Filtering out racer with no name:', racer);
-      return false;
-    }
-    
-    const matchesSearch = searchTerm.trim() === '' || 
-      racer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (racer.carNumber && racer.carNumber.includes(searchTerm)) ||
-        (racer.location && racer.location.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    const matchesClass = filterClass === 'all' || 
-        (racer.class && racer.class.toLowerCase().includes(filterClass.toLowerCase()));
-    
-    const matchesLocation = filterLocation === 'all' || 
-        (racer.location && racer.location.toLowerCase().includes(filterLocation.toLowerCase()));
-      
-      const shouldInclude = matchesSearch && matchesClass && matchesLocation;
-      
-      if (!shouldInclude) {
-        console.log('Filtering out racer:', racer.name, 'search:', matchesSearch, 'class:', matchesClass, 'location:', matchesLocation);
-      }
-      
-      return shouldInclude;
-    });
-  }, [racers, searchTerm, filterClass, filterLocation]);
+    // Show all racers with a valid name
+    return racers.filter((racer) => !!racer.name && racer.name.trim() !== '');
+  }, [racers]);
 
   const sortedRacers = useMemo(() => {
     return [...filteredRacers].sort((a, b) => {
@@ -149,11 +118,11 @@ export const Racers: React.FC = () => {
         <div className="text-center mb-8">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
             <span className="bg-gradient-to-r from-white to-fedex-orange bg-clip-text text-transparent">
-              Discover Racers
+              Featured Racers
             </span>
           </h1>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-            Support your favorite racing heroes and get exclusive access to their journey
+            Handpicked profiles to follow now — explore their latest updates and support their journey
           </p>
         </div>
 
@@ -168,121 +137,7 @@ export const Racers: React.FC = () => {
         {/* Content - Only show when not loading */}
         {!loading && (
           <>
-        {/* Search Overlay */}
-        {showSearch && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm">
-            <div className="flex items-start justify-center pt-20 px-4">
-              <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md border border-gray-700 shadow-2xl">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">Find Your Racer</h3>
-                  <button
-                    onClick={() => {
-                      setShowSearch(false);
-                      setSearchTerm('');
-                    }}
-                    className="p-2 hover:bg-gray-800 rounded-full transition-colors"
-                  >
-                    <X className="h-5 w-5 text-gray-400" />
-                  </button>
-                </div>
-                
-                <div className="relative mb-4">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by name or car number..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-fedex-orange focus:border-fedex-orange"
-                    autoFocus
-                  />
-                </div>
-                
-                {/* Search Results */}
-                {searchTerm.trim() && (
-                  <div className="max-h-64 overflow-y-auto space-y-2">
-                    {filteredRacers.slice(0, 5).map(racer => (
-                      <Link
-                        key={racer.id}
-                        to={`/racer/${racer.id}`}
-                        onClick={() => {
-                          setShowSearch(false);
-                          setSearchTerm('');
-                        }}
-                        className="flex items-center space-x-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
-                      >
-                        <img
-                          src={racer.profilePicture}
-                          alt={racer.name}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                        <div className="flex-1">
-                          <div className="font-semibold text-white">{racer.name}</div>
-                          <div className="text-sm text-gray-400">#{racer.carNumber} • {racer.class}</div>
-                        </div>
-                      </Link>
-                    ))}
-                    
-                    {filteredRacers.length === 0 && (
-                      <div className="text-center py-4 text-gray-400">
-                        <p className="text-sm">No racers found matching "{searchTerm}"</p>
-                      </div>
-                    )}
-                    
-                    {filteredRacers.length > 5 && (
-                      <div className="text-center py-2">
-                        <button
-                          onClick={() => {
-                            setShowSearch(false);
-                            // The search term will remain and filter the main grid
-                          }}
-                          className="text-fedex-orange hover:text-fedex-orange-light text-sm font-medium"
-                        >
-                          View all {filteredRacers.length} results
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {!searchTerm.trim() && (
-                  <div className="text-center py-4 text-gray-400">
-                    <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Start typing to search for racers</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-        {/* Search and Filters */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => setShowSearch(true)}
-              className="flex items-center space-x-2 px-4 py-3 bg-gray-900 hover:bg-gray-800 rounded-lg transition-colors border border-gray-700"
-            >
-              <Search className="h-5 w-5 text-gray-400" />
-              <span className="text-gray-400">Search racers...</span>
-            </button>
-            
-            {searchTerm && (
-              <div className="flex items-center space-x-2 px-3 py-2 bg-fedex-orange/20 border border-fedex-orange/30 rounded-lg">
-                <span className="text-fedex-orange text-sm">Searching: "{searchTerm}"</span>
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="p-1 hover:bg-fedex-orange/20 rounded-full transition-colors"
-                >
-                  <X className="h-3 w-3 text-fedex-orange" />
-                </button>
-              </div>
-            )}
-          </div>
-          
-          <div className="text-gray-400 text-sm">
-            {searchTerm ? `${sortedRacers.length} results` : `${racers.length} racers`}
-          </div>
-        </div>
+        {/* Search UI removed: showing all racers */}
 
         {/* Racers Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">

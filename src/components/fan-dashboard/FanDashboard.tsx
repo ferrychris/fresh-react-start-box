@@ -9,7 +9,7 @@ import NavigationTabs from './NavigationTabs';
 import StatsCards from './StatsCards';
 import FavoriteRacers from './FavoriteRacers';
 import RecentActivity from './RecentActivity';
-import IndexPost from './posts/indexpost';
+import PersonalPost from './posts/PersonalPost';
 
 // Define types for our data structures
 interface FanProfile {
@@ -555,7 +555,7 @@ const FanDashboard: React.FC = () => {
         
         {activeTab === 'posts' && (
           <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-6 shadow-xl">
-            <IndexPost />
+            <PersonalPost fanId={targetId || undefined} />
           </div>
         )}
         

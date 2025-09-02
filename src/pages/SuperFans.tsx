@@ -217,7 +217,7 @@ export const SuperFans: React.FC = () => {
       theme === 'dark' ? 'bg-black' : 'bg-gray-50'
     }`}>
       {/* Hero Section */}
-      <section className={`relative py-20 overflow-hidden ${
+      <section className={`relative py-14 md:py-20 overflow-hidden ${
         theme === 'dark' ? 'bg-gradient-to-br from-purple-900 via-black to-pink-900' : 'bg-gradient-to-br from-purple-100 via-white to-pink-100'
       }`}>
         <div className="absolute inset-0 bg-[url('https://nbcsports.brightspotcdn.com/dims4/default/85959b5/2147483647/strip/false/crop/4551x2560+0+0/resize/1200x675!/quality/90/?url=https%3A%2F%2Fnbc-sports-production-nbc-sports.s3.us-east-1.amazonaws.com%2Fbrightspot%2F1a%2F07%2F2a8b1d1ac3cf967c51dc18d94635%2Fworldofoutlaws-pyro-e1593179645712.jpg')] bg-cover bg-center opacity-20" />
@@ -279,11 +279,11 @@ export const SuperFans: React.FC = () => {
       </section>
 
       {/* Search and Filters */}
-      <section className={`py-8 ${
+      <section className={`py-6 md:py-8 ${
         theme === 'dark' ? 'bg-black' : 'bg-gray-50'
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className={`rounded-xl p-6 mb-8 ${
+          <div className={`rounded-xl p-4 md:p-6 mb-6 md:mb-8 sticky top-16 z-20 ${
             theme === 'dark' ? 'bg-gray-900' : 'bg-white'
           }`}>
             <div className="flex flex-col lg:flex-row gap-4">
@@ -339,7 +339,7 @@ export const SuperFans: React.FC = () => {
             </div>
 
             {/* Results Count */}
-            <div className={`mt-4 ${
+            <div className={`mt-3 md:mt-4 ${
               theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
             }`}>
               Showing {sortedSuperFans.length} of {totalSuperFans} super fans
