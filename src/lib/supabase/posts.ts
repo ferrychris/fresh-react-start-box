@@ -906,3 +906,13 @@ export const unlikePost = async (postId: string, userId: string) => {
     throw error;
   }
 };
+
+export const updatePost = async (postId: string, content: string) => {
+  const { error } = await supabase
+    .from('racer_posts')
+    .update({ content })
+    .eq('id', postId);
+
+  if (error) throw error;
+  return { data: { id: postId, content } };
+};
