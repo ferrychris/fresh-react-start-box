@@ -152,12 +152,12 @@ const Fanheader = () => {
               align="end"
             >
               <DropdownMenuItem asChild>
-                <Link to="/fan/profile" className="w-full">
+                <Link to="/settings/profile" className="w-full">
                   Profile
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/fan/settings" className="w-full">
+                <Link to="/settings/profile" className="w-full">
                   Settings
                 </Link>
               </DropdownMenuItem>

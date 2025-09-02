@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Heart, MessageCircle, Share, MoreHorizontal, Play, Calendar, MapPin, Trophy, Users, DollarSign, Crown } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import CreatePost from '../components/fan-dashboard/posts/CreatePost';
-import { getAllPublicPosts, tipPost } from '../lib/supabase/posts';
+import { getFanPostsPage, tipPost } from '../lib/supabase/posts';
 import { PostCard, type Post as PostCardType } from '../components/PostCard';
 
 // Define proper types for the CreatePost component's return value
@@ -26,6 +26,9 @@ export default function Grandstand() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [tipping, setTipping] = useState<Record<string, boolean>>({});
+  const [nextCursor, setNextCursor] = useState<{ created_at: string; id: string } | null>(null);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // TODO: Replace with Supabase-backed list of teams the user follows/is a fan of
   const fanTeams: Array<{ id: string; name: string; avatar: string; since?: string }> = user ? [
@@ -40,7 +43,8 @@ export default function Grandstand() {
       try {
         setLoading(true);
         setError(null);
-        const rows = await getAllPublicPosts();
+        const { data: rows, nextCursor: cursor, error } = await getFanPostsPage({ limit: 3 });
+        if (error) throw error;
         if (!isMounted) return;
 
         // Type assertion to avoid TypeScript errors with database structure
@@ -58,6 +62,7 @@ export default function Grandstand() {
         console.log('Mapped posts:', mapped);
 
         setPosts(mapped);
+        setNextCursor(cursor || null);
       } catch (e) {
         console.error('Failed to load posts', e);
         if (!isMounted) return;
@@ -69,6 +74,44 @@ export default function Grandstand() {
     load();
     return () => { isMounted = false; };
   }, []);
+
+  // Load more posts (5 at a time) using nextCursor
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { data: rows, nextCursor: cursor, error } = await getFanPostsPage({ limit: 5, cursor: nextCursor });
+      if (error) throw error;
+      const mapped: PostCardType[] = (rows || []).map((r: PostCardType) => {
+        const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+        return { ...r, profiles: profile } as PostCardType;
+      });
+      setPosts(prev => [...prev, ...mapped]);
+      setNextCursor(cursor || null);
+    } catch (e) {
+      console.error('Failed to load more posts', e);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextCursor, loadingMore]);
+
+  // Infinite scroll with IntersectionObserver
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    if (!nextCursor) return; // nothing more to load
+
+    const el = sentinelRef.current;
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          loadMore();
+        }
+      }
+    }, { root: null, rootMargin: '200px', threshold: 0 });
+
+    observer.observe(el);
+    return () => observer.unobserve(el);
+  }, [nextCursor, loadMore]);
 
   const handlePostUpdate = () => {
     // Optional: re-fetch posts or update a single post
@@ -89,9 +132,10 @@ export default function Grandstand() {
         console.error('Tip failed:', error);
         alert(error.message || 'Failed to tip');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Exception in tip:', e);
-      alert(e?.message || 'Failed to tip');
+      const message = e instanceof Error ? e.message : 'Failed to tip';
+      alert(message);
     } finally {
       setTipping(prev => ({ ...prev, [postId]: false }));
     }
@@ -213,6 +257,19 @@ export default function Grandstand() {
                 onPostDeleted={() => handlePostDeleted(post.id)}
               />
             ))}
+            {/* Load more controls */}
+            <div ref={sentinelRef} />
+            {nextCursor && (
+              <div className="flex justify-center py-4">
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 disabled:opacity-60"
+                >
+                  {loadingMore ? 'Loading…' : 'Load more'}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Right sidebar: Teams user is a fan of */}

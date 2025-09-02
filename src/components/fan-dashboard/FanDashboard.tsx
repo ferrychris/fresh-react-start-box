@@ -101,6 +101,7 @@ interface ActivityData {
 const FanDashboard: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useApp();
+  const targetId = id || user?.id || null;
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
@@ -144,12 +145,20 @@ const FanDashboard: React.FC = () => {
   const loadFanProfile = useCallback(async () => {
     try {
       setLoading(true);
+      if (!targetId) {
+        // No route id and no logged-in user; show empty state instead of hanging
+        setFanProfile(null);
+        setFavoriteRacers([]);
+        setRecentActivity([]);
+        setStats({ support_points: 0, total_tips: 0, active_subscriptions: 0, activity_streak: 0 });
+        return;
+      }
       
       // Load fan profile data
       const { data: fanData, error: fanError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', id)
+        .eq('id', targetId)
         .maybeSingle();
       
       if (fanError) throw fanError;
@@ -161,7 +170,7 @@ const FanDashboard: React.FC = () => {
         const { data: racerData, error: racerError } = await supabase
           .from('racer_profiles')
           .select('banner_photo_url, car_photos')
-          .eq('id', id)
+          .eq('id', targetId)
           .maybeSingle();
           
         if (!racerError && racerData) {
@@ -201,7 +210,7 @@ const FanDashboard: React.FC = () => {
         const { data, error: statsError } = await supabase
           .from('fan_stats')
           .select('*')
-          .eq('fan_id', id)
+          .eq('fan_id', targetId)
           .maybeSingle();
         
         if (!statsError || statsError.code === 'PGRST116') {
@@ -225,7 +234,7 @@ const FanDashboard: React.FC = () => {
             total_tipped,
             subscription_tier
           `)
-          .eq('fan_id', id)
+          .eq('fan_id', targetId)
           .order('total_tipped', { ascending: false })
           .limit(5);
         
@@ -244,7 +253,7 @@ const FanDashboard: React.FC = () => {
         const { data, error: activityError } = await supabase
           .from('fan_activity')
           .select('*')
-          .eq('fan_id', id)
+          .eq('fan_id', targetId)
           .order('created_at', { ascending: false })
           .limit(5);
         
@@ -329,7 +338,7 @@ const FanDashboard: React.FC = () => {
       if (activityData.length === 0) {
         console.log('No activity found or table missing, using placeholder data');
         // Only use placeholder data if the user is viewing their own profile
-        if (user?.id === id) {
+        if (user?.id === targetId) {
           formattedActivity = [
             {
               id: 'placeholder-1',
@@ -380,13 +389,12 @@ const FanDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [id, user?.id]);
+  }, [targetId, user?.id]);
 
   useEffect(() => {
-    if (id) {
-      loadFanProfile();
-    }
-  }, [id, loadFanProfile]);
+    // Load when we have either route id or logged-in user id
+    loadFanProfile();
+  }, [loadFanProfile]);
 
   // Handle tab navigation
   const handleTabChange = (tab: string) => {
@@ -473,14 +481,14 @@ const FanDashboard: React.FC = () => {
   if (!fanProfile) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-xl font-bold text-white mb-2">Fan not found</h2>
-        <p className="text-gray-400">The fan profile you're looking for doesn't exist or has been removed.</p>
+        <h2 className="text-xl font-bold text-white mb-2">Welcome to your Fan Dashboard</h2>
+        <p className="text-gray-400">We couldn't load a fan profile. If you just signed up, complete your profile in Settings.</p>
       </div>
     );
   }
 
   // Check if this is the user's own profile
-  const isOwnProfile = user?.id === id;
+  const isOwnProfile = user?.id === targetId;
 
   return (
     <div className="min-h-screen bg-black text-white">

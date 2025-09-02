@@ -32,6 +32,18 @@ export * from './supabase/tracks';
 export { gifts };
 export { tokens };
 
+// Backward-compatible helper expected by test scripts
+// Maps legacy getFanPosts() to the current public posts fetcher
+export const getFanPosts = async (): Promise<any[]> => {
+  try {
+    const data = await posts.getAllPublicPosts();
+    return data || [];
+  } catch (e) {
+    console.error('[getFanPosts] error:', e);
+    return [];
+  }
+};
+
 // Type re-exports  
 export type { 
   FanStats, 

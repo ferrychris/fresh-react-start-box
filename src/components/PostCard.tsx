@@ -1,5 +1,6 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Heart, 
   MessageCircle, 
@@ -119,6 +120,50 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     setLikesCount(post.likes_count || 0);
   }, [post.id, user, post.likes_count]);
 
+  // Realtime: listen for comments INSERT/DELETE for this post
+  useEffect(() => {
+    const channel = supabase
+      .channel(`comments-${post.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'post_comments', filter: `post_id=eq.${post.id}` },
+        (payload) => {
+          const c = payload.new as any;
+          setComments(prev => [{
+            id: c.id,
+            post_id: c.post_id,
+            user_id: c.user_id,
+            content: c.comment_text ?? c.content ?? '',
+            created_at: c.created_at,
+            user: {
+              id: c.user_id,
+              name: c.user_name ?? 'User',
+              avatar: c.user_avatar ?? '',
+              user_type: c.user_type ?? 'fan'
+            }
+          }, ...prev]);
+          setCommentsCount(cnt => cnt + 1);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'post_comments', filter: `post_id=eq.${post.id}` },
+        (payload) => {
+          const oldRow = payload.old as any;
+          const deletedId = oldRow?.id as string | undefined;
+          if (deletedId) {
+            setComments(prev => prev.filter(c => c.id !== deletedId));
+          }
+          setCommentsCount(cnt => (cnt > 0 ? cnt - 1 : 0));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [post.id]);
+
   const handleLike = async () => {
     if (!user) { setShowAuthModal(true); return; }
     if (likeBusy) return; // prevent rapid clicks
@@ -162,12 +207,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
           console.error('Failed to load comments:', error);
         }
         setComments(fetchedComments ?? []);
-        // Prefer authoritative count from backend
-        if (typeof totalCount === 'number' && totalCount >= 0) {
-          setCommentsCount(totalCount);
-        } else if (Array.isArray(fetchedComments)) {
-          setCommentsCount(fetchedComments.length);
-        }
+        // Don't let a stale backend count overwrite our newer local count.
+        // Use the max of current and fetched counts.
+        const fetchedCount = typeof totalCount === 'number' && totalCount >= 0
+          ? totalCount
+          : Array.isArray(fetchedComments) ? fetchedComments.length : 0;
+        setCommentsCount(prev => Math.max(prev, fetchedCount));
       }
     } catch (err) {
       console.error('Error toggling comments:', err);
@@ -181,19 +226,27 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     if (!newComment.trim()) return;
     try {
       setCommentsLoading(true);
-      const { error } = await addCommentToPost(post.id, user.id, newComment.trim());
+      const { data: created, error } = await addCommentToPost(post.id, user.id, newComment.trim());
       if (error) {
         console.error('Error adding comment:', error);
         return;
       }
 
-      // Optimistically increment local count
+      // Optimistically update UI without full refetch to avoid overwriting with stale counts
+      if (created) {
+        setComments(prev => [
+          {
+            id: created.id,
+            post_id: created.post_id,
+            user_id: created.user_id,
+            content: created.content,
+            created_at: created.created_at,
+            user: created.user
+          },
+          ...prev
+        ]);
+      }
       setCommentsCount((c) => c + 1);
-
-      // Refresh list and authoritative count
-      const { data: refreshed, totalCount } = await getPostComments(post.id, 20, 0);
-      setComments(refreshed ?? []);
-      if (typeof totalCount === 'number') setCommentsCount(totalCount);
       setNewComment('');
     } catch (err) {
       console.error('Failed to add comment:', err);
@@ -432,7 +485,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
               <DropdownMenuTrigger className="p-2 rounded-full text-gray-400 hover:text-white transition-colors">
                 <MoreHorizontal className="h-4 w-4 text-gray-400" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" sideOffset={4} alignOffset={-2} className="w-auto bg-transparent border-0 shadow-none p-1 text-right min-w-[120px]">
+              <DropdownMenuContent
+                align="end"
+                side="bottom"
+                sideOffset={8}
+                avoidCollisions={false}
+                className="w-auto bg-transparent border-0 shadow-none p-1 text-right min-w-[120px]"
+              >
                 {isOwner && (
                   <>
                     <DropdownMenuItem 

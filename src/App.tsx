@@ -63,6 +63,19 @@ const ScrollToTop: React.FC = () => {
   return null;
 };
 
+// Minimal footer for logged-in pages
+const AppFooterMinimal: React.FC = () => {
+  return (
+    <footer className="border-t transition-colors duration-300 bg-gray-900 border-gray-800">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex justify-center">
+          <p className="text-sm text-gray-400">&copy; 2025 OnlyRaceFans.co. All rights reserved.</p>
+        </div>
+      </div>
+    </footer>
+  );
+};
+
 // Render the appropriate header based on auth state and route
 const HeaderGate: React.FC = () => {
   const { user } = useApp();
@@ -129,7 +142,7 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
   return (
     <main className={mainPadding}>
       <Routes>
-        <Route path="/" element={user?.user_type === 'fan' ? <Navigate to="/fan-dashboard" replace /> : <Home />} />
+        <Route path="/" element={<Navigate to="/fan-dashboard" replace />} />
         <Route path="/feed" element={<Feed />} />
         <Route path="/racers" element={<Racers />} />
         <Route path="/tracks" element={<Tracks />} />
@@ -141,14 +154,30 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
         <Route path="/track/:id" element={<TrackProfile />} />
         <Route path="/racer/:id" element={<RacerProfile />} />
         <Route path="/racer/:id/sponsorship" element={<SponsorshipPackages />} />
-        <Route path="/dashboard" element={
-          user?.user_type === 'racer' ? <Dashboard /> : <Navigate to="/" />
-        } />
+        <Route
+          path="/dashboard"
+          element={
+            user?.user_type === 'racer' ? (
+              <Dashboard />
+            ) : user?.user_type === 'fan' ? (
+              <FanDashboard />
+            ) : user?.user_type === 'track' ? (
+              <TrackDashboard />
+            ) : user?.user_type === 'series' ? (
+              <SeriesDashboard />
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
         {/* Stick with legacy fan dashboard route */}
         <Route path="/fan-dashboard" element={<FanDashboard />} />
         {/* Redirect generic /fan to legacy /fan-dashboard */}
         <Route path="/fan" element={<Navigate to="/fan-dashboard" replace />} />
-        <Route path="/fan/:id" element={<FanDashboard />} />
+        {/* Redirect old fan profile/settings routes to settings profile */}
+        <Route path="/fan/profile" element={<Navigate to="/settings/profile" replace />} />
+        <Route path="/fan/settings" element={<Navigate to="/settings/profile" replace />} />
+        {/** Removed dynamic fan route to simplify navigation */}
         <Route path="/track-dashboard" element={
           user?.user_type === 'track' ? <TrackDashboard /> : <Navigate to="/" />
         } />
@@ -332,8 +361,8 @@ const AppContent: React.FC = () => {
         <ScrollToTop />
         <HeaderGate />
         <MainContent user={user} />
-        {/* Footer (hidden on non-root routes) */}
-        <AppFooter />
+        {/* Footer: full on logged-out pages, minimal on logged-in pages */}
+        {user ? <AppFooterMinimal /> : <AppFooter />}
         <Toaster position="bottom-center" />
         <ToastContainer 
           position="top-right"

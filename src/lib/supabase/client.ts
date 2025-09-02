@@ -48,7 +48,15 @@ if (supabaseUrl && supabaseAnonKey) {
         },
       }),
     },
-    auth: {},
+    auth: {
+      getUser: async () => ({ data: { user: null }, error: null }),
+      getSession: async () => ({ data: { session: null }, error: null }),
+      refreshSession: async () => ({ data: { session: null }, error: null }),
+      onAuthStateChange: (_cb: any) => ({
+        data: { subscription: { unsubscribe: () => {} } },
+        error: null,
+      }),
+    },
   };
 
   supabase = mockSupabase as any;

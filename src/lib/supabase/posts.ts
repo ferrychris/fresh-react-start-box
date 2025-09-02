@@ -32,9 +32,9 @@ export const getPostsForRacer = async (racerId: string): Promise<{ data: Databas
           allow_tips,
           profiles!racer_posts_user_id_fkey (
             id,
-            username,
+            name,
             email,
-            avatar_url,
+            avatar,
             user_type
           ),
           racer_profiles!racer_posts_racer_id_fkey (
@@ -88,6 +88,7 @@ export const getRacerPosts = async (racerId: string): Promise<DatabasePost[]> =>
 export const getAllPublicPosts = async (): Promise<DatabasePost[]> => {
   let retries = 0;
   const maxRetries = 3;
+  const limit = 50; // prevent full-table scans from timing out
 
   while (retries <= maxRetries) {
     try {
@@ -117,7 +118,8 @@ export const getAllPublicPosts = async (): Promise<DatabasePost[]> => {
           )
         `)
         .eq('visibility', 'public')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
       if (error) {
         console.error('Error fetching public posts:', error);
@@ -174,8 +176,8 @@ export const getFanPostsPage = async ({
           racer_id,
           total_tips,
           allow_tips,
-          racer_profiles!left(id, username, profile_photo_url, car_number, team_name),
-          fan_profiles!left(id, username, avatar_url)
+          profiles!racer_posts_user_id_fkey (id, name, email, avatar, user_type),
+          racer_profiles!racer_posts_racer_id_fkey (id, username, profile_photo_url, car_number, team_name)
         `)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
@@ -263,9 +265,9 @@ export const getPostComments = async (postId: string, limit: number = 10, offset
           comment_text,
           created_at,
           profiles!post_comments_user_id_fkey (
-            username,
+            name,
             email,
-            avatar_url,
+            avatar,
             user_type
           )
         `)
@@ -319,8 +321,8 @@ export const getPostComments = async (postId: string, limit: number = 10, offset
             content: comment.comment_text || '',
             created_at: comment.created_at,
             user: {
-              name: (prof?.username || emailUsername || 'User'),
-              avatar: (prof?.avatar_url || '')
+              name: (prof?.name || emailUsername || 'User'),
+              avatar: (prof?.avatar || '')
             }
           };
         } catch (err) {
@@ -403,9 +405,9 @@ export const addCommentToPost = async (
           comment_text,
           created_at,
           profiles!post_comments_user_id_fkey (
-            username,
+            name,
             email,
-            avatar_url
+            avatar
           )
         `)
         .single();
@@ -426,23 +428,46 @@ export const addCommentToPost = async (
         throw new Error('Failed to add comment: No data returned.');
       }
 
-      // After adding comment, update the comments_count on the racer_posts table
-      const { count, error: countError } = await supabase
-        .from('post_comments')
-        .select('*', { count: 'exact', head: true })
-        .eq('post_id', postId);
-
-      if (countError) {
-        console.warn('Failed to fetch comment count after adding new comment:', countError);
-      } else {
-        const { error: updateError } = await supabase
+      // After adding comment, increment the comments count on the post.
+      // Prefer a lightweight increment over a full recount for performance.
+      try {
+        // Attempt to increment comments_count if present
+        // Note: Supabase client doesn't support expressions directly in update payload,
+        // so we fetch current value and write back +1 as a fallback.
+        const { data: currentPost, error: fetchPostErr } = await supabase
           .from('racer_posts')
-          .update({ comments_count: count || 0 })
-          .eq('id', postId);
+          .select('id, comments_count, comment_count')
+          .eq('id', postId)
+          .maybeSingle();
 
-        if (updateError) {
-          console.warn('Failed to update post with new comment count:', updateError);
+        if (fetchPostErr) {
+          console.warn('Failed to fetch post for comment count increment:', fetchPostErr);
+        } else if (currentPost) {
+          // Prefer comments_count; fallback to comment_count if that exists instead
+          const hasPlural = typeof (currentPost as any).comments_count === 'number';
+          const hasSingular = typeof (currentPost as any).comment_count === 'number';
+
+          if (hasPlural) {
+            const newVal = ((currentPost as any).comments_count || 0) + 1;
+            const { error: updErr } = await supabase
+              .from('racer_posts')
+              .update({ comments_count: newVal })
+              .eq('id', postId);
+            if (updErr) console.warn('Failed to increment comments_count:', updErr);
+          } else if (hasSingular) {
+            const newVal = ((currentPost as any).comment_count || 0) + 1;
+            const { error: updErr2 } = await supabase
+              .from('racer_posts')
+              .update({ comment_count: newVal })
+              .eq('id', postId);
+            if (updErr2) console.warn('Failed to increment comment_count:', updErr2);
+          } else {
+            // Neither column exists; log once
+            console.warn('No comments_count/comment_count column found on racer_posts');
+          }
         }
+      } catch (incErr) {
+        console.warn('Exception while incrementing comment count:', incErr);
       }
 
       // Map the returned data to the PostComment type
@@ -457,11 +482,11 @@ export const addCommentToPost = async (
             const prof = Array.isArray(data.profiles) ? data.profiles[0] : (data.profiles as any);
             const email = prof?.email as string | undefined;
             const emailName = email ? (email.includes('@') ? email.split('@')[0] : email) : '';
-            return (prof?.username || emailName || 'User');
+            return (prof?.name || emailName || 'User');
           })(),
           avatar: (() => {
             const prof = Array.isArray(data.profiles) ? data.profiles[0] : (data.profiles as any);
-            return prof?.avatar_url || '';
+            return prof?.avatar || '';
           })()
         }
       };
@@ -487,6 +512,111 @@ export const addCommentToPost = async (
     data: null, 
     error: new Error('Failed to add comment after multiple attempts') 
   };
+};
+
+// Delete a single comment and decrement the post's comment count by 1.
+export const deleteCommentFromPost = async (
+  postId: string,
+  commentId: string
+): Promise<{ success: boolean; error: Error | null }> => {
+  if (!postId || !commentId) {
+    return { success: false, error: new Error('Post ID and Comment ID are required') };
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    return { success: false, error: new Error('Authentication required to delete comments') };
+  }
+
+  let retries = 0;
+  const maxRetries = 3;
+  while (retries <= maxRetries) {
+    try {
+      // Ensure the current user owns the comment
+      const { data: existing, error: fetchErr } = await supabase
+        .from('post_comments')
+        .select('id, user_id, post_id')
+        .eq('id', commentId)
+        .maybeSingle();
+
+      if (fetchErr) {
+        if (fetchErr.message?.includes('Failed to fetch') && retries < maxRetries) {
+          retries++;
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        return { success: false, error: new Error(fetchErr.message) };
+      }
+
+      if (!existing || existing.post_id !== postId) {
+        return { success: false, error: new Error('Comment not found') };
+      }
+      if (existing.user_id !== session.user.id) {
+        return { success: false, error: new Error('You can only delete your own comments') };
+      }
+
+      // Delete the comment
+      const { error: delErr } = await supabase
+        .from('post_comments')
+        .delete()
+        .eq('id', commentId);
+      if (delErr) {
+        if (delErr.message?.includes('Failed to fetch') && retries < maxRetries) {
+          retries++;
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        return { success: false, error: new Error(delErr.message) };
+      }
+
+      // Decrement the cached comment count on the post
+      try {
+        const { data: currentPost, error: fetchPostErr } = await supabase
+          .from('racer_posts')
+          .select('id, comments_count, comment_count')
+          .eq('id', postId)
+          .maybeSingle();
+        if (fetchPostErr) {
+          console.warn('Failed to fetch post for decrementing comment count:', fetchPostErr);
+        } else if (currentPost) {
+          const hasPlural = typeof (currentPost as any).comments_count === 'number';
+          const hasSingular = typeof (currentPost as any).comment_count === 'number';
+          if (hasPlural) {
+            const cur = (currentPost as any).comments_count || 0;
+            const newVal = cur > 0 ? cur - 1 : 0;
+            const { error: updErr } = await supabase
+              .from('racer_posts')
+              .update({ comments_count: newVal })
+              .eq('id', postId);
+            if (updErr) console.warn('Failed to decrement comments_count:', updErr);
+          } else if (hasSingular) {
+            const cur = (currentPost as any).comment_count || 0;
+            const newVal = cur > 0 ? cur - 1 : 0;
+            const { error: updErr2 } = await supabase
+              .from('racer_posts')
+              .update({ comment_count: newVal })
+              .eq('id', postId);
+            if (updErr2) console.warn('Failed to decrement comment_count:', updErr2);
+          } else {
+            console.warn('No comments_count/comment_count column found on racer_posts');
+          }
+        }
+      } catch (decErr) {
+        console.warn('Exception while decrementing comment count:', decErr);
+      }
+
+      return { success: true, error: null };
+    } catch (err) {
+      if (retries < maxRetries) {
+        retries++;
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+        continue;
+      }
+      return { success: false, error: err instanceof Error ? err : new Error('Unknown error deleting comment') };
+    }
+  }
+
+  return { success: false, error: new Error('Failed to delete comment after multiple attempts') };
 };
 
 export const togglePostLike = async (

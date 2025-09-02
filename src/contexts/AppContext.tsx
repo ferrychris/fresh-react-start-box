@@ -40,7 +40,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const checkSession = async () => {
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      // Safety: avoid indefinite hang if auth.getUser never resolves
+      const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> => {
+        return new Promise((resolve, reject) => {
+          const t = setTimeout(() => reject(new Error('auth_timeout')), ms);
+          p.then((v) => { clearTimeout(t); resolve(v); })
+           .catch((e) => { clearTimeout(t); reject(e); });
+        });
+      };
+
+      const { data: { user: authUser } } = await withTimeout(supabase.auth.getUser() as any, 5000);
       if (authUser) {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).maybeSingle();
         if (profile) {
@@ -61,7 +70,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setUser(null);
       }
     } catch (error) {
-      console.error('Error checking session:', error);
+      if ((error as Error)?.message === 'auth_timeout') {
+        console.warn('Auth getUser timed out; proceeding without session');
+      } else {
+        console.error('Error checking session:', error);
+      }
       setUser(null);
     } finally {
       setSessionChecked(true);
