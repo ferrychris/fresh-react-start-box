@@ -71,7 +71,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [post, setPost] = useState(initialPost);
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(post.likes_count || 0);
-  const [commentsCount, setCommentsCount] = useState<number>(post.comments_count || 0);
+  const [commentsCount, setCommentsCount] = useState<number>(0);
   const [likeBusy, setLikeBusy] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<PostComment[]>([]);
@@ -101,8 +101,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
 
     checkLike();
     setLikesCount(post.likes_count || 0);
-    setCommentsCount(post.comments_count || 0);
-  }, [post.id, user, post.likes_count, post.comments_count]);
+  }, [post.id, user, post.likes_count]);
 
   const handleLike = async () => {
     if (!user) {
@@ -138,46 +137,54 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     }
   };
 
-  const fetchComments = async (limit: number, offset: number) => {
-    setCommentsLoading(true);
-    const { data, error } = await getPostComments(post.id, limit, offset);
-    if (data) {
-      setComments(prev => (offset === 0 ? data : [...prev, ...data]));
-      setHasMoreComments(data.length === limit);
-    } else {
-      console.error('Failed to fetch comments:', error);
-      setHasMoreComments(false);
-    }
-    setCommentsLoading(false);
-  };
-
-  const toggleComments = () => {
-    const willShow = !showComments;
-    setShowComments(willShow);
-    if (willShow && comments.length === 0) {
-      fetchComments(2, 0);
-    }
-  };
-
-  const handleComment = async () => {
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
-    if (!newComment.trim()) return;
-    
-    setCommentsCount(prev => prev + 1);
+  const handleToggleComments = async () => {
     try {
-      const result = await addCommentToPost(post.id, user.id, newComment.trim());
-      if (result.data) {
-        // Add the new comment to the top of the list
-        setComments(prev => [result.data, ...prev]);
+      setShowComments((prev) => !prev);
+
+      // Only fetch when opening for the first time or when we need refresh
+      if (!showComments) {
+        setCommentsLoading(true);
+        const { data: fetchedComments, totalCount, error } = await getPostComments(post.id, 20, 0);
+        if (error) {
+          console.error('Failed to load comments:', error);
+        }
+        setComments(fetchedComments || []);
+        // Prefer authoritative count from backend
+        if (typeof totalCount === 'number' && totalCount >= 0) {
+          setCommentsCount(totalCount);
+        } else if (Array.isArray(fetchedComments)) {
+          setCommentsCount(fetchedComments.length);
+        }
       }
+    } catch (err) {
+      console.error('Error toggling comments:', err);
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+    try {
+      setCommentsLoading(true);
+      const { error } = await addCommentToPost(post.id, newComment.trim());
+      if (error) {
+        console.error('Error adding comment:', error);
+        return;
+      }
+
+      // Optimistically increment local count
+      setCommentsCount((c) => c + 1);
+
+      // Refresh list and authoritative count
+      const { data: refreshed, totalCount } = await getPostComments(post.id, 20, 0);
+      setComments(refreshed || []);
+      if (typeof totalCount === 'number') setCommentsCount(totalCount);
       setNewComment('');
-    } catch (error) {
-      console.error('Failed to add comment:', error);
-      // Revert optimistic update on failure
-      setCommentsCount(prev => prev - 1);
+    } catch (err) {
+      console.error('Failed to add comment:', err);
+    } finally {
+      setCommentsLoading(false);
     }
   };
 
@@ -515,7 +522,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
             </button>
             
             <button
-              onClick={toggleComments}
+              onClick={handleToggleComments}
               className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-fedex-purple transition-all"
             >
               <MessageCircle className="h-5 w-5" />
@@ -586,10 +593,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
-                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleComment()}
+                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleAddComment()}
                   />
                   <button
-                    onClick={handleComment}
+                    onClick={handleAddComment}
                     disabled={!newComment.trim()}
                     className="px-4 py-2 bg-primary hover:bg-primary/80 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold text-white transition-colors"
                   >

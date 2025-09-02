@@ -231,10 +231,10 @@ export async function getPostComments(
   postId: string, 
   limit: number = 10, 
   offset: number = 0
-): Promise<{ data: PostComment[] | null, error: any }> {
+): Promise<{ data: PostComment[] | null, totalCount: number, error: any }> {
   if (!postId) {
     console.error('getPostComments called without a valid postId');
-    return { data: null, error: { message: 'Post ID is required' } };
+    return { data: null, totalCount: 0, error: { message: 'Post ID is required' } };
   }
 
   let retries = 0;
@@ -242,6 +242,7 @@ export async function getPostComments(
   
   while (retries <= maxRetries) {
     try {
+      // Fetch page of comments
       const { data: comments, error } = await supabase
         .from('post_comments')
         .select(`
@@ -268,7 +269,23 @@ export async function getPostComments(
         }
         
         console.error('Error fetching comments:', error);
-        return { data: null, error };
+        return { data: null, totalCount: 0, error };
+      }
+
+      // Fetch total count (head request)
+      let totalCount = 0;
+      try {
+        const { count, error: countErr } = await supabase
+          .from('post_comments')
+          .select('*', { count: 'exact', head: true })
+          .eq('post_id', postId);
+        if (countErr) {
+          console.warn('Failed to fetch total comment count:', countErr);
+        } else {
+          totalCount = count || 0;
+        }
+      } catch (countEx) {
+        console.warn('Exception while counting comments:', countEx);
       }
 
       return { data: (comments || []).map(comment => {
@@ -301,7 +318,7 @@ export async function getPostComments(
             }
           };
         }
-      }), error: null };
+      }), totalCount, error: null };
     } catch (error) {
       if (retries < maxRetries) {
         console.warn(`Unexpected error fetching comments, retrying... (${retries + 1}/${maxRetries})`);
@@ -311,11 +328,11 @@ export async function getPostComments(
       }
       
       console.error('Error fetching comments:', error);
-      return { data: null, error };
+      return { data: null, totalCount: 0, error };
     }
   }
   
-  return { data: null, error: { message: 'Failed to fetch comments after multiple attempts' } };
+  return { data: null, totalCount: 0, error: { message: 'Failed to fetch comments after multiple attempts' } };
 };
 
 export const addCommentToPost = async (
