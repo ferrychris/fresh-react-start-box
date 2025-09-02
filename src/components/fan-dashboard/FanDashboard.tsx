@@ -514,61 +514,90 @@ const FanDashboard: React.FC = () => {
         onTabChange={handleTabChange}
       />
       
-      {/* Main content based on active tab */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      {/* Main content with improved spacing and responsive design */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {/* Stats cards */}
-            <StatsCards
-              supportPoints={stats.support_points}
-              totalTips={stats.total_tips}
-              activeSubscriptions={stats.active_subscriptions}
-              activityStreak={stats.activity_streak}
-            />
+          <div className="space-y-8">
+            {/* Enhanced stats cards section */}
+            <div className="mb-8">
+              <StatsCards
+                supportPoints={stats.support_points}
+                totalTips={stats.total_tips}
+                activeSubscriptions={stats.active_subscriptions}
+                activityStreak={stats.activity_streak}
+              />
+            </div>
             
-            {/* Two-column layout for desktop */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Favorite racers - takes up 2/3 of the space on desktop */}
-              <div className="lg:col-span-2">
-                <FavoriteRacers
-                  racers={favoriteRacers}
-                  onTip={handleTipRacer}
-                />
+            {/* Improved responsive layout */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+              {/* Favorite racers section with better styling */}
+              <div className="xl:col-span-2">
+                <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-6 shadow-xl">
+                  <FavoriteRacers
+                    racers={favoriteRacers}
+                    onTip={handleTipRacer}
+                  />
+                </div>
               </div>
               
-              {/* Recent activity - takes up 1/3 of the space on desktop */}
-              <div>
-                <RecentActivity
-                  activities={recentActivity}
-                  onViewAllActivity={handleViewAllActivity}
-                />
+              {/* Recent activity with premium styling */}
+              <div className="xl:col-span-1">
+                <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-6 shadow-xl">
+                  <RecentActivity
+                    activities={recentActivity}
+                    onViewAllActivity={handleViewAllActivity}
+                  />
+                </div>
               </div>
             </div>
           </div>
         )}
         
         {activeTab === 'posts' && (
-          <IndexPost />
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-6 shadow-xl">
+            <IndexPost />
+          </div>
         )}
         
         {activeTab === 'racers' && (
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Supported Racers</h2>
-            <p className="text-gray-400">Full list of supported racers will be displayed here.</p>
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-8 shadow-xl">
+            <div className="text-center">
+              <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full flex items-center justify-center">
+                <svg className="w-10 h-10 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-3">Supported Racers</h2>
+              <p className="text-gray-400 max-w-md mx-auto">Your complete list of supported racers and subscription details will appear here.</p>
+            </div>
           </div>
         )}
         
         {activeTab === 'activity' && (
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Activity History</h2>
-            <p className="text-gray-400">Full activity history will be displayed here.</p>
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-8 shadow-xl">
+            <div className="text-center">
+              <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-green-500/20 to-blue-500/20 rounded-full flex items-center justify-center">
+                <svg className="w-10 h-10 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-3">Activity History</h2>
+              <p className="text-gray-400 max-w-md mx-auto">Your complete activity timeline including tips, posts, and interactions will be displayed here.</p>
+            </div>
           </div>
         )}
         
         {activeTab === 'badges' && (
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Badges</h2>
-            <p className="text-gray-400">Earned badges will be displayed here.</p>
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-8 shadow-xl">
+            <div className="text-center">
+              <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-full flex items-center justify-center">
+                <svg className="w-10 h-10 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-3">Achievement Badges</h2>
+              <p className="text-gray-400 max-w-md mx-auto">Your earned badges and achievements for being an outstanding racing fan will be showcased here.</p>
+            </div>
           </div>
         )}
       </div>
