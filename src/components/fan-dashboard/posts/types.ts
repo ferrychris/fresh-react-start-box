@@ -24,30 +24,25 @@ export interface Post {
 export interface DatabasePost {
   id: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
   content: string;
-  media_urls: string[];
-  post_type: 'text' | 'photo' | 'video' | 'gallery';
+  media_urls?: string[];
+  post_type?: 'text' | 'photo' | 'video' | 'gallery';
   likes_count: number;
   comments_count: number;
   user_id?: string;
   user_type?: 'racer' | 'fan' | 'track';
-  fan_id?: string; // For fan posts
-  racer_id?: string; // For racer posts
+  fan_id?: string;
+  racer_id?: string;
   visibility?: string;
   total_tips?: number;
   allow_tips?: boolean;
-  racer_profiles?: { // For racer posts
+  profiles?: {
     id: string;
-    username: string;
-    profile_photo_url: string;
-    car_number?: string;
-    team_name?: string;
-  };
-  fan_profiles?: { // For fan posts
-    id: string;
-    username: string;
-    avatar_url: string;
+    name: string;
+    email?: string;
+    user_type: string;
+    avatar?: string;
   };
 }
 
@@ -120,12 +115,11 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
     ? (videoExtensions.test(orderedMedia[0]) ? 'video' : 'image')
     : undefined;
 
-  // Get profile info based on user type
-  const racerProfile = post.racer_profiles;
-  const fanProfile = post.fan_profiles;
+  // Get profile info
+  const profile = post.profiles;
   
   // Normalize avatar: support http(s), storage paths, or raw base64
-  const rawAvatar = racerProfile?.profile_photo_url || fanProfile?.avatar_url || '';
+  const rawAvatar = profile?.avatar || '';
   const userAvatar = (() => {
     if (!rawAvatar) return '';
     if (/^https?:\/\//i.test(rawAvatar)) return rawAvatar;
@@ -141,7 +135,7 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
   return {
     id: post.id,
     userId: post.user_id || post.racer_id || post.fan_id || '',
-    userName: racerProfile?.username || fanProfile?.username || 'Unknown User',
+    userName: profile?.name || 'Unknown User',
     userAvatar,
     userType: (post.user_type?.toUpperCase() as 'RACER' | 'FAN' | 'TRACK' | 'SERIES') || 'FAN',
     userVerified: post.user_type === 'racer',
@@ -153,7 +147,7 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
     comments: post.comments_count || 0,
     shares: 0,
     isLiked: false,
-    carNumber: racerProfile?.car_number || (post.user_type === 'racer' ? '23' : undefined),
+    carNumber: post.user_type === 'racer' ? '23' : undefined,
     updated_at: post.updated_at || post.created_at
   };
 };

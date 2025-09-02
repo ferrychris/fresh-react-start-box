@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Heart, MessageCircle, Share, MoreHorizontal, Play, Calendar, MapPin, Trophy, Users, DollarSign, Crown } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import CreatePost from '../components/fan-dashboard/posts/CreatePost';
-import { getFanPosts, tipPost } from '../lib/supabase/posts';
+import { getAllPublicPosts, tipPost } from '../lib/supabase/posts';
 import { PostCard, type Post as PostCardType } from '../components/PostCard';
 
 // Define proper types for the CreatePost component's return value
@@ -40,7 +40,7 @@ export default function Grandstand() {
       try {
         setLoading(true);
         setError(null);
-        const rows = await getFanPosts();
+        const rows = await getAllPublicPosts();
         if (!isMounted) return;
 
         // Type assertion to avoid TypeScript errors with database structure
@@ -259,22 +259,22 @@ export default function Grandstand() {
         <CreatePost
           onClose={() => setShowCreatePost(false)}
           onPostCreated={(newPost: NewPostData) => {
-            // This logic might need adjustment based on the actual return type of onPostCreated
+            // Create a properly typed object
             const adaptedPost: PostCardType = {
               ...newPost,
-              racer_profiles: {
-                profiles: {
-                  name: newPost.userName,
-                  avatar: newPost.userAvatar,
-                  user_type: newPost.userType
-                }
+              profiles: {
+                id: user?.id || '',
+                name: newPost.userName || 'User',
+                avatar: newPost.userAvatar || '',
+                user_type: newPost.userType || 'fan'
               },
+              user_id: user?.id || '',
               likes_count: newPost.likes ?? 0,
               comments_count: newPost.comments ?? 0,
               media_urls: newPost.mediaUrls || [],
               created_at: newPost.created_at || new Date().toISOString(),
               updated_at: new Date().toISOString(),
-              post_type: 'text' as const, // Explicitly type as const
+              post_type: 'text' as const,
               visibility: 'public' as const,
               total_tips: 0,
               allow_tips: false

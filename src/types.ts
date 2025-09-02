@@ -22,7 +22,7 @@ export interface Racer {
 export interface Post {
   id: string;
   racer_id?: string;
-  user_id?: string;
+  user_id: string;
   created_at: string;
   updated_at?: string;
   content: string;
@@ -34,41 +34,14 @@ export interface Post {
   total_tips: number;
   allow_tips: boolean;
   user_type?: 'racer' | 'fan' | 'track';
-  racer_profiles?: {
-    id?: string;
-    username?: string;
-    profile_photo_url?: string;
-    car_number?: string;
-    racing_class?: string;
-    profiles?: {
-      id?: string;
-      name?: string;
-      avatar?: string;
-      user_type?: string;
-    };
-  } | Array<{
-    id?: string;
-    username?: string;
-    profile_photo_url?: string;
-    car_number?: string;
-    racing_class?: string;
-  }>;
   
-  // Add profiles field for direct access
+  // Direct profiles relationship
   profiles?: {
-    id?: string;
+    id: string;
     email?: string;
-    username?: string;
-    user_type?: string;
-    fan_profiles?: {
-      id?: string;
-      profile_photo_url?: string;
-      username?: string;
-    } | Array<{
-      id?: string;
-      profile_photo_url?: string;
-      username?: string;
-    }>;
+    name: string;
+    user_type: string;
+    avatar?: string;
   };
 }
 
@@ -76,18 +49,18 @@ export interface PostComment {
   id: string;
   post_id: string;
   user_id: string;
-  comment_text: string;
+  content: string;
   created_at: string;
   updated_at?: string;
   user?: {
-    name?: string;
-    avatar?: string;
+    name: string;
+    avatar: string;
     user_type?: string;
   };
   profiles?: {
-    name?: string;
-    avatar?: string;
-    user_type?: string;
+    name: string;
+    avatar: string;
+    user_type: string;
   };
 }
 

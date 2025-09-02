@@ -4,7 +4,7 @@ import { CreatePost } from './CreatePost'
 import PostsPanel from './PostsPanel'
 import { Post, PostCreationPayload, transformDbPostToUIPost } from './types'
 import { supabase } from '../../../lib/supabase/client'
-import { createFanPost, getFanPosts } from '../../../lib/supabase/posts'
+import { getAllPublicPosts, createFanPost } from '../../../lib/supabase/posts'
 import { uploadPostImage, uploadPostVideo, getPostPublicUrl } from '../../../lib/supabase/storage'
 import { useUser } from '../../../contexts/UserContext'
 import { toast } from 'react-toastify';
@@ -31,7 +31,7 @@ const IndexPost: React.FC = () => {
         throw new Error('Database not configured')
       }
       
-      const data = await getFanPosts()
+      const data = await getAllPublicPosts()
       
       if (!data || data.length === 0) {
         console.log('No fan posts found, showing empty state')

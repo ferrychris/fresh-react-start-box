@@ -1,5 +1,5 @@
 import { supabase } from './client';
-import { DatabasePost, PostComment, PostgrestError } from './types';
+import { DatabasePost, PostComment } from './types';
 
 // Get posts for a specific racer from the unified table
 export const getPostsForRacer = async (racerId: string): Promise<{ data: DatabasePost[]; error: any | null }> => {
@@ -84,8 +84,8 @@ export const getRacerPosts = async (racerId: string): Promise<DatabasePost[]> =>
   return data;
 };
 
-// Get all posts from the unified table for fan dashboard
-export const getFanPosts = async (): Promise<DatabasePost[]> => {
+// Get all public posts from both fans and racers for public feeds
+export const getAllPublicPosts = async (): Promise<DatabasePost[]> => {
   let retries = 0;
   const maxRetries = 3;
 
@@ -98,34 +98,44 @@ export const getFanPosts = async (): Promise<DatabasePost[]> => {
           content,
           media_urls,
           created_at,
-          profiles!inner (
+          updated_at,
+          post_type,
+          visibility,
+          likes_count,
+          comments_count,
+          total_tips,
+          allow_tips,
+          user_id,
+          user_type,
+          racer_id,
+          profiles!racer_posts_user_id_fkey (
             id,
             name,
-            avatar,
-            user_type
+            email,
+            user_type,
+            avatar
           )
         `)
-        .eq('profiles.user_type', 'fan')
+        .eq('visibility', 'public')
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching fan posts:', error);
+        console.error('Error fetching public posts:', error);
         throw error;
       }
 
       if (data && data.length > 0) {
-        console.log('Fetched fan posts:', data);
+        console.log('Fetched public posts:', data);
         return data as DatabasePost[];
       }
       return [];
     } catch (error) {
-      console.error(`Error fetching fan posts (attempt ${retries + 1}):`, error);
+      console.error(`Error fetching public posts (attempt ${retries + 1}):`, error);
       retries++;
       if (retries > maxRetries) {
-        console.error('Max retries reached for fetching fan posts');
+        console.error('Max retries reached for fetching public posts');
         return [];
       }
-      // Wait before retrying
       await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
     }
   }
@@ -987,7 +997,7 @@ export const getAllPosts = async (): Promise<DatabasePost[]> => {
   return [];
 };
 
-export const debugCheckRacerPosts = async (): Promise<{data: DatabasePost[] | null; error: PostgrestError | null}> => {
+export const debugCheckRacerPosts = async (): Promise<{data: DatabasePost[] | null; error: any | null}> => {
   const { data, error } = await supabase
     .from('racer_posts')
     .select('id, user_type, visibility, likes_count, comments_count')

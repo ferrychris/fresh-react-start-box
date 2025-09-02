@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Heart, MessageCircle, Share, MoreHorizontal, Play, Calendar, MapPin, Users, DollarSign, Crown } from 'lucide-react';
-import { getFanPosts, tipPost } from '../../lib/supabase/posts';
+import { getAllPublicPosts, tipPost } from '../../lib/supabase/posts';
 
 interface Post {
   id: string;
@@ -39,7 +39,7 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
       try {
         setLoading(true);
         setError(null);
-        const rows = await getFanPosts();
+        const rows = await getAllPublicPosts();
         if (!isMounted) return;
         const mapped: Post[] = (rows || []).map((r: any): Post => {
           const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;

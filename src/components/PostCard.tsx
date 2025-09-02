@@ -75,18 +75,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [editingPost, setEditingPost] = useState(false);
   const [editedContent, setEditedContent] = useState('');
 
-  // Normalize user_type and profiles access to support different query shapes
-  type FanProfile = { id?: string; profile_photo_url?: string; username?: string; name?: string; };
-  type ProfileType = { id?: string; name?: string; email?: string; user_type?: string; fan_profiles?: FanProfile | FanProfile[]; avatar_url?: string; };  
-  type RacerProfile = { id?: string; username?: string; profile_photo_url?: string; };
-  type TopShape = Post & {
-    profiles?: ProfileType | ProfileType[];
-    racer_profiles?: RacerProfile | RacerProfile[];
-    user_type?: string;
-  };
-  const normalizeOne = <T,>(v: T | T[] | undefined): T | undefined => Array.isArray(v) ? v[0] : v;
-  const top = post as unknown as TopShape;
-  const profile = normalizeOne<ProfileType>(top.profiles);
+  // Normalize profiles access
+  const profile = Array.isArray(post.profiles) ? post.profiles[0] : post.profiles;
 
   // Determine user type
   const userType = (profile?.user_type || '').toLowerCase();
@@ -96,8 +86,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const emailUsername = profile?.email?.split('@')[0];
   const displayName = profile?.name || emailUsername || (isRacer ? 'Racer' : 'User');
 
-  // Get avatar URL - use profile.avatar directly
+  // Get avatar URL - check for avatar property
   const avatarUrl = profile?.avatar || '';
+
+  // Check if current user is the post owner
+  const isOwner = user?.id === post.user_id;
 
   // Generate initials as fallback
   const initials = displayName
@@ -423,7 +416,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
             </div>
           </div>
           <div className="relative flex items-center gap-2">
-            {isRacer && !isSelf && (
+            {isRacer && !isOwner && (
               <button
                 onClick={() => {
                   if (!user) { setShowAuthModal(true); return; }
@@ -440,10 +433,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                 <MoreHorizontal className="h-4 w-4 text-gray-400" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={4} alignOffset={-2} className="w-auto bg-transparent border-0 shadow-none p-1 text-right min-w-[120px]">
-                {user?.id === post.user_id && (
+                {isOwner && (
                   <>
                     <DropdownMenuItem 
-                      onClick={() => setEditingPost(true)}
+                      onClick={() => {
+                        setEditedContent(post.content);
+                        setEditingPost(true);
+                      }}
                       className="cursor-pointer bg-transparent hover:bg-transparent focus:bg-transparent px-2 py-1 text-gray-300 hover:text-green-500 flex justify-end font-semibold"
                     >
                       Edit
