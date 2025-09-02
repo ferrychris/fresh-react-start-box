@@ -1,5 +1,5 @@
 import { supabase } from './client';
-import { DatabasePost, PostComment } from './types';
+import { DatabasePost, PostComment, PostgrestError } from './types';
 
 // Get posts for a specific racer from the unified table
 export const getPostsForRacer = async (racerId: string): Promise<{ data: DatabasePost[]; error: any | null }> => {
@@ -29,7 +29,19 @@ export const getPostsForRacer = async (racerId: string): Promise<{ data: Databas
           user_type,
           racer_id,
           total_tips,
-          allow_tips
+          allow_tips,
+          profiles!racer_posts_user_id_fkey (
+            id,
+            username,
+            email,
+            avatar_url,
+            user_type
+          ),
+          racer_profiles!racer_posts_racer_id_fkey (
+            id,
+            username,
+            profile_photo_url
+          )
         `)
         .or(`racer_id.eq.${racerId},user_id.eq.${racerId}`)
         .order('created_at', { ascending: false });
@@ -46,7 +58,7 @@ export const getPostsForRacer = async (racerId: string): Promise<{ data: Databas
         return { data: [], error };
       }
       
-      return { data: data as unknown as DatabasePost[], error: null };
+      return { data: data as DatabasePost[], error: null };
     } catch (err) {
       if (retries < maxRetries - 1) {
         console.warn(`Unexpected error fetching posts for racer, retrying... (${retries + 1}/${maxRetries})`);
@@ -73,71 +85,50 @@ export const getRacerPosts = async (racerId: string): Promise<DatabasePost[]> =>
 };
 
 // Get all posts from the unified table for fan dashboard
-export const getFanPosts = async (): Promise<any[]> => {
+export const getFanPosts = async (): Promise<DatabasePost[]> => {
   let retries = 0;
   const maxRetries = 3;
-  
+
   while (retries <= maxRetries) {
     try {
       const { data, error } = await supabase
         .from('racer_posts')
         .select(`
           id,
-          created_at,
-          updated_at,
           content,
           media_urls,
-          post_type,
-          visibility,
-          likes_count,
-          comments_count,
-          user_id,
-          user_type,
-          racer_id,
-          total_tips,
-          allow_tips,
-          profiles (
+          created_at,
+          profiles!inner (
+            id,
             name,
             avatar,
             user_type
           )
         `)
-        .eq('visibility', 'public')
-        .limit(10)
+        .eq('profiles.user_type', 'fan')
         .order('created_at', { ascending: false });
-      
+
       if (error) {
-        if (error.message?.includes('JSON') && retries < maxRetries) {
-          console.warn(`JSON parsing error fetching posts, retrying... (${retries + 1}/${maxRetries})`);
-          retries++;
-          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
-          continue;
-        }
-        console.error('Error fetching posts:', error);
-        return [];
+        console.error('Error fetching fan posts:', error);
+        throw error;
       }
-      
-      // Safely process the data to handle potential JSON issues
-      try {
-        const processedData = typeof data === 'string' ? JSON.parse(data) : data;
-        return processedData || [];
-      } catch (parseError) {
-        console.error('Error parsing post data:', parseError);
-        return [];
+
+      if (data && data.length > 0) {
+        console.log('Fetched fan posts:', data);
+        return data as DatabasePost[];
       }
-    } catch (error) {
-      if (retries < maxRetries) {
-        console.warn(`Unexpected error fetching posts, retrying... (${retries + 1}/${maxRetries})`);
-        retries++;
-        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
-        continue;
-      }
-      
-      console.error('Exception fetching posts:', error);
       return [];
+    } catch (error) {
+      console.error(`Error fetching fan posts (attempt ${retries + 1}):`, error);
+      retries++;
+      if (retries > maxRetries) {
+        console.error('Max retries reached for fetching fan posts');
+        return [];
+      }
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
     }
   }
-  
   return [];
 };
 
@@ -149,13 +140,13 @@ export const getFanPostsPage = async ({
 }: {
   limit?: number;
   cursor?: { created_at: string; id: string } | null;
-}): Promise<{ data: any[]; nextCursor: { created_at: string; id: string } | null; error: any | null }> => {
+}): Promise<{ data: DatabasePost[]; nextCursor: { created_at: string; id: string } | null; error: any | null }> => {
   let retries = 0;
   const maxRetries = 3;
   
   while (retries <= maxRetries) {
     try {
-      // Start with a simpler query first
+      // Fetch all posts with conditional profile joins based on user_type
       let query = supabase
         .from('racer_posts')
         .select(`
@@ -172,9 +163,10 @@ export const getFanPostsPage = async ({
           user_type,
           racer_id,
           total_tips,
-          allow_tips
+          allow_tips,
+          racer_profiles!left(id, username, profile_photo_url, car_number, team_name),
+          fan_profiles!left(id, username, avatar_url)
         `)
-        .eq('visibility', 'public')
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
         .limit(limit);
@@ -203,13 +195,13 @@ export const getFanPostsPage = async ({
       }
 
       const rows = data || [];
-      console.log(`Fetched ${rows.length} posts from database`);
+      console.log(`Fetched ${rows.length} posts from database (all posts)`);
       
       // Generate next cursor from the last item
       const last = rows[rows.length - 1];
       const nextCursor = (last && rows.length === limit) ? { created_at: last.created_at, id: last.id } : null;
 
-      return { data: rows, nextCursor, error: null };
+      return { data: rows as DatabasePost[], nextCursor, error: null };
     } catch (error) {
       console.error('Exception in getFanPostsPage:', error);
       
@@ -227,11 +219,20 @@ export const getFanPostsPage = async ({
   return { data: [], nextCursor: null, error: { message: 'Failed to fetch paginated posts after multiple attempts' } };
 };
 
-export async function getPostComments(
-  postId: string, 
-  limit: number = 10, 
-  offset: number = 0
-): Promise<{ data: PostComment[] | null, totalCount: number, error: any }> {
+export interface Comment {
+  id: string;
+  content: string;
+  created_at: string;
+  user_id: string;
+  post_id: string;
+  profiles?: any; // Define a proper type if needed
+  user?: {
+    name: string;
+    avatar: string;
+  };
+}
+
+export const getPostComments = async (postId: string, limit: number = 10, offset: number = 0): Promise<{ data: Comment[] | null; totalCount: number; error: any }> => {
   if (!postId) {
     console.error('getPostComments called without a valid postId');
     return { data: null, totalCount: 0, error: { message: 'Post ID is required' } };
@@ -251,9 +252,11 @@ export async function getPostComments(
           user_id,
           comment_text,
           created_at,
-          profiles (
-            name,
-            avatar
+          profiles!post_comments_user_id_fkey (
+            username,
+            email,
+            avatar_url,
+            user_type
           )
         `)
         .eq('post_id', postId)
@@ -291,16 +294,23 @@ export async function getPostComments(
       return { data: (comments || []).map(comment => {
         try {
           const profiles = comment.profiles as any;
+          const prof = Array.isArray(profiles) ? profiles[0] : profiles;
+          let emailUsername = '';
+          if (prof && typeof prof === 'object' && 'email' in prof) {
+            const e = (prof as { email?: string }).email;
+            if (typeof e === 'string' && e.length > 0) {
+              emailUsername = e.includes('@') ? e.split('@')[0] : e;
+            }
+          }
           return {
             id: comment.id,
             post_id: comment.post_id,
             user_id: comment.user_id,
             content: comment.comment_text || '',
-            comment_text: comment.comment_text || '',
             created_at: comment.created_at,
             user: {
-              name: profiles?.name || 'User',
-              avatar: profiles?.avatar || ''
+              name: (prof?.username || emailUsername || 'User'),
+              avatar: (prof?.avatar_url || '')
             }
           };
         } catch (err) {
@@ -310,7 +320,6 @@ export async function getPostComments(
             post_id: comment.post_id || postId,
             user_id: comment.user_id || 'unknown',
             content: '',
-            comment_text: '',
             created_at: comment.created_at || new Date().toISOString(),
             user: {
               name: 'User',
@@ -339,7 +348,7 @@ export const addCommentToPost = async (
   postId: string,
   userId: string,
   commentText: string
-): Promise<{ data: PostComment | null; error: Error | null }> => {
+): Promise<{ data: Comment | null; error: Error | null }> => {
   if (!postId || !userId || !commentText?.trim()) {
     console.error('addCommentToPost called with invalid parameters', { postId, userId, commentText });
     return { 
@@ -383,9 +392,10 @@ export const addCommentToPost = async (
           user_id,
           comment_text,
           created_at,
-          profiles (
-            name,
-            avatar
+          profiles!post_comments_user_id_fkey (
+            username,
+            email,
+            avatar_url
           )
         `)
         .single();
@@ -426,16 +436,23 @@ export const addCommentToPost = async (
       }
 
       // Map the returned data to the PostComment type
-      const mappedComment: PostComment = {
+      const mappedComment: Comment = {
         id: data.id,
         post_id: data.post_id,
         user_id: data.user_id,
         content: data.comment_text,
-        comment_text: data.comment_text,
         created_at: data.created_at,
         user: {
-          name: Array.isArray(data.profiles) ? data.profiles[0]?.name : (data.profiles as any)?.name || 'User',
-          avatar: Array.isArray(data.profiles) ? data.profiles[0]?.avatar : ((data.profiles as any)?.avatar) || ''
+          name: (() => {
+            const prof = Array.isArray(data.profiles) ? data.profiles[0] : (data.profiles as any);
+            const email = prof?.email as string | undefined;
+            const emailName = email ? (email.includes('@') ? email.split('@')[0] : email) : '';
+            return (prof?.username || emailName || 'User');
+          })(),
+          avatar: (() => {
+            const prof = Array.isArray(data.profiles) ? data.profiles[0] : (data.profiles as any);
+            return prof?.avatar_url || '';
+          })()
         }
       };
 
@@ -626,7 +643,7 @@ export const createRacerPost = async (post: {
   post_type: string; 
   visibility: string; 
   allow_tips: boolean; 
-}): Promise<{ data: any | null; error: any | null }> => {
+}): Promise<{ data: DatabasePost | null; error: any | null }> => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -648,7 +665,7 @@ export const createRacerPost = async (post: {
       return { data: null, error };
     }
     
-    return { data, error: null };
+    return { data: data[0] as DatabasePost, error: null };
   } catch (error) {
     console.error('Exception creating racer post:', error);
     return { 
@@ -665,7 +682,7 @@ export const createFanPost = async (post: {
   media_urls: string[]; 
   post_type: string; 
   visibility: string; 
-}): Promise<{ data: any | null; error: any | null }> => {
+}): Promise<{ data: DatabasePost | null; error: any | null }> => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -692,7 +709,7 @@ export const createFanPost = async (post: {
       return { data: null, error };
     }
     
-    return { data, error: null };
+    return { data: data[0] as DatabasePost, error: null };
   } catch (error) {
     console.error('Exception creating fan post:', error);
     return { 
@@ -747,10 +764,14 @@ export const deletePostById = async (
       // Optionally clean up dependent rows if cascade is not configured
       try {
         await supabase.from('post_likes').delete().eq('post_id', postId);
-      } catch {}
+      } catch (error) {
+        console.warn('Error deleting post likes:', error);
+      }
       try {
         await supabase.from('post_comments').delete().eq('post_id', postId);
-      } catch {}
+      } catch (error) {
+        console.warn('Error deleting post comments:', error);
+      }
 
       const { error: delErr } = await supabase
         .from('racer_posts')
@@ -870,7 +891,7 @@ export const tipPost = async (
 };
 
 // Checks if a user has liked a post.
-export const getPostLikers = async (postId: string, userId: string) => {
+export const getPostLikers = async (postId: string, userId: string): Promise<{ data: { user_id: string } | null; error: any | null }> => {
   if (!postId || !userId) {
     console.error('getPostLikers called with invalid parameters');
     return { data: null, error: { message: 'Post ID and User ID are required' } };
@@ -885,7 +906,7 @@ export const getPostLikers = async (postId: string, userId: string) => {
 };
 
 // Adds a like to a post for a user.
-export const likePost = async (postId: string, userId: string) => {
+export const likePost = async (postId: string, userId: string): Promise<{ error: any | null }> => {
   const { error } = await supabase
     .from('post_likes')
     .insert({ post_id: postId, user_id: userId });
@@ -893,10 +914,11 @@ export const likePost = async (postId: string, userId: string) => {
     console.error('Error adding like:', error);
     throw error;
   }
+  return { error: null };
 };
 
 // Removes a like from a post for a user.
-export const unlikePost = async (postId: string, userId: string) => {
+export const unlikePost = async (postId: string, userId: string): Promise<{ error: any | null }> => {
   const { error } = await supabase
     .from('post_likes')
     .delete()
@@ -905,14 +927,73 @@ export const unlikePost = async (postId: string, userId: string) => {
     console.error('Error removing like:', error);
     throw error;
   }
+  return { error: null };
 };
 
-export const updatePost = async (postId: string, content: string) => {
+export const updatePost = async (postId: string, content: string): Promise<{ data: { id: string; content: string } | null; error: any | null }> => {
   const { error } = await supabase
     .from('racer_posts')
     .update({ content })
     .eq('id', postId);
 
   if (error) throw error;
-  return { data: { id: postId, content } };
+  return { data: { id: postId, content }, error: null };
+};
+
+export const getAllPosts = async (): Promise<DatabasePost[]> => {
+  let retries = 0;
+  const maxRetries = 3;
+
+  while (retries <= maxRetries) {
+    try {
+      const { data, error } = await supabase
+        .from('racer_posts')
+        .select(`
+          id,
+          content,
+          media_urls,
+          created_at,
+          likes_count,
+          visibility,
+          profiles:user_id (
+            id,
+            name,
+            avatar,
+            user_type
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching all posts:', error);
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        console.log('Fetched all posts:', data);
+        return data as DatabasePost[];
+      }
+      return [];
+    } catch (error) {
+      console.error(`Error fetching posts (attempt ${retries + 1}):`, error);
+      retries++;
+      if (retries > maxRetries) {
+        console.error('Max retries reached for fetching posts');
+        return [];
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+    }
+  }
+  return [];
+};
+
+export const debugCheckRacerPosts = async (): Promise<{data: DatabasePost[] | null; error: PostgrestError | null}> => {
+  const { data, error } = await supabase
+    .from('racer_posts')
+    .select('id, user_type, visibility, likes_count, comments_count')
+    .eq('user_type', 'racer')
+    .limit(5);
+
+  console.log('Racer posts:', data);
+  return { data: data as DatabasePost[], error };
 };

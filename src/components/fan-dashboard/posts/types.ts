@@ -34,15 +34,20 @@ export interface DatabasePost {
   user_type?: 'racer' | 'fan' | 'track';
   fan_id?: string; // For fan posts
   racer_id?: string; // For racer posts
-  profiles?: { // For unified posts
-    name: string;
-    avatar: string;
-    user_type?: string;
-  };
-  racer?: { // For racer posts
+  visibility?: string;
+  total_tips?: number;
+  allow_tips?: boolean;
+  racer_profiles?: { // For racer posts
     id: string;
     username: string;
     profile_photo_url: string;
+    car_number?: string;
+    team_name?: string;
+  };
+  fan_profiles?: { // For fan posts
+    id: string;
+    username: string;
+    avatar_url: string;
   };
 }
 
@@ -115,8 +120,12 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
     ? (videoExtensions.test(orderedMedia[0]) ? 'video' : 'image')
     : undefined;
 
+  // Get profile info based on user type
+  const racerProfile = post.racer_profiles;
+  const fanProfile = post.fan_profiles;
+  
   // Normalize avatar: support http(s), storage paths, or raw base64
-  const rawAvatar = (post as any)?.profiles?.avatar || (post as any)?.profiles?.avatar_url || post.racer?.profile_photo_url || '';
+  const rawAvatar = racerProfile?.profile_photo_url || fanProfile?.avatar_url || '';
   const userAvatar = (() => {
     if (!rawAvatar) return '';
     if (/^https?:\/\//i.test(rawAvatar)) return rawAvatar;
@@ -132,7 +141,7 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
   return {
     id: post.id,
     userId: post.user_id || post.racer_id || post.fan_id || '',
-    userName: post.profiles?.name || post.racer?.username || 'Unknown User',
+    userName: racerProfile?.username || fanProfile?.username || 'Unknown User',
     userAvatar,
     userType: (post.user_type?.toUpperCase() as 'RACER' | 'FAN' | 'TRACK' | 'SERIES') || 'FAN',
     userVerified: post.user_type === 'racer',
@@ -144,7 +153,7 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
     comments: post.comments_count || 0,
     shares: 0,
     isLiked: false,
-    carNumber: post.user_type === 'racer' ? '23' : undefined,
+    carNumber: racerProfile?.car_number || (post.user_type === 'racer' ? '23' : undefined),
     updated_at: post.updated_at || post.created_at
   };
 };

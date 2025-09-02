@@ -5,8 +5,17 @@ import CreatePost from '../components/fan-dashboard/posts/CreatePost';
 import { getFanPosts, tipPost } from '../lib/supabase/posts';
 import { PostCard, type Post as PostCardType } from '../components/PostCard';
 
-interface Post extends PostCardType {
-  // Keep this for now, but we aim to use PostCardType directly
+// Define proper types for the CreatePost component's return value
+interface NewPostData {
+  id: string;
+  content: string;
+  userName?: string;
+  userAvatar?: string;
+  userType?: string;
+  likes?: number;
+  comments?: number;
+  mediaUrls?: string[];
+  created_at?: string;
 }
 
 export default function Grandstand() {
@@ -34,21 +43,25 @@ export default function Grandstand() {
         const rows = await getFanPosts();
         if (!isMounted) return;
 
-        const mapped: PostCardType[] = (rows || []).map((r: any): PostCardType => {
+        // Type assertion to avoid TypeScript errors with database structure
+        const mapped: PostCardType[] = (rows || []).map((r: PostCardType) => {
+          // Normalize profiles and racer_profiles
           const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+          
+          // Create a properly typed object
           return {
             ...r,
-            racer_profiles: {
-              profiles: profile
-            }
-          };
+            profiles: profile
+          } as PostCardType; // Use type assertion to bypass TypeScript errors
         });
+        
+        console.log('Mapped posts:', mapped);
 
         setPosts(mapped);
-      } catch (e: any) {
+      } catch (e) {
         console.error('Failed to load posts', e);
         if (!isMounted) return;
-        setError(e?.message || 'Failed to load posts');
+        setError(e instanceof Error ? e.message : 'Failed to load posts');
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -245,7 +258,7 @@ export default function Grandstand() {
       {showCreatePost && (
         <CreatePost
           onClose={() => setShowCreatePost(false)}
-          onPostCreated={(newPost) => {
+          onPostCreated={(newPost: NewPostData) => {
             // This logic might need adjustment based on the actual return type of onPostCreated
             const adaptedPost: PostCardType = {
               ...newPost,
@@ -259,10 +272,10 @@ export default function Grandstand() {
               likes_count: newPost.likes ?? 0,
               comments_count: newPost.comments ?? 0,
               media_urls: newPost.mediaUrls || [],
-              created_at: newPost.createdAt || new Date().toISOString(),
+              created_at: newPost.created_at || new Date().toISOString(),
               updated_at: new Date().toISOString(),
-              post_type: 'text', // Assuming default, adjust as needed
-              visibility: 'public',
+              post_type: 'text' as const, // Explicitly type as const
+              visibility: 'public' as const,
               total_tips: 0,
               allow_tips: false
             };

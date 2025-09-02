@@ -383,6 +383,14 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
     }
   };
 
+  const debugCheckRacerPosts = async () => {
+    const { data, error } = await supabase
+      .from('racer_posts')
+      .select('*');
+    if (error) throw error;
+    return { data };
+  };
+
   return (
     <div className="w-full">
       {showCreatePostModal && (
@@ -416,6 +424,17 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
               title="Refresh posts"
             >
               <RefreshCw className={`w-6 h-6 text-slate-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button 
+              onClick={async () => {
+                const result = await debugCheckRacerPosts();
+                console.log('Debug racer posts:', result.data);
+                toast.success(`Found ${result.data?.length || 0} racer posts`);
+              }}
+              className="bg-slate-900 border border-slate-800 rounded-xl p-4 hover:border-slate-700 transition-all duration-300 flex items-center justify-center"
+              title="Debug racer posts"
+            >
+              <span className="text-slate-400 text-sm">Debug</span>
             </button>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { 
   Heart, 
@@ -11,16 +12,15 @@ import {
   ChevronRight,
   Clock,
   X,
-  Send
- } from 'lucide-react';
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+  Send,
+  UserPlus
+} from 'lucide-react';
 import { useUser } from '@/contexts/UserContext';
 import { PostComment } from '@/types';
 import type { Post as PostType } from '@/types';
 import { formatTimeAgo } from '@/lib/utils';
 import { getPostLikers, likePost, unlikePost, addCommentToPost, getPostComments, deletePost, updatePost } from '@/lib/supabase/posts';
-import { createPaymentSession } from '../../../lib/supabase/payments';
+import { createPaymentSession } from '@/lib/supabase/payments'; // Verified path
 import { AuthModal } from '@/components/auth/AuthModal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -74,6 +74,39 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [editingPost, setEditingPost] = useState(false);
   const [editedContent, setEditedContent] = useState('');
+
+  // Normalize user_type and profiles access to support different query shapes
+  type FanProfile = { id?: string; profile_photo_url?: string; username?: string; name?: string; };
+  type ProfileType = { id?: string; name?: string; email?: string; user_type?: string; fan_profiles?: FanProfile | FanProfile[]; avatar_url?: string; };  
+  type RacerProfile = { id?: string; username?: string; profile_photo_url?: string; };
+  type TopShape = Post & {
+    profiles?: ProfileType | ProfileType[];
+    racer_profiles?: RacerProfile | RacerProfile[];
+    user_type?: string;
+  };
+  const normalizeOne = <T,>(v: T | T[] | undefined): T | undefined => Array.isArray(v) ? v[0] : v;
+  const top = post as unknown as TopShape;
+  const profile = normalizeOne<ProfileType>(top.profiles);
+
+  // Determine user type
+  const userType = (profile?.user_type || '').toLowerCase();
+  const isRacer = userType === 'racer';
+
+  // Get display name
+  const emailUsername = profile?.email?.split('@')[0];
+  const displayName = profile?.name || emailUsername || (isRacer ? 'Racer' : 'User');
+
+  // Get avatar URL - use profile.avatar directly
+  const avatarUrl = profile?.avatar || '';
+
+  // Generate initials as fallback
+  const initials = displayName
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase();
+
+  const dicebearUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(initials)}`;
 
   useEffect(() => {
     const checkLike = async () => {
@@ -135,7 +168,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
         if (error) {
           console.error('Failed to load comments:', error);
         }
-        setComments((fetchedComments || []) as any);
+        setComments(fetchedComments ?? []);
         // Prefer authoritative count from backend
         if (typeof totalCount === 'number' && totalCount >= 0) {
           setCommentsCount(totalCount);
@@ -166,7 +199,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
 
       // Refresh list and authoritative count
       const { data: refreshed, totalCount } = await getPostComments(post.id, 20, 0);
-      setComments((refreshed || []) as any);
+      setComments(refreshed ?? []);
       if (typeof totalCount === 'number') setCommentsCount(totalCount);
       setNewComment('');
     } catch (err) {
@@ -213,17 +246,46 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
       try {
         await deletePost(post.id);
         onPostDeleted?.(post.id);
-        alert('Post deleted successfully');
+        toast.success('Post deleted successfully');
       } catch (error) {
-        alert('Failed to delete post');
+        toast.error('Failed to delete post');
         console.error('Delete error:', error);
       }
     }
   };
 
-  const handleEditPost = () => {
-    setEditingPost(true);
-    setEditedContent(post.content);
+  const handleEditPost = async () => {
+    try {
+      await updatePost(post.id, editedContent);
+      setPost({...post, content: editedContent});
+      setEditingPost(false);
+      toast.success('Post updated successfully');
+      onPostUpdated?.(post);
+    } catch (error) {
+      console.error('Error updating post:', error);
+      toast.error('Failed to update post');
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      const shareUrl = `${window.location.origin}/post/${post.id}`;
+      
+      if (navigator.share) {
+        await navigator.share({
+          title: `Post by ${post.racer_profiles?.username || 'Racer'}`,
+          text: post.content,
+          url: shareUrl
+        });
+        toast.success('Shared successfully!');
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Link copied to clipboard!');
+      }
+    } catch (err: unknown) {
+      console.error('Share failed:', err);
+      toast.error('Failed to share');
+    }
   };
 
   const PostMedia: React.FC = () => {
@@ -309,41 +371,30 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center space-x-3">
             <img
-              src={
-                post.racer_profiles?.profile_photo_url || 
-                post.racer_profiles?.profiles?.avatar || 
-                `https://api.dicebear.com/7.x/initials/svg?seed=${
-                  post.racer_profiles?.profiles?.name || 
-                  post.racer_profiles?.username || 
-                  'User'
-                }&backgroundColor=ff6600&textColor=ffffff`
-              }
-              alt={post.racer_profiles?.profiles?.name || post.racer_profiles?.username || 'User'}
+              src={avatarUrl || dicebearUrl}
+              alt={displayName}
               className="w-12 h-12 rounded-full object-cover"
             />
             <div>
               <div className="flex items-center space-x-2">
-                <h4 className="font-semibold">
-                  {post.racer_profiles?.profiles?.name || post.racer_profiles?.username || 'Unknown User'}
-                </h4>
-                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-                  {post.racer_profiles && post.racer_profiles?.profiles?.user_type === 'racer' && (
-                    <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-xs">✓</span>
+                <h4 className="font-semibold flex items-center gap-2">
+                  {/* Display name first */}
+                  <span>{displayName}</span>
+
+                  {/* Then user type chip */}
+                  {isRacer ? (
+                    <div className="bg-fedex-orange text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
+                      RACER
                     </div>
-                  )}
-                  {post.racer_profiles?.profiles?.user_type === 'racer' && (
-                    <div className="bg-green-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
-                      <span className="hidden sm:inline">VERIFIED RACER</span>
-                      <span className="sm:hidden">RACER</span>
-                    </div>
-                  )}
-                  {post.racer_profiles?.profiles?.user_type === 'fan' && (
+                  ) : userType === 'fan' ? (
                     <div className="bg-purple-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
                       <span className="hidden sm:inline">RACING FAN</span>
                       <span className="sm:hidden">FAN</span>
                     </div>
-                  )}
+                  ) : null}
+                </h4>
+                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                  {/* Remove duplicate tag chips here to avoid repeated badges */}
                   {post.racer_profiles?.car_number && (
                     <div className="bg-red-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
                       #{post.racer_profiles.car_number}
@@ -371,7 +422,19 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
               </div>
             </div>
           </div>
-          <div className="relative">
+          <div className="relative flex items-center gap-2">
+            {isRacer && !isSelf && (
+              <button
+                onClick={() => {
+                  if (!user) { setShowAuthModal(true); return; }
+                  toast.success('You are now a fan! (placeholder)');
+                }}
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border border-fedex-orange text-fedex-orange hover:bg-fedex-orange/10 transition-colors"
+              >
+                <UserPlus className="h-4 w-4" />
+                Become a Fan
+              </button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger className="p-2 rounded-full text-gray-400 hover:text-white transition-colors">
                 <MoreHorizontal className="h-4 w-4 text-gray-400" />
@@ -380,7 +443,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                 {user?.id === post.user_id && (
                   <>
                     <DropdownMenuItem 
-                      onClick={handleEditPost}
+                      onClick={() => setEditingPost(true)}
                       className="cursor-pointer bg-transparent hover:bg-transparent focus:bg-transparent px-2 py-1 text-gray-300 hover:text-green-500 flex justify-end font-semibold"
                     >
                       Edit
@@ -416,15 +479,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
               />
               <div className="flex gap-2 mt-2">
                 <button
-                  onClick={async () => {
-                    try {
-                      await updatePost(post.id, editedContent);
-                      setPost({...post, content: editedContent});
-                      setEditingPost(false);
-                    } catch (error) {
-                      console.error('Error updating post:', error);
-                    }
-                  }}
+                  onClick={handleEditPost}
                   className="px-3 py-1 rounded-lg text-sm text-gray-300 hover:text-fedex-orange transition-colors"
                 >
                   Save
@@ -507,7 +562,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
             )}
           </div>
           
-          <button className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors">
+          <button 
+            onClick={handleShare}
+            className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"
+            aria-label="Share post"
+          >
             <Share2 className="h-5 w-5" />
           </button>
         </div>

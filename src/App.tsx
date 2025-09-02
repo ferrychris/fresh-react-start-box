@@ -44,6 +44,8 @@ import SettingsProfile from './pages/SettingsProfile';
 import TestRunner from './components/TestRunner';
 import Grandstand from './pages/Grandstand';
 import { AppProvider, useApp } from './contexts/AppContext';
+import { Toaster } from 'react-hot-toast';
+import Fanheader from './components/fan-dashboard/Fanheader'; // Import Fanheader component
 
 // Component to handle scroll to top on route changes
 const ScrollToTop: React.FC = () => {
@@ -61,25 +63,11 @@ const ScrollToTop: React.FC = () => {
   return null;
 };
 
-// Render the header on all pages with routing + auth modal wiring
+// Render the appropriate header based on auth state and route
 const HeaderGate: React.FC = () => {
-  const navigate = useNavigate();
+  const { user } = useApp();
   const location = useLocation();
-
-  // Map current route to Header's ViewType
-  const path = location.pathname;
-  const currentView: ViewType =
-    path === '/' ? 'landing'
-    : path.startsWith('/feed') ? 'feed'
-    : path.startsWith('/racers') ? 'racers'
-    : path.startsWith('/tracks') ? 'tracks'
-    : path.startsWith('/series-dashboard') ? 'series-dashboard'
-    : path.startsWith('/track-dashboard') ? 'track-dashboard'
-    : path.startsWith('/fan-dashboard') ? 'fan-dashboard'
-    : path.startsWith('/dashboard') ? 'dashboard'
-    : path.startsWith('/series') ? 'series'
-    : path.startsWith('/super-fans') ? 'super-fans'
-    : 'discover';
+  const navigate = useNavigate();
 
   const onViewChange = (view: ViewType, id?: string) => {
     switch (view) {
@@ -115,19 +103,29 @@ const HeaderGate: React.FC = () => {
     }
   };
 
-  return (
-    <Header
-      currentView={currentView}
-      onViewChange={onViewChange}
-    />
-  );
+  // Show main header only on home page or when not logged in
+  if (location.pathname === '/' || !user) {
+    return (
+      <Header 
+        currentView={location.pathname === '/' ? 'landing' : 'discover'}
+        onViewChange={onViewChange}
+      />
+    );
+  }
+
+  // Show Fanheader for logged-in users on all other pages
+  return <Fanheader />;
 };
 
 // Main content area with conditional padding based on route
 const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
   = ({ user }) => {
   const loc = useLocation();
-  const mainPadding = loc.pathname === '/' ? 'pt-0 pb-0' : 'pt-16 pb-20 md:pb-0';
+  const mainPadding = loc.pathname === '/'
+    ? 'pt-0 pb-0'
+    : loc.pathname === '/grandstand'
+      ? 'pt-0 pb-20 md:pb-0'
+      : 'pt-16 pb-20 md:pb-0';
   return (
     <main className={mainPadding}>
       <Routes>
@@ -336,6 +334,7 @@ const AppContent: React.FC = () => {
         <MainContent user={user} />
         {/* Footer (hidden on non-root routes) */}
         <AppFooter />
+        <Toaster position="bottom-center" />
         <ToastContainer 
           position="top-right"
           autoClose={5000}
