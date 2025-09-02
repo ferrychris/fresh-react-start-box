@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Search, Bell, User, Tv, Trophy, Home, Users, Settings, Flag, Menu, X, Sun, Moon, Trash2, Crown, Video, Target, LayoutDashboard, MapPin, Compass, BarChart3, Calendar, DollarSign, MessageSquare, Heart, Clock, Gauge, Award } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { AuthModal } from './auth/AuthModal';
 
 // Placeholder components for NotificationBell and GoLiveModal
 const NotificationBell: React.FC = () => {
@@ -89,11 +90,10 @@ export type ViewType =
 
 interface HeaderProps {
   onViewChange: (view: ViewType, id?: string) => void;
-  onAuthClick: () => void;
   currentView: ViewType;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onViewChange, onAuthClick, currentView }) => {
+export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => {
   const { user, logout } = useUser();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
@@ -105,6 +105,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, onAuthClick, curre
   // Removed unused state
   const [showGoLiveModal, setShowGoLiveModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const isActive = (path: string) => {
     if (path === '/feed' && currentView === 'discover') return true;
@@ -726,7 +727,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, onAuthClick, curre
                 </>
               ) : (
                 <button
-                  onClick={onAuthClick}
+                  onClick={() => setShowAuthModal(true)}
                   className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-fedex-orange to-fedex-orange-dark hover:from-fedex-orange-dark hover:to-fedex-orange rounded-xl transition-all duration-200 font-medium shadow-lg hover:shadow-xl hover:scale-105"
                 >
                   <User className="h-4 w-4" />
@@ -922,7 +923,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, onAuthClick, curre
                   </div>
                 ) : (
                   <button
-                    onClick={onAuthClick}
+                    onClick={() => setShowAuthModal(true)}
                     className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium bg-gradient-to-r from-fedex-orange to-fedex-orange-dark hover:from-fedex-orange-dark hover:to-fedex-orange text-white transition-all duration-200 shadow-lg"
                   >
                     <User className="h-5 w-5" />
@@ -1108,7 +1109,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, onAuthClick, curre
               
               {/* Sign In Button for Mobile */}
               <div
-                onClick={onAuthClick}
+                onClick={() => setShowAuthModal(true)}
                 className="flex flex-col items-center space-y-1 px-2 py-2 rounded-xl transition-all duration-300 min-w-0 relative group cursor-pointer bg-gradient-to-r from-fedex-orange to-fedex-orange-dark text-white"
                 aria-label="Sign In"
               >
@@ -1229,6 +1230,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, onAuthClick, curre
       
       {/* Go Live Modal */}
       <GoLiveModal isOpen={showGoLiveModal} onClose={() => setShowGoLiveModal(false)} />
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
     </>
   );
 };

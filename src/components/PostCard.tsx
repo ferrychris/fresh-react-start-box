@@ -16,11 +16,11 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useApp } from '@/contexts/AppContext';
 import { useUser } from '@/contexts/UserContext';
 import { Post, PostComment } from '@/types';
 import { formatTimeAgo } from '@/lib/utils';
 import { getPostLikers, likePost, unlikePost, addCommentToPost, getPostComments, deletePost } from '@/lib/supabase/posts';
+import { AuthModal } from '@/components/auth/AuthModal';
 
 // Define a more complete Post type for the component
 export type Post = {
@@ -66,7 +66,6 @@ interface PostCardProps {
 }
 
 export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpdate, onPostDeleted }) => {
-  const { setShowAuthModal } = useApp();
   const { user } = useUser();
   const [post, setPost] = useState(initialPost);
   const [isLiked, setIsLiked] = useState(false);
@@ -79,6 +78,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [hasMoreComments, setHasMoreComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [showTipModal, setShowTipModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [tipAmount, setTipAmount] = useState(5);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -104,10 +104,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   }, [post.id, user, post.likes_count]);
 
   const handleLike = async () => {
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
+    if (!user) { setShowAuthModal(true); return; }
     if (likeBusy) return; // prevent rapid clicks
     setLikeBusy(true);
     
@@ -164,6 +161,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   };
 
   const handleAddComment = async () => {
+    if (!user) { setShowAuthModal(true); return; }
     if (!newComment.trim()) return;
     try {
       setCommentsLoading(true);
@@ -659,6 +657,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
             </div>
           </div>
         </div>
+      )}
+      
+      {showAuthModal && (
+        <AuthModal onClose={() => setShowAuthModal(false)} />
       )}
     </div>
   );

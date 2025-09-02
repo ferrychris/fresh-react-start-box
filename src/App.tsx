@@ -6,7 +6,6 @@ import { supabase } from './lib/supabase';
 import { getSubscriptionTiersForRacers, getFanCountsForRacers } from './lib/supabase';
 import { Header } from './components/Header';
 import type { ViewType } from './components/Header';
-import { AuthModal } from './components/AuthModal';
 import Feed from './pages/Feed';
 import { Racers } from './pages/Racers';
 import { Tracks } from './pages/Tracks';
@@ -64,7 +63,6 @@ const ScrollToTop: React.FC = () => {
 
 // Render the header on all pages with routing + auth modal wiring
 const HeaderGate: React.FC = () => {
-  const { setShowAuthModal } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -121,7 +119,6 @@ const HeaderGate: React.FC = () => {
     <Header
       currentView={currentView}
       onViewChange={onViewChange}
-      onAuthClick={() => setShowAuthModal(true)}
     />
   );
 };
@@ -325,7 +322,7 @@ interface AppContextType {
 }
 
 const AppContent: React.FC = () => {
-  const { showAuthModal, sessionChecked, user } = useApp();
+  const { sessionChecked, user } = useApp();
 
   if (!sessionChecked) {
     return <div>Loading...</div>; // Or a proper splash screen
@@ -339,7 +336,6 @@ const AppContent: React.FC = () => {
         <MainContent user={user} />
         {/* Footer (hidden on non-root routes) */}
         <AppFooter />
-        {showAuthModal && <AuthModal />}
         <ToastContainer 
           position="top-right"
           autoClose={5000}
