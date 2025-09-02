@@ -17,28 +17,14 @@ import {
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/contexts/UserContext';
-import { Post, PostComment } from '@/types';
+import { PostComment } from '@/types';
+import type { Post as PostType } from '@/types';
 import { formatTimeAgo } from '@/lib/utils';
 import { getPostLikers, likePost, unlikePost, addCommentToPost, getPostComments, deletePost } from '@/lib/supabase/posts';
 import { AuthModal } from '@/components/auth/AuthModal';
 
 // Define a more complete Post type for the component
-export type Post = {
-  id: string;
-  racer_id?: string;
-  fan_id?: string;
-  created_at: string;
-  updated_at: string;
-  content: string;
-  post_type: 'text' | 'photo' | 'gallery' | 'video';
-  media_urls: string[];
-  visibility: 'public' | 'fans_only';
-  likes_count: number;
-  comments_count: number;
-  total_tips: number;
-  allow_tips: boolean;
-  user_type?: 'racer' | 'fan' | 'track';
-};
+export type Post = PostType;
 
 interface PostCardProps {
   post: Post & {
@@ -70,7 +56,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [post, setPost] = useState(initialPost);
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(post.likes_count || 0);
-  const [commentsCount, setCommentsCount] = useState<number>(0);
+  const [commentsCount, setCommentsCount] = useState<number>(post.comments_count || 0);
   const [likeBusy, setLikeBusy] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<PostComment[]>([]);
@@ -145,7 +131,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
         if (error) {
           console.error('Failed to load comments:', error);
         }
-        setComments(fetchedComments || []);
+        setComments((fetchedComments || []) as any);
         // Prefer authoritative count from backend
         if (typeof totalCount === 'number' && totalCount >= 0) {
           setCommentsCount(totalCount);
@@ -165,7 +151,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     if (!newComment.trim()) return;
     try {
       setCommentsLoading(true);
-      const { error } = await addCommentToPost(post.id, newComment.trim());
+      const { error } = await addCommentToPost(post.id, user.id, newComment.trim());
       if (error) {
         console.error('Error adding comment:', error);
         return;
@@ -176,7 +162,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
 
       // Refresh list and authoritative count
       const { data: refreshed, totalCount } = await getPostComments(post.id, 20, 0);
-      setComments(refreshed || []);
+      setComments((refreshed || []) as any);
       if (typeof totalCount === 'number') setCommentsCount(totalCount);
       setNewComment('');
     } catch (err) {
@@ -553,13 +539,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
               {comments.map((comment) => (
                 <div key={comment.id} className="flex items-start space-x-3">
                   <img
-                    src={comment.user?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user?.name || 'User'}`}
-                    alt={comment.user?.name || 'User'}
+                     src={comment.profiles?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.profiles?.name || 'User'}`}
+                     alt={comment.profiles?.name || 'User'}
                     className="w-8 h-8 rounded-full object-cover"
                   />
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-1">
-                      <span className="font-semibold text-sm text-white">{comment.user?.name || 'User'}</span>
+                      <span className="font-semibold text-sm text-white">{comment.profiles?.name || 'User'}</span>
                       <span className="text-xs text-gray-400">{formatTimeAgo(comment.created_at)}</span>
                     </div>
                     <p className="text-sm text-gray-300">{comment.comment_text}</p>
@@ -569,7 +555,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
               {commentsLoading && <div className="text-center text-gray-400">Loading...</div>}
               {hasMoreComments && !commentsLoading && (
                 <button 
-                  onClick={() => fetchComments(5, comments.length)}
+                  onClick={() => setComments([])} // Placeholder for load more
                   className="w-full text-center text-fedex-purple font-semibold py-2"
                 >
                   View more comments

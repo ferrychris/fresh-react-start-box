@@ -260,7 +260,7 @@ export default function Grandstand() {
               comments_count: newPost.comments ?? 0,
               media_urls: newPost.mediaUrls || [],
               created_at: newPost.createdAt || new Date().toISOString(),
-              updated_at: new Post().toISOString(),
+              updated_at: new Date().toISOString(),
               post_type: 'text', // Assuming default, adjust as needed
               visibility: 'public',
               total_tips: 0,
