@@ -1,615 +1,343 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { 
-  Crown, 
-  Trophy, 
-  Heart, 
-  Gift, 
-  DollarSign, 
-  Users, 
-  Star,
-  TrendingUp,
-  Calendar,
-  Award,
-  Zap,
-  Target,
-  MapPin,
-  Filter,
-  Search
-} from 'lucide-react';
-import { useTheme } from '../contexts/ThemeContext';
-import { SuperFanBadge } from '../components/SuperFanBadge';
-import { supabase } from '../lib/supabase';
+import React, { useState } from 'react';
+import { Trophy, Crown, Star, TrendingUp, Users, Award, Flame } from 'lucide-react';
 
 interface SuperFan {
   id: string;
-  fan_id: string;
-  racer_id: string;
-  fan_name: string;
-  fan_avatar: string;
-  fan_location?: string;
-  racer_name: string;
-  racer_avatar: string;
-  racer_car_number: string;
-  racer_class: string;
-  total_tips: number;
-  total_gifts: number;
-  became_fan_at: string;
-  last_support_date: string;
-  support_level: 'bronze' | 'silver' | 'gold' | 'platinum';
+  username: string;
+  name: string;
+  avatar: string;
+  totalSupport: number;
+  supportType: 'tips' | 'subscriptions' | 'interactions';
+  supportedRacers: number;
+  supportedTracks: number;
+  supportedSeries: number;
+  streakDays: number;
+  badges: string[];
+  rank: number;
+  monthlySupport: number;
+  verified?: boolean;
 }
 
+const mockSuperFans: SuperFan[] = [
+  {
+    id: '1',
+    username: 'speedfan92',
+    name: 'Racing Fan',
+    avatar: 'https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
+    totalSupport: 2847,
+    supportType: 'tips',
+    supportedRacers: 5,
+    supportedTracks: 3,
+    supportedSeries: 2,
+    streakDays: 45,
+    badges: ['Top Tipper', 'Loyal Fan', 'Early Supporter'],
+    rank: 1,
+    monthlySupport: 450,
+    verified: true
+  },
+  {
+    id: '2',
+    username: 'pitcrewchief',
+    name: 'Mike Johnson',
+    avatar: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
+    totalSupport: 2156,
+    supportType: 'subscriptions',
+    supportedRacers: 8,
+    supportedTracks: 2,
+    supportedSeries: 1,
+    streakDays: 67,
+    badges: ['Subscriber Pro', 'Community Leader'],
+    rank: 2,
+    monthlySupport: 380
+  },
+  {
+    id: '550e8400-e29b-41d4-a716-446655440021',
+    username: 'trackqueen',
+    name: 'Sarah Davis',
+    avatar: 'https://images.pexels.com/photos/2182970/pexels-photo-2182970.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
+    totalSupport: 1923,
+    supportType: 'interactions',
+    supportedRacers: 12,
+    supportedTracks: 5,
+    supportedSeries: 3,
+    streakDays: 89,
+    badges: ['Social Butterfly', 'Track Expert'],
+    rank: 3,
+    monthlySupport: 320
+  }
+];
+
 export const SuperFans: React.FC = () => {
-  const { theme } = useTheme();
-  const [superFans, setSuperFans] = useState<SuperFan[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterLevel, setFilterLevel] = useState('all');
-  const [sortBy, setSortBy] = useState('total_support');
+  const [activeCategory, setActiveCategory] = useState<'overall' | 'racers' | 'tracks' | 'series'>('overall');
+  const [timeFilter, setTimeFilter] = useState<'all-time' | 'monthly' | 'weekly'>('all-time');
 
-  useEffect(() => {
-    loadSuperFans();
-  }, []);
+  const categories = [
+    { id: 'overall' as const, label: 'Overall', icon: Trophy },
+    { id: 'racers' as const, label: 'Racer Fans', icon: Crown },
+    { id: 'tracks' as const, label: 'Track Fans', icon: Award },
+    { id: 'series' as const, label: 'Series Fans', icon: Star }
+  ];
 
-  const loadSuperFans = async () => {
-    try {
-      // Get all super fans with their tip data
-      const { data: fanConnections, error: connectionsError } = await supabase
-        .from('fan_connections')
-        .select('*')
-        .eq('is_superfan', true)
-        .order('total_tips', { ascending: false });
+  const timeFilters = [
+    { id: 'all-time' as const, label: 'All Time' },
+    { id: 'monthly' as const, label: 'This Month' },
+    { id: 'weekly' as const, label: 'This Week' }
+  ];
 
-      if (connectionsError) {
-        console.error('Error loading fan connections:', connectionsError);
-        setSuperFans([]);
-        return;
-      }
-
-      // Get fan profile data
-      const fanIds = fanConnections?.map(fc => fc.fan_id) || [];
-      const { data: fanProfiles, error: fanError } = await supabase
-        .from('profiles')
-        .select('id, name, avatar')
-        .in('id', fanIds);
-
-      if (fanError) {
-        console.error('Error loading fan profiles:', fanError);
-      }
-
-      // Get racer profile data
-      const racerIds = fanConnections?.map(fc => fc.racer_id) || [];
-      const { data: racerProfiles, error: racerError } = await supabase
-        .from('racer_profiles')
-        .select('id, username, profile_photo_url, car_number, racing_class')
-        .in('id', racerIds);
-
-      if (racerError) {
-        console.error('Error loading racer profiles:', racerError);
-      }
-
-      // Get racer names from profiles table
-      const { data: racerNames, error: racerNamesError } = await supabase
-        .from('profiles')
-        .select('id, name')
-        .in('id', racerIds);
-
-      if (racerNamesError) {
-        console.error('Error loading racer names:', racerNamesError);
-      }
-
-      // Get gift data for each fan
-      const { data: giftData, error: giftError } = await supabase
-        .from('gift_transactions')
-        .select('sender_id, receiver_id, token_amount')
-        .in('sender_id', fanIds);
-
-      if (giftError) {
-        console.error('Error loading gift data:', giftError);
-      }
-
-      // Combine all data
-      const formattedSuperFans = (fanConnections || []).map(connection => {
-        const fanProfile = fanProfiles?.find(fp => fp.id === connection.fan_id);
-        const racerProfile = racerProfiles?.find(rp => rp.id === connection.racer_id);
-        const racerName = racerNames?.find(rn => rn.id === connection.racer_id);
-        
-        // Calculate total gifts for this fan-racer pair
-        const totalGifts = giftData?.filter(g => 
-          g.sender_id === connection.fan_id && g.receiver_id === connection.racer_id
-        ).reduce((sum, gift) => sum + (gift.token_amount || 0), 0) || 0;
-
-        const totalSupport = (connection.total_tips || 0) + totalGifts;
-        
-        // Determine support level based on total support
-        let supportLevel: 'bronze' | 'silver' | 'gold' | 'platinum' = 'bronze';
-        if (totalSupport >= 1000) supportLevel = 'platinum';
-        else if (totalSupport >= 500) supportLevel = 'gold';
-        else if (totalSupport >= 100) supportLevel = 'silver';
-
-        return {
-          id: connection.id,
-          fan_id: connection.fan_id,
-          racer_id: connection.racer_id,
-          fan_name: fanProfile?.name || 'Anonymous Fan',
-          fan_avatar: fanProfile?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${fanProfile?.name || 'Fan'}`,
-          fan_location: null, // Will be loaded from fan_profiles if needed
-          racer_name: racerName?.name || racerProfile?.username || 'Unknown Racer',
-          racer_avatar: racerProfile?.profile_photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${racerName?.name || 'Racer'}`,
-          racer_car_number: racerProfile?.car_number || 'TBD',
-          racer_class: racerProfile?.racing_class || 'Racing',
-          total_tips: connection.total_tips || 0,
-          total_gifts: totalGifts,
-          became_fan_at: connection.became_fan_at,
-          last_support_date: connection.last_support_date || connection.became_fan_at,
-          support_level: supportLevel
-        };
-      });
-
-      setSuperFans(formattedSuperFans);
-    } catch (error) {
-      console.error('Error loading super fans:', error);
-      setSuperFans([]);
-    } finally {
-      setLoading(false);
+  const getRankColor = (rank: number) => {
+    switch (rank) {
+      case 1: return 'text-yellow-400';
+      case 2: return 'text-gray-300';
+      case 3: return 'text-amber-600';
+      default: return 'text-slate-400';
     }
   };
 
-  const filteredSuperFans = superFans.filter(fan => {
-    const matchesSearch = searchTerm === '' || 
-      fan.fan_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fan.racer_name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesLevel = filterLevel === 'all' || fan.support_level === filterLevel;
-    
-    return matchesSearch && matchesLevel;
-  });
-
-  const sortedSuperFans = [...filteredSuperFans].sort((a, b) => {
-    switch (sortBy) {
-      case 'fan_name':
-        return a.fan_name.localeCompare(b.fan_name);
-      case 'racer_name':
-        return a.racer_name.localeCompare(b.racer_name);
-      case 'recent':
-        return new Date(b.last_support_date).getTime() - new Date(a.last_support_date).getTime();
-      default: // total_support
-        return (b.total_tips + b.total_gifts) - (a.total_tips + a.total_gifts);
-    }
-  });
-
-  const getSupportLevelColor = (level: string) => {
-    switch (level) {
-      case 'platinum': return 'from-purple-500 to-pink-500';
-      case 'gold': return 'from-yellow-400 to-orange-500';
-      case 'silver': return 'from-gray-400 to-gray-500';
-      default: return 'from-orange-600 to-red-600';
+  const getRankIcon = (rank: number) => {
+    switch (rank) {
+      case 1: return <Crown className="w-6 h-6 text-yellow-400" />;
+      case 2: return <Award className="w-6 h-6 text-gray-300" />;
+      case 3: return <Trophy className="w-6 h-6 text-amber-600" />;
+      default: return <span className="w-6 h-6 flex items-center justify-center text-slate-400 font-bold">{rank}</span>;
     }
   };
-
-  const getSupportLevelIcon = (level: string) => {
-    switch (level) {
-      case 'platinum': return '💎';
-      case 'gold': return '🥇';
-      case 'silver': return '🥈';
-      default: return '🥉';
-    }
-  };
-
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffInDays === 0) return 'Today';
-    if (diffInDays === 1) return 'Yesterday';
-    if (diffInDays < 30) return `${diffInDays} days ago`;
-    if (diffInDays < 365) return `${Math.floor(diffInDays / 30)} months ago`;
-    return `${Math.floor(diffInDays / 365)} years ago`;
-  };
-
-  const totalSuperFans = superFans.length;
-  const totalSupport = superFans.reduce((sum, fan) => sum + fan.total_tips + fan.total_gifts, 0);
-  const avgSupport = totalSuperFans > 0 ? totalSupport / totalSuperFans : 0;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Hero Section */}
-      <section className="relative py-20 md:py-28 overflow-hidden bg-gradient-to-br from-primary/10 via-background to-accent/10">
-        <div className="absolute inset-0 bg-[url('https://nbcsports.brightspotcdn.com/dims4/default/85959b5/2147483647/strip/false/crop/4551x2560+0+0/resize/1200x675!/quality/90/?url=https%3A%2F%2Fnbc-sports-production-nbc-sports.s3.us-east-1.amazonaws.com%2Fbrightspot%2F1a%2F07%2F2a8b1d1ac3cf967c51dc18d94635%2Fworldofoutlaws-pyro-e1593179645712.jpg')] bg-cover bg-center opacity-5" />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="text-6xl md:text-8xl mb-8 animate-bounce">👑</div>
-          <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold mb-8 text-foreground">
-            Super Fan
-            <span className="block bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mt-2">
-              Hall of Fame
-            </span>
-          </h1>
-          <p className="text-lg sm:text-xl md:text-2xl mb-12 max-w-4xl mx-auto text-muted-foreground leading-relaxed">
-            Celebrating the most dedicated racing fans who support their favorite racers with tips and gifts
-          </p>
-          <div className="flex flex-wrap justify-center gap-4 opacity-60">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Crown className="h-5 w-5" />
-              <span className="text-sm">Elite Recognition</span>
+    <div className="min-h-screen bg-slate-950">
+      {/* Header */}
+      <div className="bg-slate-900 border-b border-slate-800 p-4 lg:p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="w-10 h-10 lg:w-12 lg:h-12 bg-orange-500/20 rounded-2xl flex items-center justify-center">
+              <Crown className="w-5 h-5 lg:w-6 lg:h-6 text-orange-400" />
             </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Trophy className="h-5 w-5" />
-              <span className="text-sm">Top Supporters</span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Heart className="h-5 w-5" />
-              <span className="text-sm">True Dedication</span>
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-bold text-white racing-number">Super Fans</h1>
+              <p className="text-slate-400 text-sm lg:text-base">The most dedicated supporters in the OnlyRaceFans community</p>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Stats Section */}
-      <section className="py-20 bg-card/50 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              Community Impact
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              See the incredible support our racing community provides
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="group relative overflow-hidden rounded-2xl bg-card border border-border/50 p-8 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
-              <div className="relative">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-6 group-hover:scale-110 transition-transform duration-300">
-                  <Crown className="h-8 w-8 text-primary" />
-                </div>
-                <div className="text-4xl md:text-5xl font-bold text-primary mb-2">{totalSuperFans}</div>
-                <div className="text-muted-foreground font-medium">
-                  Total Super Fans
-                </div>
-              </div>
-            </div>
-            
-            <div className="group relative overflow-hidden rounded-2xl bg-card border border-border/50 p-8 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent" />
-              <div className="relative">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-6 group-hover:scale-110 transition-transform duration-300">
-                  <DollarSign className="h-8 w-8 text-green-500" />
-                </div>
-                <div className="text-4xl md:text-5xl font-bold text-green-500 mb-2">${totalSupport.toLocaleString()}</div>
-                <div className="text-muted-foreground font-medium">
-                  Total Support Given
-                </div>
-              </div>
-            </div>
-            
-            <div className="group relative overflow-hidden rounded-2xl bg-card border border-border/50 p-8 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent" />
-              <div className="relative">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 mb-6 group-hover:scale-110 transition-transform duration-300">
-                  <Heart className="h-8 w-8 text-red-500" />
-                </div>
-                <div className="text-4xl md:text-5xl font-bold text-red-500 mb-2">${Math.round(avgSupport)}</div>
-                <div className="text-muted-foreground font-medium">
-                  Average Support
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Search and Filters */}
-      <section className="py-8 bg-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm p-6 md:p-8 mb-8 sticky top-20 z-20 shadow-lg">
-            <div className="mb-6">
-              <h3 className="text-xl font-semibold text-foreground mb-2">Find Super Fans</h3>
-              <p className="text-muted-foreground text-sm">Search and filter through our community of dedicated supporters</p>
-            </div>
-            
-            <div className="flex flex-col lg:flex-row gap-4 mb-6">
-              {/* Search */}
-              <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search super fans or racers..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 rounded-xl border border-border/50 bg-background/50 placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 text-foreground"
-                />
-              </div>
-
-              {/* Filters */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative">
-                  <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  <select
-                    value={filterLevel}
-                    onChange={(e) => setFilterLevel(e.target.value)}
-                    className="pl-10 pr-4 py-4 rounded-xl border border-border/50 bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 min-w-[160px]"
-                  >
-                    <option value="all">All Levels</option>
-                    <option value="platinum">💎 Platinum</option>
-                    <option value="gold">🥇 Gold</option>
-                    <option value="silver">🥈 Silver</option>
-                    <option value="bronze">🥉 Bronze</option>
-                  </select>
-                </div>
-
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="px-4 py-4 rounded-xl border border-border/50 bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 min-w-[160px]"
-                >
-                  <option value="total_support">Highest Support</option>
-                  <option value="recent">Most Recent</option>
-                  <option value="fan_name">Fan Name A-Z</option>
-                  <option value="racer_name">Racer Name A-Z</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Results Count */}
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span className="font-medium">
-                Showing {sortedSuperFans.length} of {totalSuperFans} super fans
-              </span>
-              {searchTerm && (
+          {/* Category Tabs */}
+          <div className="flex flex-wrap gap-2 lg:gap-3 mb-4 overflow-x-auto pb-2">
+            {categories.map((category) => {
+              const Icon = category.icon;
+              return (
                 <button
-                  onClick={() => setSearchTerm('')}
-                  className="text-sm text-primary hover:text-primary/80 transition-colors"
+                  key={category.id}
+                  onClick={() => setActiveCategory(category.id)}
+                  className={`flex items-center space-x-2 px-4 lg:px-6 py-2 lg:py-3 rounded-xl font-medium transition-all duration-200 whitespace-nowrap text-sm lg:text-base min-h-[44px] ${
+                    activeCategory === category.id
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                  }`}
                 >
-                  Clear search
+                  <Icon className="w-4 h-4 lg:w-5 lg:h-5" />
+                  <span>{category.label}</span>
                 </button>
-              )}
-            </div>
+              );
+            })}
           </div>
-        </div>
-      </section>
 
-      {/* Super Fans Grid */}
-      <section className="pb-20 bg-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
-                <div key={i} className="rounded-2xl border border-border/50 bg-card/50 p-6 animate-pulse">
-                  <div className="flex items-center space-x-4 mb-6">
-                    <div className="w-16 h-16 rounded-full bg-muted" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 rounded bg-muted w-3/4" />
-                      <div className="h-3 rounded bg-muted w-1/2" />
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="h-20 rounded-lg bg-muted" />
-                    <div className="h-12 rounded-lg bg-muted" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : sortedSuperFans.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {sortedSuperFans.map(fan => (
-                <div
-                  key={fan.id}
-                  className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card hover:shadow-xl transition-all duration-300 hover:scale-105"
-                >
-                  {/* Header with gradient based on support level */}
-                  <div className={`relative h-20 bg-gradient-to-r ${getSupportLevelColor(fan.support_level)}`}>
-                    <div className="absolute inset-0 bg-black/20" />
-                    <div className="absolute top-3 left-3 bg-black/70 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center space-x-1">
-                      <span>{getSupportLevelIcon(fan.support_level)}</span>
-                      <span className="capitalize">{fan.support_level}</span>
-                    </div>
-                    <div className="absolute top-3 right-3">
-                      <SuperFanBadge type="superfan" size="sm" />
-                    </div>
-                    <div className="absolute bottom-0 left-4 transform translate-y-1/2">
-                      <div className="relative">
-                        <img
-                          src={fan.fan_avatar}
-                          alt={fan.fan_name}
-                          className="h-16 w-16 rounded-full object-cover border-4 border-white shadow-lg"
-                        />
-                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center border-2 border-white">
-                          <Crown className="h-3 w-3 text-white" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                   {/* Content */}
-                  <div className="p-6 pt-10">
-                    <div className="mb-6">
-                      <h3 className="text-lg font-bold mb-2 text-foreground">{fan.fan_name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Super Fan since {formatTimeAgo(fan.became_fan_at)}
-                      </p>
-                    </div>
-
-                    {/* Supporting Racer */}
-                    <div className="p-4 rounded-xl bg-muted/50 mb-6 border border-border/50">
-                      <div className="flex items-center space-x-3">
-                        <img
-                          src={fan.racer_avatar}
-                          alt={fan.racer_name}
-                          className="w-10 h-10 rounded-full object-cover border-2 border-border"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm text-foreground truncate">
-                            Supporting {fan.racer_name}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            #{fan.racer_car_number} • {fan.racer_class}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Support Stats */}
-                    <div className="grid grid-cols-2 gap-3 mb-6">
-                      <div className="p-4 rounded-xl bg-gradient-to-br from-green-500/10 to-green-600/5 border border-green-500/20 text-center">
-                        <div className="font-bold text-green-500 text-lg mb-1">${fan.total_tips}</div>
-                        <div className="text-xs text-muted-foreground font-medium">
-                          Tips Sent
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-xl bg-gradient-to-br from-pink-500/10 to-pink-600/5 border border-pink-500/20 text-center">
-                        <div className="font-bold text-pink-500 text-lg mb-1">{fan.total_gifts}</div>
-                        <div className="text-xs text-muted-foreground font-medium">
-                          Gifts Sent
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Last Support */}
-                    <div className="text-center text-xs mb-6 text-muted-foreground">
-                      Last support: {formatTimeAgo(fan.last_support_date)}
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <Link
-                        to={`/fan/${fan.fan_id}`}
-                        className="px-3 py-2.5 bg-primary text-primary-foreground rounded-lg text-xs font-semibold hover:bg-primary/90 transition-colors text-center"
-                      >
-                        View Fan
-                      </Link>
-                      <Link
-                        to={`/racer/${fan.racer_id}`}
-                        className="px-3 py-2.5 bg-secondary text-secondary-foreground rounded-lg text-xs font-semibold hover:bg-secondary/80 transition-colors text-center"
-                      >
-                        View Racer
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-20">
-              <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-8">
-                <Crown className="h-12 w-12 text-primary" />
-              </div>
-              <h3 className="text-3xl font-bold mb-4 text-foreground">No Super Fans Yet</h3>
-              <p className="text-lg mb-8 max-w-2xl mx-auto text-muted-foreground">
-                Be the first to become a Super Fan by supporting your favorite racers with tips and gifts!
-              </p>
-              <Link
-                to="/racers"
-                className="inline-flex items-center px-8 py-4 bg-primary text-primary-foreground font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+          {/* Time Filter */}
+          <div className="flex space-x-2 overflow-x-auto pb-2">
+            {timeFilters.map((filter) => (
+              <button
+                key={filter.id}
+                onClick={() => setTimeFilter(filter.id)}
+                className={`px-3 lg:px-4 py-2 rounded-lg font-medium text-xs lg:text-sm transition-all duration-200 whitespace-nowrap min-h-[40px] ${
+                  timeFilter === filter.id
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                }`}
               >
-                <Crown className="mr-2 h-5 w-5" />
-                Support a Racer
-                <Trophy className="ml-2 h-5 w-5" />
-              </Link>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* How to Become a Super Fan */}
-      <section className="py-20 bg-card">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
-              How to Become a Super Fan
-            </h2>
-            <p className="text-lg max-w-3xl mx-auto text-muted-foreground">
-              Show your support and earn recognition in the racing community
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="group relative overflow-hidden rounded-2xl bg-background border border-border/50 p-6 text-center hover:shadow-lg transition-all duration-300">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent" />
-              <div className="relative">
-                <div className="w-16 h-16 bg-orange-500/10 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <span className="text-2xl">🥉</span>
-                </div>
-                <h3 className="font-bold mb-2 text-foreground">Bronze Level</h3>
-                <p className="text-sm mb-3 text-muted-foreground">$1 - $99 in support</p>
-                <div className="text-orange-500 font-semibold">Entry Level</div>
-              </div>
-            </div>
-
-            <div className="group relative overflow-hidden rounded-2xl bg-background border border-border/50 p-6 text-center hover:shadow-lg transition-all duration-300">
-              <div className="absolute inset-0 bg-gradient-to-br from-gray-400/5 to-transparent" />
-              <div className="relative">
-                <div className="w-16 h-16 bg-gray-400/10 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <span className="text-2xl">🥈</span>
-                </div>
-                <h3 className="font-bold mb-2 text-foreground">Silver Level</h3>
-                <p className="text-sm mb-3 text-muted-foreground">$100 - $499 in support</p>
-                <div className="text-gray-400 font-semibold">Dedicated Fan</div>
-              </div>
-            </div>
-
-            <div className="group relative overflow-hidden rounded-2xl bg-background border border-border/50 p-6 text-center hover:shadow-lg transition-all duration-300">
-              <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 to-transparent" />
-              <div className="relative">
-                <div className="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <span className="text-2xl">🥇</span>
-                </div>
-                <h3 className="font-bold mb-2 text-foreground">Gold Level</h3>
-                <p className="text-sm mb-3 text-muted-foreground">$500 - $999 in support</p>
-                <div className="text-yellow-500 font-semibold">Elite Supporter</div>
-              </div>
-            </div>
-
-            <div className="group relative overflow-hidden rounded-2xl bg-background border border-border/50 p-6 text-center hover:shadow-lg transition-all duration-300">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
-              <div className="relative">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <span className="text-2xl">💎</span>
-                </div>
-                <h3 className="font-bold mb-2 text-foreground">Platinum Level</h3>
-                <p className="text-sm mb-3 text-muted-foreground">$1,000+ in support</p>
-                <div className="text-primary font-semibold">Ultimate Fan</div>
-              </div>
-            </div>
+                {filter.label}
+              </button>
+            ))}
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* CTA Section */}
-      <section className="py-24 relative overflow-hidden bg-gradient-to-br from-primary/10 via-background to-accent/10">
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,hsl(var(--primary)/0.3),transparent_70%)]"></div>
-        </div>
-        
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="text-6xl md:text-8xl mb-8 animate-pulse">🏆</div>
-          <h2 className="text-4xl md:text-6xl font-bold mb-8 text-foreground">
-            Ready to Become a Super Fan?
-          </h2>
-          <p className="text-xl md:text-2xl mb-12 max-w-3xl mx-auto text-muted-foreground">
-            Support your favorite racers and earn your place in the Super Fan Hall of Fame
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-6 justify-center">
-            <Link
-              to="/racers"
-              className="inline-flex items-center px-8 py-4 bg-primary text-primary-foreground font-semibold rounded-xl transition-all duration-300 text-lg shadow-xl hover:shadow-2xl hover:scale-105 border border-primary/20"
-            >
-              <Crown className="mr-3 h-6 w-6" />
-              Find Racers to Support
-              <Trophy className="ml-3 h-6 w-6" />
-            </Link>
-            <Link
-              to="/feed"
-              className="inline-flex items-center px-8 py-4 border-2 border-border bg-background text-foreground rounded-xl font-semibold transition-all duration-300 text-lg shadow-xl hover:shadow-2xl hover:scale-105 hover:bg-muted"
-            >
-              <Heart className="mr-3 h-6 w-6" />
-              Explore Racing Feed
-            </Link>
+      {/* Super Fans Content */}
+      <div className="p-4 lg:p-6">
+        <div className="max-w-6xl mx-auto">
+          {/* Top 3 Podium */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 mb-8 lg:mb-12">
+            {mockSuperFans.slice(0, 3).map((fan, index) => (
+              <div
+                key={fan.id}
+                className={`relative text-center ${index === 0 ? 'md:order-2' : index === 1 ? 'md:order-1' : 'md:order-3'}`}
+              >
+                <div className={`relative inline-block mb-4 ${index === 0 ? 'transform scale-110' : ''}`}>
+                  {/* Rank Badge */}
+                  <div className={`absolute -top-2 -right-2 w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                    index === 0 ? 'bg-yellow-500 text-yellow-900' :
+                    index === 1 ? 'bg-gray-400 text-gray-900' :
+                    'bg-amber-600 text-amber-900'
+                  }`}>
+                    {fan.rank}
+                  </div>
+                  
+                  <button className="block">
+                    <img
+                      src={fan.avatar}
+                      alt={fan.name}
+                      className={`rounded-2xl object-cover ring-4 transition-all duration-200 hover:scale-105 ${
+                        index === 0 ? 'w-20 h-20 lg:w-24 lg:h-24 ring-yellow-500' :
+                        index === 1 ? 'w-16 h-16 lg:w-20 lg:h-20 ring-gray-400' :
+                        'w-16 h-16 lg:w-20 lg:h-20 ring-amber-600'
+                      }`}
+                    />
+                  </button>
+
+                  {/* Streak Indicator */}
+                  {fan.streakDays > 30 && (
+                    <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full text-xs font-bold flex items-center space-x-1">
+                      <Flame className="w-2 h-2 lg:w-3 lg:h-3" />
+                      <span>{fan.streakDays}</span>
+                    </div>
+                  )}
+                </div>
+
+                <button className="block w-full text-center hover:bg-slate-900 rounded-xl p-2 lg:p-3 transition-all duration-200">
+                  <div className="flex items-center justify-center space-x-2 mb-1">
+                    <h3 className="font-bold text-white text-base lg:text-lg">{fan.name}</h3>
+                    {fan.verified && (
+                      <div className="w-3 h-3 lg:w-4 lg:h-4 bg-orange-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-slate-400 mb-2 text-sm">@{fan.username}</p>
+                  
+                  <div className="text-xl lg:text-2xl font-bold text-orange-500 racing-number mb-2">
+                    ${fan.totalSupport.toLocaleString()}
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-1 lg:gap-2 text-xs text-slate-400 mb-3">
+                    <div>
+                      <div className="text-white font-medium text-sm">{fan.supportedRacers}</div>
+                      <div>Racers</div>
+                    </div>
+                    <div>
+                      <div className="text-white font-medium text-sm">{fan.supportedTracks}</div>
+                      <div>Tracks</div>
+                    </div>
+                    <div>
+                      <div className="text-white font-medium text-sm">{fan.supportedSeries}</div>
+                      <div>Series</div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1 justify-center">
+                    {fan.badges.slice(0, 2).map((badge, badgeIndex) => (
+                      <span key={badgeIndex} className="px-1.5 lg:px-2 py-0.5 lg:py-1 bg-purple-500/20 text-purple-400 text-xs rounded-full">
+                        {badge}
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Full Leaderboard */}
+          <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+            <div className="p-6 border-b border-slate-800">
+              <h3 className="text-lg lg:text-xl font-bold text-white">Super Fan Leaderboard</h3>
+            </div>
+            
+            <div className="space-y-0">
+              {mockSuperFans.map((fan) => (
+                <button
+                  key={fan.id}
+                  className="w-full flex items-center justify-between p-4 lg:p-6 hover:bg-slate-800 transition-all duration-200 border-b border-slate-800 last:border-b-0"
+                >
+                  <div className="flex items-center space-x-3 lg:space-x-4 flex-1 min-w-0">
+                    {/* Rank */}
+                    <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center bg-slate-800 flex-shrink-0">
+                      {getRankIcon(fan.rank)}
+                    </div>
+
+                    {/* Avatar */}
+                    <div className="relative">
+                      <img
+                        src={fan.avatar}
+                        alt={fan.name}
+                        className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl object-cover ring-2 ring-slate-700 group-hover:ring-orange-500 transition-all duration-200"
+                      />
+                      {fan.streakDays > 30 && (
+                        <div className="absolute -top-1 -right-1 w-4 h-4 lg:w-5 lg:h-5 bg-red-500 rounded-full flex items-center justify-center">
+                          <Flame className="w-2 h-2 lg:w-3 lg:h-3 text-white" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="text-left flex-1 min-w-0">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-semibold text-white text-sm lg:text-base truncate">{fan.name}</span>
+                        {fan.verified && (
+                          <div className="w-3 h-3 lg:w-4 lg:h-4 bg-orange-500 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-white text-xs">✓</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-xs lg:text-sm text-slate-400 truncate">@{fan.username}</div>
+                      <div className="hidden lg:flex items-center space-x-3 text-xs text-slate-500 mt-1">
+                        <span>{fan.supportedRacers} racers</span>
+                        <span>{fan.supportedTracks} tracks</span>
+                        <span>{fan.supportedSeries} series</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="text-right flex-shrink-0">
+                    <div className="font-bold text-white racing-number text-base lg:text-lg">
+                      ${fan.totalSupport.toLocaleString()}
+                    </div>
+                    <div className="text-xs lg:text-sm text-green-400">
+                      +${fan.monthlySupport} this month
+                    </div>
+                    <div className="hidden lg:block text-xs text-slate-400 mt-1">
+                      {fan.streakDays} day streak
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Recognition Section */}
+          <div className="mt-8 lg:mt-12 bg-gradient-to-r from-orange-500/10 to-purple-500/10 rounded-2xl p-4 lg:p-8 border border-orange-500/20">
+            <div className="text-center">
+              <Crown className="w-10 h-10 lg:w-12 lg:h-12 text-orange-400 mx-auto mb-4" />
+              <h3 className="text-xl lg:text-2xl font-bold text-white mb-2">Become a Super Fan</h3>
+              <p className="text-slate-300 mb-4 lg:mb-6 max-w-2xl mx-auto text-sm lg:text-base">
+                Support your favorite racers, tracks, and series to climb the leaderboard and earn exclusive badges. 
+                The most dedicated fans get featured here and receive special recognition from the community.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:gap-4 max-w-2xl mx-auto">
+                <div className="bg-slate-800 rounded-lg p-3 lg:p-4 text-center">
+                  <TrendingUp className="w-5 h-5 lg:w-6 lg:h-6 text-green-400 mx-auto mb-2" />
+                  <div className="text-white font-medium text-sm lg:text-base">Tip Racers</div>
+                  <div className="text-slate-400 text-xs lg:text-sm">Show direct support</div>
+                </div>
+                <div className="bg-slate-800 rounded-lg p-3 lg:p-4 text-center">
+                  <Users className="w-5 h-5 lg:w-6 lg:h-6 text-blue-400 mx-auto mb-2" />
+                  <div className="text-white font-medium text-sm lg:text-base">Subscribe</div>
+                  <div className="text-slate-400 text-xs lg:text-sm">Get exclusive content</div>
+                </div>
+                <div className="bg-slate-800 rounded-lg p-3 lg:p-4 text-center">
+                  <Flame className="w-5 h-5 lg:w-6 lg:h-6 text-red-400 mx-auto mb-2" />
+                  <div className="text-white font-medium text-sm lg:text-base">Stay Active</div>
+                  <div className="text-slate-400 text-xs lg:text-sm">Build your streak</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </section>
+      </div>
     </div>
   );
 };
