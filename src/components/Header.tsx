@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Search, Bell, User, Tv, Trophy, Home, Users, Settings, Flag, Menu, X, Sun, Moon, Trash2, Crown, Video, Target, LayoutDashboard, MapPin, Compass, BarChart3, Calendar, DollarSign, MessageSquare, Heart, Clock, Gauge, Award } from 'lucide-react';
+import { Search, Bell, User, Tv, Trophy, Home, Users, Settings, Flag, Menu, X, Sun, Moon, Trash2, Crown, Video, Target, LayoutDashboard, MapPin, Compass, BarChart3, Calendar, DollarSign, MessageSquare, Heart, Clock, Gauge, Award, LogOut } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { AuthModal } from './auth/AuthModal';
@@ -697,19 +697,24 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
                           }}
                           className={`flex items-center space-x-3 px-4 py-3 text-sm font-medium transition-colors hover:bg-gray-100/10 cursor-pointer`}
                         >
-                          <Settings className="h-4 w-4" />
+                          <LayoutDashboard className="h-4 w-4" />
                           <span>Dashboard</span>
                         </div>
                         
                         <div
                           onClick={() => {
                             setShowProfileMenu(false);
-                            onViewChange('profile');
+                            onViewChange(
+                              user.user_type === 'FAN' ? 'fan-dashboard' :
+                              user.user_type === 'RACER' ? 'dashboard' :
+                              user.user_type === 'TRACK' ? 'track-dashboard' :
+                              user.user_type === 'SERIES' ? 'series-dashboard' : 'profile'
+                            );
                           }}
                           className={`flex items-center space-x-3 px-4 py-3 text-sm font-medium transition-colors hover:bg-gray-100/10 cursor-pointer`}
                         >
-                          <User className="h-4 w-4" />
-                          <span>Edit Profile</span>
+                          <Settings className="h-4 w-4" />
+                          <span>Profile</span>
                         </div>
                         
                         <button
@@ -718,7 +723,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
                             theme === 'dark' ? 'text-red-400 hover:bg-gray-800 hover:text-red-300' : 'text-red-600 hover:bg-gray-100'
                           }`}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <LogOut className="h-4 w-4" />
                           <span>Logout</span>
                         </button>
                       </div>
@@ -903,14 +908,19 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
                     <div
                       onClick={() => {
                         setShowProfileMenu(false);
-                        onViewChange('profile');
+                        onViewChange(
+                          user.user_type === 'FAN' ? 'fan-dashboard' :
+                          user.user_type === 'RACER' ? 'dashboard' :
+                          user.user_type === 'TRACK' ? 'track-dashboard' :
+                          user.user_type === 'SERIES' ? 'series-dashboard' : 'profile'
+                        );
                       }}
                       className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer ${
                         theme === 'dark' ? 'text-gray-300 hover:text-white hover:bg-gray-800/80 hover:shadow-md' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100/80 hover:shadow-md'
                       }`}
                     >
-                      <User className="h-5 w-5" />
-                      <span>Edit Profile</span>
+                      <Settings className="h-5 w-5" />
+                      <span>Settings</span>
                     </div>
                     
                     <button

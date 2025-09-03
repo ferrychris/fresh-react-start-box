@@ -1,816 +1,719 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { Share2, Calendar, MapPin, Users, Image, UserPlus, UserCheck, Loader2 } from 'lucide-react';
-import { useApp } from '../contexts/AppContext';
-import type { Racer } from '../types';
-import { SuperFanBadge } from '../components/SuperFanBadge';
-import { SupabaseImageUpload } from '../components/SupabaseImageUpload';
-import { PostCreator } from '../components/PostCreator';
-import { PostCard, type Post } from '../components/PostCard';
-import { TipModal } from '../components/TipModal';
-import { SubscriptionModal } from '../components/SubscriptionModal';
-import { GiftModal } from '../components/GiftModal';
-import { ShareModal } from '../components/ShareModal';
-import { DynamicMetaTags } from '../components/DynamicMetaTags';
-import { LiveStreamIndicator } from '../components/LiveStreamIndicator';
-import { 
-  supabase,
-  updateRacerProfile,
-  getRacerPosts,
-  becomeFan,
-  unfollowRacer,
-  checkFanStatus,
-  getRacerFanStats,
-  getRacerFans,
-  type FanStats,
-  type RacerFan
-} from '../lib/supabase';
+import React, { useState, useEffect } from 'react';
+import { Calendar, MapPin, Users, Heart, Trophy, ExternalLink, Crown, DollarSign } from 'lucide-react';
+import { EditProfile } from './EditProfile';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
-// Define specific types for data structures
+// Fallback theme classes to replace missing useThemeClasses hook
+const fallbackTheme = {
+  bg: { primary: 'bg-slate-950' },
+  text: { primary: 'text-white', secondary: 'text-slate-400', tertiary: 'text-slate-500' },
+  button: { secondary: 'bg-slate-800 text-white hover:bg-slate-700' },
+};
 
-export interface ScheduleEvent {
-  id: number;
-  event_name: string;
-  track_name: string;
-  date: string;
-  series_name: string;
-  race_date: string;
+// Fallback for real-time stats hook
+function useRealTimePerformanceStatsStub(_userId: string) {
+  return {
+    stats: { subscribers: 0, tips: 0 },
+    trackEvent: () => {},
+    addFollower: () => {},
+    addSubscriber: () => {},
+    addTip: () => {},
+  } as const;
 }
 
-export interface ViewEvent {
-  day_date: string;
+// Mock data for fallback when user data is not available
+const mockRacer = {
+  bio: "Professional racer with years of experience on the track. Passionate about motorsports and connecting with fans.",
+  carNumber: "42",
+  racingClass: "Pro Stock",
+  team: "Thunder Racing",
+  region: "Southeast",
+  posts: 0,
+  followers: 0,
+  subscribers: 0,
+  totalTips: 0,
+  verified: false,
+  upcomingRaces: [
+    {
+      id: '1',
+      name: 'Spring Championship',
+      track: 'Speedway International',
+      date: '2024-03-15T19:00:00Z'
+    },
+    {
+      id: '2',
+      name: 'Summer Series Round 1',
+      track: 'Thunder Valley Raceway',
+      date: '2024-04-20T18:30:00Z'
+    }
+  ],
+  subscriptionTiers: [
+    {
+      id: '1',
+      name: '🏎️ Fan',
+      price: 9.99,
+      subscribers: 0,
+      perks: ['Exclusive updates', 'Behind-the-scenes content', 'Shout-outs on the public feed'],
+      buttonText: 'Join the Team'
+    },
+    {
+      id: '2',
+      name: '🔥 Supporter',
+      price: 19.99,
+      subscribers: 0,
+      perks: ['All Fan perks', 'Live race commentary', 'Access to racer Q&A', 'Early access to race results/photos'],
+      buttonText: 'Back Your Racer'
+    },
+    {
+      id: '3',
+      name: '🏆 VIP',
+      price: 39.99,
+      subscribers: 0,
+      perks: ['All Supporter perks', 'Exclusive video messages from the racer', 'Special race-day insights', 'Digital autograph/photo card'],
+      buttonText: 'Get the VIP Experience'
+    },
+    {
+      id: '4',
+      name: '👑 Champion',
+      price: 99.99,
+      subscribers: 0,
+      perks: ['All VIP perks', '1-on-1 video call or meet & greet (virtual)', 'Race strategy & behind-the-pit updates', 'Your name featured on racer\'s supporter wall'],
+      buttonText: 'Become a Champion'
+    }
+  ]
+};
+
+interface RacerProfileProps {
+  racerId: string;
 }
 
-export const RacerProfile: React.FC = () => {
-  const { id } = useParams();
-  const { racers, racersLoading, user } = useApp();
+const RacerProfile: React.FC<RacerProfileProps> = ({ racerId }) => {
+  const [activeTab, setActiveTab] = useState<'feed' | 'about' | 'schedule' | 'sponsors' | 'racing-info' | 'sponsorship-slots'>('feed');
+ const [isFan, setIsFan] = useState(false);
+ const [fanCount, setFanCount] = useState(0);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const { user, isAuthenticated, subscribeToUserUpdates } = useAuth();
+  const theme = useThemeClasses();
+  const [profileUser, setProfileUser] = useState<any | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   
-  // All useState hooks first
-  const [activeTab, setActiveTab] = useState('posts');
-  const [fanStats, setFanStats] = useState<FanStats>({ total_fans: 0, super_fans: 0 });
-  const [isFan, setIsFan] = useState(false);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [postsLoading, setPostsLoading] = useState(false);
-  const [showTipModal, setShowTipModal] = useState(false);
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const [showGiftModal, setShowGiftModal] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [schedule, setSchedule] = useState<ScheduleEvent[]>([]);
-  const [scheduleLoading, setScheduleLoading] = useState(false);
-  const [carPhotos, setCarPhotos] = useState<string[]>([]);
-  const [isSuperfan, setIsSuperfan] = useState(false);
-  const [fans, setFans] = useState<RacerFan[]>([]);
+  // Use current user if racerId is 'current-user'
+  const actualRacerId = racerId === 'current-user' ? user?.id || racerId : racerId;
+  const { stats: realTimeStats, trackEvent, addFollower, addSubscriber, addTip } = useRealTimePerformanceStats(actualRacerId);
   
-  const racer = racers.find(r => r.id === id);
+  const [sponsorshipSlots, setSponsorshipSlots] = useState([
+    {
+      id: '1',
+      title: 'Hood Center Placement',
+      description: 'Prime visibility on the hood center for maximum exposure during races and media coverage.',
+      price: 750,
+      duration: 'per-race' as const,
+      category: 'Hood',
+      isActive: true,
+      isPublic: true,
+      imageUrl: 'https://images.pexels.com/photos/358070/pexels-photo-358070.jpeg?auto=compress&cs=tinysrgb&w=400&h=300&dpr=2',
+      inquiries: 3,
+      createdAt: '2024-01-15T10:00:00Z',
+      updatedAt: '2024-02-01T14:30:00Z'
+    },
+    {
+      id: '2',
+      title: 'Side Panel Sponsorship',
+      description: 'Highly visible side panel placement perfect for brand recognition and social media content.',
+      price: 500,
+      duration: 'per-race' as const,
+      category: 'Side Panel',
+      isActive: true,
+      isPublic: true,
+      inquiries: 1,
+      createdAt: '2024-01-20T09:00:00Z',
+      updatedAt: '2024-01-20T09:00:00Z'
+    }
+  ]);
 
+  const isOwnProfile = racerId === 'current-user' || user?.id === racerId;
+  const isNewProfile = isOwnProfile && (!user?.avatar || !user?.bio);
+
+  // View proxy: use context user for own profile, fetched profile for others
+  const viewUser = isOwnProfile ? user : profileUser;
+
+  // Fetch viewed racer's profile when not own profile
   useEffect(() => {
-    if (racer?.car_photos) {
-      setCarPhotos(racer.car_photos);
-    }
-  }, [racer]);
-
-  // Handle and aggregate stats for UI chips
-  const handle = racer
-    ? '@' + (((racer as { username?: string }).username as string) || racer.name.toLowerCase().replace(/\s+/g, ''))
-    : '';
-  
-  // Check if racers data is still loading
-  const isRacersLoading = racersLoading;
-
-  // Load posts function
-  const loadPosts = useCallback(async () => {
-    if (!id) return;
-    
-    // Check if Supabase is configured
-    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-      console.warn('⚠️ Supabase not configured - using empty posts array');
-      setPosts([]);
-      return;
-    }
-    
-    setPostsLoading(true);
-    try {
-            const racerPosts = await getRacerPosts(id as string, user?.id) as unknown as Post[];
-      setPosts(racerPosts);
-    } catch (error) {
-      // Handle network errors gracefully
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        console.warn('⚠️ Network error loading posts - database may be unavailable');
-        setPosts([]);
-      } else {
-        console.error('Error loading posts:', error);
-        setPosts([]);
-      }
-    } finally {
-      setPostsLoading(false);
-    }
-  }, [id, user?.id]);
-
-  // Load fans function
-  const loadFans = useCallback(async () => {
-    if (!id) return;
-    try {
-      const fanData = await getRacerFans(id);
-      setFans(fanData);
-    } catch (error) {
-      console.error('Error loading fans:', error);
-      setFans([]);
-    }
-  }, [id]);
-
-  // Load last 14 days of view events for owner sparkline
-
-  // Helper: record unique-per-day view in events table
-  // Only counts when an authenticated non-owner viewer is present
-  const recordProfileView = useCallback(async (profileId: string, viewerId?: string) => {
-    if (!profileId) return;
-    // Require an authenticated viewer and skip self-views
-    if (!viewerId || viewerId === profileId) return;
-    try {
-      if (!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)) return;
-      // Upsert into events table using per-day unique key (profile_id, viewer_id, day_date)
-      const ua = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
-      if (import.meta.env.VITE_VIEW_TRACKING_DEBUG === 'true') {
-        console.info('[views] recording attempt', { profileId, viewerId });
-      }
-      const { error: upsertErr } = await supabase
-        .from('profile_view_events')
-        .upsert(
-          [{ profile_id: profileId, viewer_id: viewerId, user_agent: ua }],
-          { onConflict: 'profile_id,viewer_id,day_date', ignoreDuplicates: true }
-        );
-      if (!upsertErr) {
-        if (import.meta.env.VITE_VIEW_TRACKING_DEBUG === 'true') {
-          console.info('[views] profile_view_events upsert ok');
-        }
-      } else {
-        console.warn('⚠️ Failed to upsert profile_view_events, falling back to legacy profile_views:', upsertErr);
-        // Fallback: increment legacy aggregate table if it exists
-        try {
-          const { data, error: selErr } = await supabase
-            .from('profile_views')
-            .select('view_count')
-            .eq('profile_id', profileId)
-            .maybeSingle();
-          if (selErr) throw selErr;
-          if (data) {
-            const next = (data.view_count || 0) + 1;
-            const { error: updErr } = await supabase
-              .from('profile_views')
-              .update({ view_count: next })
-              .eq('profile_id', profileId);
-            if (updErr) console.warn('⚠️ Legacy profile_views update failed:', updErr);
-          } else {
-            const { error: insErr } = await supabase
-              .from('profile_views')
-              .insert([{ profile_id: profileId, view_count: 1 }]);
-            if (insErr) console.warn('⚠️ Legacy profile_views insert failed:', insErr);
+    const fetchProfile = async () => {
+      if (!racerId || isOwnProfile) return;
+      setLoadingProfile(true);
+      setProfileError(null);
+      try {
+        const { data: base, error: baseErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', racerId)
+          .single();
+        if (baseErr) throw baseErr;
+        let merged: any = base || {};
+        if (base?.role === 'RACER') {
+          const { data: rp, error: rpErr } = await supabase
+            .from('racer_profiles')
+            .select('*')
+            .eq('user_id', racerId)
+            .single();
+          if (rpErr && rpErr.code !== 'PGRST116') throw rpErr; // ignore not found
+          if (rp) {
+            merged = {
+              ...merged,
+              carNumber: rp.car_number,
+              racingClass: rp.racing_class,
+              team: rp.team,
+              region: rp.region,
+              phone: rp.phone,
+              address: rp.address,
+              city: rp.city,
+              state: rp.state,
+              zipCode: rp.zip_code,
+              showContactForSponsorship: rp.show_contact_for_sponsorship,
+            };
           }
-        } catch (fallbackErr) {
-          console.warn('⚠️ Legacy profile_views fallback not available:', fallbackErr);
         }
+        setProfileUser(merged);
+      } catch (e: any) {
+        setProfileError(e?.message || 'Failed to load profile');
+      } finally {
+        setLoadingProfile(false);
       }
-    } catch (e) {
-      console.error('Error recording profile view:', e);
-    }
-  }, []);
+    };
+    fetchProfile();
+  }, [racerId, isOwnProfile]);
 
-  const hasRecordedViewRef = React.useRef(false);
-  const hasInteractedRef = React.useRef(false);
-  const timerRef = React.useRef<number | null>(null);
+ // Initialize fan count to start from zero
+ useEffect(() => {
+   setFanCount(0);
+ }, []);
 
+ // Handle becoming a fan with real-time updates
+ const handleBecomeFan = () => {
+   if (isFan) {
+     // Unfan
+     setIsFan(false);
+     setFanCount(prev => prev - 1);
+   } else {
+     // Become a fan
+     setIsFan(true);
+     setFanCount(prev => prev + 1);
+     
+     // Track the new follower event in database
+     addFollower();
+     
+     // Simulate real-time fan increase
+     setTimeout(() => {
+       setFanCount(prev => prev + Math.floor(Math.random() * 3) + 1);
+       addFollower();
+     }, 2000);
+   }
+ };
+  // Subscribe to real-time updates for this user
   useEffect(() => {
-    if (!id) return;
-    // Only track authenticated non-owner viewers
-    if (!user?.id || user.id === id) return;
-
-    const debug = import.meta.env.VITE_VIEW_TRACKING_DEBUG === 'true';
-    if (debug) {
-      // Consider interaction satisfied in debug mode for quicker testing
-      hasInteractedRef.current = true;
+    if (actualRacerId) {
+      const unsubscribe = subscribeToUserUpdates(actualRacerId);
+      return unsubscribe;
     }
-
-    const clearTimer = () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-
-    const startTimer = () => {
-      clearTimer();
-      timerRef.current = window.setTimeout(() => {
-        if (document.visibilityState === 'visible' && hasInteractedRef.current && !hasRecordedViewRef.current) {
-          recordProfileView(id, user.id);
-          hasRecordedViewRef.current = true;
-        }
-      }, 5000); // 5 seconds
-    };
-
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        startTimer();
-      } else {
-        clearTimer();
-      }
-    };
-
-    const onScroll = () => { hasInteractedRef.current = true; };
-    const onClick = () => { hasInteractedRef.current = true; };
-
-    startTimer();
-    document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('click', onClick, { passive: true });
-
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('click', onClick);
-      clearTimer();
-    };
-  }, [id, user?.id, recordProfileView]);
-
-  const loadFanData = useCallback(async () => {
-    if (!user || !id) return;
-    
-    try {
-      // Check if Supabase is configured before making requests
-      if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-        console.warn('⚠️ Supabase not configured - using default fan data');
-        setFanStats({ total_fans: 0, super_fans: 0 });
-        setIsFan(false);
-        return;
-      }
-
-      // Check if current user is a fan
-      const fanStatus = await checkFanStatus(user.id, id);
-      setIsFan(!!fanStatus);
-      setIsSuperfan(fanStatus?.is_superfan || false);
+  }, [actualRacerId, subscribeToUserUpdates]);
+  // Auto-open edit profile for new users - immediate
+  React.useEffect(() => {
+    if (isOwnProfile && isAuthenticated && user) {
+      console.log('🔧 Checking if profile setup needed...', { 
+        hasAvatar: !!user.avatar, 
+        hasBio: !!user.bio, 
+        hasCarNumber: !!user.carNumber 
+      });
       
-      // Load fan statistics
-      const fanStatsData = await getRacerFanStats(id);
-      setFanStats(fanStatsData);
-    } catch (error) {
-      // Handle network errors gracefully
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        console.warn('⚠️ Network error loading fan data - database may be unavailable');
-        setFanStats({ total_fans: 0, super_fans: 0 });
-        setIsFan(false);
-      } else {
-        console.error('Error loading fan data:', error);
-        setFanStats({ total_fans: 0, super_fans: 0 });
-        setIsFan(false);
+      // Open edit immediately for new profiles
+      const needsSetup = !user.avatar || !user.bio || !user.carNumber;
+      if (needsSetup) {
+        console.log('🚀 Opening profile setup immediately!');
+        setShowEditProfile(true);
       }
     }
-  }, [id, user]);
+  }, [isOwnProfile, isAuthenticated, user]);
 
-
-  const handleCarPhotoAdded = async (imageUrl: string) => {
-    if (!id) return;
-    const next = [...carPhotos, imageUrl];
-    setCarPhotos(next);
-    try {
-      await updateRacerProfile(id, { car_photos: next });
-    } catch (err) {
-      console.error('Failed to save car photo:', err);
-      // Revert optimistic update if saving fails
-      setCarPhotos(carPhotos);
-      alert('Failed to save car photo. Please try again.');
-    }
-  };
-  
-  // Set uploaded image as the banner (first car photo)
-  const handleCarBannerChange = async (imageUrl: string) => {
-    if (!id) return;
-    const deduped = (carPhotos || []).filter(p => p && p !== imageUrl);
-    const next = [imageUrl, ...deduped];
-    setCarPhotos(next);
-    try {
-      await updateRacerProfile(id, { car_photos: next });
-    } catch (err) {
-      console.error('Failed to set banner car photo:', err);
-      setCarPhotos(carPhotos);
-      alert('Failed to update cover photo. Please try again.');
-    }
-  };
-
-  const loadSchedule = useCallback(async () => {
-    if (!id) return;
-    
-    // Check if Supabase is configured
-    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-      console.warn('⚠️ Supabase not configured - using empty schedule array');
-      setSchedule([]);
-      return;
-    }
-    
-    setScheduleLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('race_schedules')
-        .select('*')
-        .eq('racer_id', id)
-        .gte('event_date', new Date().toISOString().split('T')[0])
-        .order('event_date', { ascending: true });
-      
-      if (error) {
-        // Handle specific database errors gracefully
-        if (error.code === 'PGRST002' || error.message?.includes('schema cache') || error.message?.includes('Failed to fetch') || error.code === '57014') {
-          console.warn('⚠️ Database temporarily unavailable - using empty schedule array');
-          setSchedule([]);
-          return;
-        }
-        throw error;
-      }
-      
-      setSchedule(data || []);
-    } catch (error) {
-      // Handle network errors gracefully
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        console.warn('⚠️ Network error loading schedule - database may be unavailable');
-      } else {
-        console.error('Error loading schedule:', error);
-      }
-      setSchedule([]);
-    } finally {
-      setScheduleLoading(false);
-    }
-  }, [id]);
-
-  const handleBecomeFan = async () => {
-    if (!user || !id) return;
-    
-    // Check if Supabase is configured
-    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-      alert('⚠️ Database not configured yet. Please set up Supabase environment variables to enable fan features.');
-      return;
-    }
-    
-    try {
-      if (isFan) {
-        await unfollowRacer(user.id, id);
-        setIsFan(false);
-        setFanStats(prev => ({ ...prev, total_fans: prev.total_fans - 1 }));
-      } else {
-        await becomeFan(user.id, id);
-        setIsFan(true);
-        setFanStats(prev => ({ ...prev, total_fans: prev.total_fans + 1 }));
-      }
-      
-      // Refresh fan data to ensure consistency
-      const updatedStats = await getRacerFanStats(id);
-      setFanStats(updatedStats);
-    } catch (error) {
-      // Handle network errors gracefully
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        console.warn('⚠️ Network error updating fan status - database may be unavailable');
-        alert('Unable to connect to database. Please check your internet connection and try again.');
-      } else {
-        console.error('Error updating fan status:', error);
-        alert('Failed to update fan status. Please try again.');
-      }
-    }
-  };
-
-  useEffect(() => {
-    loadFanData();
-
-    if (id) {
-      if (activeTab === 'posts') loadPosts();
-      if (activeTab === 'schedule') loadSchedule();
-      if (activeTab === 'fans') loadFans();
-    }
-  }, [activeTab, id, user, loadPosts, loadSchedule, loadFans, loadFanData]);
-
-  const handleSubscriptionComplete = () => {
-    // After a successful subscription, refresh fan data to reflect the new status
-    loadFanData();
-    setShowSubscriptionModal(false);
-  };
-
-  // Early return after all hooks have been called
-  if (isRacersLoading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-fedex-orange border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <h2 className="text-2xl font-bold text-white mb-2">Loading Racer Profile</h2>
-          <p className="text-gray-400">
-            Please wait while we load the racer's information...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!racer) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-white text-2xl">!</span>
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Racer Not Found</h2>
-          <p className="text-gray-400 mb-6">
-            The racer you're looking for doesn't exist or has been removed.
-          </p>
-          <Link
-            to="/racers"
-            className="inline-flex items-center px-6 py-3 bg-fedex-orange hover:bg-fedex-orange-dark rounded-lg font-semibold transition-colors"
-          >
-            Back to Racers
-          </Link>
-        </div>
-      </div>
-    );
-  }
-  // Decide cover image: prefer first car photo, then racer.bannerImage, then default
-  const coverImage = (carPhotos[0] && carPhotos[0].trim() !== '')
-    ? carPhotos[0]
-    : (racer.bannerImage && racer.bannerImage.trim() !== '')
-    ? racer.bannerImage
-    : 'https://images.pexels.com/photos/2449543/pexels-photo-2449543.jpeg?auto=compress&cs=tinysrgb&w=1920';
+  const tabs = [
+    { id: 'feed' as const, label: 'Feed', count: mockRacer.posts },
+    { id: 'racing-info' as const, label: 'Racing Info' },
+    { id: 'schedule' as const, label: 'Schedule', count: 0 },
+    { id: 'sponsors' as const, label: 'Sponsors', count: 0 },
+    { id: 'sponsorship-slots' as const, label: 'Car Sponsorships', count: 2 }
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 text-white">
-      {/* Dynamic Meta Tags for Social Sharing */}
-      {racer && (
-        <DynamicMetaTags
-          title={`${racer.name} - Racing Profile | OnlyRaceFans`}
-          description={racer.bio || `Support ${racer.name} and get exclusive racing content! #${racer.carNumber} ${racer.class} from ${racer.location}.`}
-          image={racer.profile_picture || `https://api.dicebear.com/7.x/initials/svg?seed=${racer.name}&backgroundColor=ff6600&textColor=ffffff&size=1200`}
-          url={`${window.location.origin}/racer/${racer.id}`}
-          type="profile"
-        />
+    <div className={`min-h-screen ${theme.bg.primary}`}>
+      {/* Loading / Error states for viewed profiles */}
+      {!isOwnProfile && (
+        <div className="px-6 pt-6">
+          {loadingProfile && (
+            <div className="text-center text-slate-400">Loading racer profile…</div>
+          )}
+          {profileError && (
+            <div className="text-center text-red-400">{profileError}</div>
+          )}
+        </div>
       )}
-
-      {/* Hero Section */}
-      <div className="relative h-80 md:h-96 lg:h-[32rem] overflow-hidden">
+      {/* If viewing another racer and data not yet loaded, avoid rendering rest */}
+      {(!isOwnProfile && (loadingProfile || (!viewUser && !profileError))) ? null : (
+        <>
+      {/* Profile Banner */}
+      <div className="relative">
         <div 
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${coverImage})` }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent" />
-        
-        {user && user.id === racer.id && (
-          <div className="absolute top-6 left-6 z-10 max-w-xs">
-            <SupabaseImageUpload
-              type="banner"
-              currentImage={carPhotos[0] || ''}
-              userId={user.id}
-              onImageChange={handleCarBannerChange}
-              titleOverride="Update Car Cover"
-              descriptionOverride="Upload a wide car photo for your profile cover."
-            />
-          </div>
-        )}
-        
-        <div className="absolute top-6 right-6">
-          <LiveStreamIndicator streamerId={racer.id} />
+          className="h-64 lg:h-80 bg-cover bg-center track-texture"
+          style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url(${viewUser?.coverPhoto || 'https://images.pexels.com/photos/358070/pexels-photo-358070.jpeg?auto=compress&cs=tinysrgb&w=1200&h=400&dpr=2'})` }}
+        >
+          <div className={`absolute inset-0 bg-gradient-to-t via-transparent to-transparent ${theme.bg.primary.replace('bg-', 'from-')}`} />
+          
+          {/* New Profile Setup Overlay */}
+          {isNewProfile && (
+            <div className="absolute inset-0 bg-orange-500/20 backdrop-blur-sm flex items-center justify-center">
+              <div className="text-center text-white">
+                <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">🏁</span>
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Welcome to OnlyRaceFans!</h2>
+                <p className="text-lg opacity-90">Let's set up your racing profile</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 text-white">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center">
-            <div className="relative mb-4 md:mb-0 md:mr-8 flex-shrink-0">
-              <img 
-                src={racer.profile_picture || `https://api.dicebear.com/7.x/initials/svg?seed=${racer.name}&backgroundColor=222222&textColor=ffffff&size=128`}
-                alt={racer.name}
-                className="w-32 h-32 md:w-48 md:h-48 rounded-full border-4 border-gray-800 object-cover bg-gray-700 shadow-2xl"
+        {/* Profile Info Overlay */}
+        <div className="absolute bottom-0 left-0 right-0 p-6">
+          <div className="flex flex-col md:flex-row items-start md:items-end space-y-4 md:space-y-0 md:space-x-6">
+            {/* Avatar */}
+            <div className="relative">
+              <img
+                src={viewUser?.avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2'}
+                alt={viewUser?.name || 'User'}
+                className="w-24 h-24 rounded-2xl border-4 border-white shadow-xl object-cover"
               />
-              {isSuperfan && (
-                <div className="absolute -top-2 -right-2">
-                  <SuperFanBadge />
+              {viewUser?.verified && (
+                <div className="absolute -top-2 -right-2 w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center border-2 border-white shadow-lg">
+                  <span className="text-white text-sm">✓</span>
+                </div>
+              )}
+              {isNewProfile && (
+                <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center border-2 border-white shadow-lg animate-pulse">
+                  <span className="text-white text-sm">+</span>
                 </div>
               )}
             </div>
-            <div className="flex-grow text-center md:text-left">
-              <h1 className="text-4xl md:text-6xl font-bold tracking-tighter leading-tight">{racer.name}</h1>
-              <p className="text-lg text-gray-300">{handle}</p>
+
+            {/* Info */}
+            <div className="flex-1">
+              <div className="flex items-center space-x-3 mb-2">
+                <h1 className={`text-3xl font-bold ${theme.text.primary}`}>{viewUser?.name || 'Your Name'}</h1>
+                <span className="racing-number text-2xl text-orange-500">#{viewUser?.carNumber || '00'}</span>
+              </div>
+              <div className={`flex items-center space-x-4 ${theme.text.secondary} mb-3`}>
+                <span>@{viewUser?.username || 'username'}</span>
+                <span>•</span>
+                <span>{viewUser?.racingClass || 'Racing Class'}</span>
+                <span>•</span>
+                <span className="flex items-center space-x-1">
+                  <MapPin className="w-4 h-4" />
+                  <span>{viewUser?.region || 'Region'}</span>
+                </span>
+              </div>
+
+              {/* Stats */}
+              <div className="flex items-center space-x-6 text-sm">
+                <div className="flex items-center space-x-1">
+                  <Users className={`w-4 h-4 ${theme.text.tertiary}`} />
+                  <span className={`${theme.text.primary} font-medium`}>{fanCount.toLocaleString()}</span>
+                  <span className={theme.text.tertiary}>fans</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Crown className="w-4 h-4 text-orange-500" />
+                  <span className={`${theme.text.primary} font-medium`}>{realTimeStats.subscribers.toLocaleString()}</span>
+                  <span className={theme.text.tertiary}>loyal fans</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Heart className="w-4 h-4 text-red-500" />
+                  <span className={`${theme.text.primary} font-medium`}>${realTimeStats.tips.toLocaleString()}</span>
+                  <span className={theme.text.tertiary}>total tips</span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center space-x-4 mt-6 md:mt-0">
-              <button onClick={() => setShowShareModal(true)} className="p-3 bg-gray-800/80 rounded-full hover:bg-gray-700 transition-colors">
-                <Share2 className="w-6 h-6" />
-              </button>
-              {user && user.id !== id && (
-                <button onClick={handleBecomeFan} className={`px-6 py-3 rounded-lg font-semibold transition-colors flex items-center space-x-2 ${isFan ? 'bg-gray-700 hover:bg-gray-600' : 'bg-fedex-orange hover:bg-fedex-orange-dark'}`}>
-                  {isFan ? <UserCheck className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
-                  <span>{isFan ? 'Fan' : 'Become a Fan'}</span>
+
+            {/* Actions */}
+            <div className="flex items-center space-x-3">
+              {isOwnProfile ? (
+                <button
+                  onClick={() => setShowEditProfile(true)}
+                  className={`px-6 py-3 text-white rounded-xl font-medium hover:scale-105 transition-all duration-200 ${
+                    isNewProfile 
+                      ? 'bg-green-500 hover:bg-green-600 animate-pulse shadow-lg shadow-green-500/30' 
+                      : 'bg-orange-500 hover:bg-orange-600'
+                  }`}
+                >
+                  {isNewProfile ? '🚀 Complete Profile Setup' : 'Edit Profile'}
                 </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleBecomeFan}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 text-sm ${
+                      isFan
+                        ? `${theme.button.secondary}`
+                        : 'bg-orange-500 text-white hover:bg-orange-600 hover:scale-105'
+                    }`}
+                  >
+                    <Users className="w-3 h-3" />
+                    <span>{isFan ? 'Fan' : 'Become a Fan'}</span>
+                    {isFan && <span className="text-orange-300">✓</span>}
+                  </button>
+                  <button 
+                    onClick={() => addTip(5)}
+                   className="px-4 py-2.5 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 hover:scale-105 transition-all duration-200 text-sm flex items-center space-x-1 shadow-lg shadow-green-500/30"
+                  >
+                    <DollarSign className="w-3 h-3" />
+                    <span>$5</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setActiveTab('racing-info');
+                      // Scroll to subscription tiers section
+                      setTimeout(() => {
+                        const tiersSection = document.querySelector('[data-section="subscription-tiers"]');
+                        if (tiersSection) {
+                          tiersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                      }, 100);
+                    }}
+                   className="px-4 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 hover:scale-105 transition-all duration-200 text-sm flex items-center space-x-1 shadow-lg shadow-blue-500/30"
+                  >
+                    <Crown className="w-3 h-3" />
+                   <span>Join the Team</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column (About & Stats) */}
-          <div className="lg:col-span-1 space-y-8">
-            <div className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-6 border border-gray-800/50">
-              <h2 className="text-2xl font-bold mb-4">About {racer.name}</h2>
-              <p className="text-gray-300 whitespace-pre-wrap">{racer.bio || 'No bio available.'}</p>
-            </div>
-            <div className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-6 border border-gray-800/50">
-              <h2 className="text-2xl font-bold mb-4">Stats</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center"><div className="text-3xl font-bold text-fedex-orange">{fanStats.total_fans}</div><div className="text-gray-400">Fans</div></div>
-                <div className="text-center"><div className="text-3xl font-bold text-purple-400">{fanStats.super_fans}</div><div className="text-gray-400">Super Fans</div></div>
-                <div className="text-center"><div className="text-3xl font-bold">{racer.career_wins || 0}</div><div className="text-gray-400">Wins</div></div>
-                <div className="text-center"><div className="text-3xl font-bold">{racer.podiums || 0}</div><div className="text-gray-400">Podiums</div></div>
-              </div>
+      {/* Navigation Tabs */}
+      <div className={`${theme.bg.secondary} border-b ${theme.border.primary} sticky top-16 z-30`}>
+        <div className="flex space-x-2 lg:space-x-8 px-3 lg:px-6 overflow-x-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center space-x-1 lg:space-x-2 px-2 lg:px-1 py-3 lg:py-4 border-b-2 font-medium transition-all duration-200 whitespace-nowrap text-sm lg:text-base ${
+                activeTab === tab.id
+                  ? 'border-transparent text-orange-500 bg-orange-500/10'
+                  : `border-transparent ${theme.text.tertiary} hover:${theme.text.primary}`
+              }`}
+            >
+              <span>{tab.label}</span>
+              {tab.count !== undefined && (
+                <span className={`${theme.bg.tertiary} ${theme.text.secondary} px-1.5 lg:px-2 py-0.5 rounded-full text-xs`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      <div className="p-6">
+        {activeTab === 'feed' && (
+          <div className="max-w-4xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Sample posts */}
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className={`aspect-square ${theme.bg.tertiary} rounded-xl overflow-hidden group cursor-pointer`}>
+                  <img
+                    src={`https://images.pexels.com/photos/${35807 + index * 100}/pexels-photo-${35807 + index * 100}.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&dpr=2`}
+                    alt="Post"
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                  />
+                </div>
+              ))}
             </div>
           </div>
+        )}
 
-          {/* Right Column (Tabs & Content) */}
-          <div className="lg:col-span-2 space-y-8">
-            <div className="bg-gray-900/80 backdrop-blur-sm rounded-2xl p-2 border border-gray-800/50">
-              <div className="flex space-x-1">
-                {['posts', 'fans', 'schedule', 'about'].map(tab => (
-                  <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 text-sm capitalize ${activeTab === tab ? 'bg-gradient-to-r from-fedex-orange to-orange-500 shadow-lg' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'}`}>
-                    {tab}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Tab Content */}
-            <div className="space-y-6">
-              {activeTab === 'posts' && (
-                <div className="space-y-6">
-                  {user && user.id === id && (
-                    <div className="bg-gray-900/60 backdrop-blur-xl rounded-2xl border border-gray-800/50 p-6 shadow-xl">
-                      <PostCreator racerId={id} onPostCreated={loadPosts} />
+        {activeTab === 'racing-info' && (
+          <div className="max-w-4xl space-y-8">
+            {/* Racing Bio */}
+            <div className={`${theme.bg.card} rounded-2xl p-6 border ${theme.border.primary}`}>
+              <h3 className={`text-xl font-bold ${theme.text.primary} mb-4`}>Racing Bio</h3>
+              <p className={`${theme.text.secondary} leading-relaxed mb-6`}>
+                {viewUser?.bio || mockRacer.bio}
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className={`font-semibold ${theme.text.primary} mb-3`}>Racing Details</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className={theme.text.tertiary}>Car Number:</span>
+                      <span className={`${theme.text.primary} racing-number`}>#{viewUser?.carNumber || mockRacer.carNumber}</span>
                     </div>
-                  )}
-                  {postsLoading ? (
-                    <div className="text-center py-20"><Loader2 className="w-12 h-12 text-fedex-orange animate-spin mx-auto" /></div>
-                  ) : posts.length > 0 ? (
-                    posts.map(post => (
-                      <div key={post.id} className="bg-gray-900/60 backdrop-blur-xl rounded-2xl border border-gray-800/50 overflow-hidden shadow-xl">
-                        <PostCard post={post} onPostUpdate={loadPosts} onPostDeleted={loadPosts} />
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-20 bg-gray-900/60 backdrop-blur-xl rounded-2xl border border-gray-800/50">
-                      <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-6"><Image className="h-10 w-10 text-gray-500" /></div>
-                      <h3 className="text-2xl font-bold mb-3">No posts yet</h3>
-                      <p className="text-gray-400 mb-8 text-lg">{user && user.id === id ? "Share your first racing moment!" : `${racer.name} hasn't posted yet.`}</p>
+                    <div className="flex justify-between">
+                      <span className={theme.text.tertiary}>Class:</span>
+                      <span className={theme.text.primary}>{viewUser?.racingClass || mockRacer.racingClass}</span>
                     </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === 'fans' && (
-                 <div className="space-y-6">
-                    {fans.length > 0 ? (
-                      <div className="bg-gray-900/60 backdrop-blur-xl rounded-2xl border border-gray-800/50 p-6">
-                        <h3 className="text-xl font-bold text-white mb-4">All Fans ({fans.length})</h3>
-                        <div className="space-y-4">
-                          {fans.map(fan => (
-                            <div key={fan.fan_id} className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
-                               <div className="flex items-center space-x-4">
-                                <img src={fan.profile_picture || `https://api.dicebear.com/7.x/initials/svg?seed=${fan.name}`} alt={fan.name} className="w-12 h-12 rounded-full object-cover"/>
-                                <div>
-                                  <div className="font-semibold text-white">{fan.name}</div>
-                                  <div className="text-sm text-gray-400">Fan since {new Date(fan.created_at).toLocaleDateString()}</div>
-                                </div>
-                                {fan.is_superfan && <SuperFanBadge />} 
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-12 bg-gray-900/60 backdrop-blur-xl rounded-2xl border border-gray-800/50">
-                        <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-6"><Users className="w-10 h-10 text-gray-500" /></div>
-                        <h4 className="text-xl font-bold text-white">No Fans Yet</h4>
-                        <p className="text-gray-400 mt-2">Be the first to support {racer.name}!</p>
+                    <div className="flex justify-between">
+                      <span className={theme.text.tertiary}>Team:</span>
+                      <span className={theme.text.primary}>{viewUser?.team || mockRacer.team}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={theme.text.tertiary}>Region:</span>
+                      <span className={theme.text.primary}>{viewUser?.region || mockRacer.region}</span>
+                    </div>
+                    {viewUser?.phone && (
+                      <div className="flex justify-between">
+                        <span className={theme.text.tertiary}>Phone:</span>
+                        <span className={theme.text.primary}>{viewUser.phone}</span>
                       </div>
                     )}
+                    {viewUser?.city && viewUser?.state && (
+                      <div className="flex justify-between">
+                        <span className={theme.text.tertiary}>Location:</span>
+                        <span className={theme.text.primary}>{viewUser.city}, {viewUser.state}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
 
-              {activeTab === 'schedule' && (
-                <div className="space-y-6">
-                  {scheduleLoading ? (
-                    <div className="text-center py-20"><Loader2 className="w-12 h-12 text-fedex-orange animate-spin mx-auto" /></div>
-                  ) : schedule.length > 0 ? (
-                    <div className="space-y-4">
-                      {schedule.map(race => (
-                        <div key={race.id} className="bg-gray-900/60 backdrop-blur-xl rounded-2xl border border-gray-800/50 p-6 shadow-xl">
-                          <div className="md:flex md:items-center md:justify-between">
-                            <div className="flex-1">
-                              <div className="text-sm text-purple-400 font-semibold mb-2">{race.series_name}</div>
-                              <h4 className="text-xl font-bold text-white mb-3">{race.event_name}</h4>
-                              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-gray-400 text-sm">
-                                {race.race_date && (
-                                  <div className="flex items-center">
-                                    <Calendar className="w-4 h-4 mr-2" />
-                                    {new Date(race.race_date).toLocaleString([], { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                                  </div>
-                                )}
-                                {race.track_name && (
-                                  <div className="flex items-center">
-                                    <MapPin className="w-4 h-4 mr-2" />
-                                    {race.track_name}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="mt-4 md:mt-0 flex items-center space-x-3">
-                              <div className="bg-green-500/20 text-green-400 px-4 py-2 rounded-full text-sm font-semibold">
-                                Upcoming
-                              </div>
-                              <button className="p-2 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg transition-colors">
-                                <Calendar className="w-4 h-4 text-gray-400" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                <div>
+                  <h4 className={`font-semibold ${theme.text.primary} mb-3`}>Performance Stats</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className={theme.text.tertiary}>Total Posts:</span>
+                      <span className={theme.text.primary}>{realTimeStats.posts}</span>
                     </div>
-                  ) : (
-                    <div className="text-center py-20 bg-gray-900/60 backdrop-blur-xl rounded-2xl border border-gray-800/50">
-                      <div className="w-20 h-20 bg-gradient-to-r from-gray-800 to-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <Calendar className="h-10 w-10 text-gray-500" />
-                      </div>
-                      <h3 className="text-2xl font-bold mb-3 text-white">No upcoming races</h3>
-                      <p className="text-gray-400 mb-8 text-lg">
-                        {user && user.id === id 
-                          ? "Add your race schedule to let fans know where you'll be racing next!"
-                          : `${racer?.name} hasn't added any upcoming races to their schedule yet.`
-                        }
-                      </p>
-                      {user && user.id === id && (
-                        <Link
-                          to="/dashboard"
-                          className="inline-flex items-center px-6 py-3 bg-fedex-orange hover:bg-fedex-orange-dark rounded-lg font-semibold transition-colors"
-                        >
-                          Go to Dashboard
-                        </Link>
-                      )}
+                    <div className="flex justify-between">
+                      <span className={theme.text.tertiary}>Followers:</span>
+                      <span className={theme.text.primary}>{realTimeStats.followers.toLocaleString()}</span>
                     </div>
-                  )}
-                </div>
-              )}
-
-              {/* About Tab */}
-              {activeTab === 'about' && (
-                <div className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-8 border border-gray-800/50">
-                  <h3 className="text-2xl font-bold text-white mb-6">About {racer.name}</h3>
-                  <div className="space-y-6">
-                    <div className="prose prose-invert max-w-none">
-                      <p className="text-gray-400 text-sm">{racer.bio || 'No bio available.'}</p>
+                    <div className="flex justify-between">
+                      <span className={theme.text.tertiary}>Subscribers:</span>
+                      <span className={theme.text.primary}>{realTimeStats.subscribers.toLocaleString()}</span>
                     </div>
-                    
-                    <div className="grid grid-cols-1 gap-8 pt-6 border-t border-gray-800">
-                      <div>
-                        <h4 className="text-xl font-semibold text-white mb-4">Career Stats</h4>
-                        <div className="space-y-3">
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Wins:</span>
-                            <span className="text-white font-semibold">{racer.career_wins || 0}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Podiums:</span>
-                            <span className="text-white font-semibold">{racer.podiums || 0}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Championships:</span>
-                            <span className="text-white font-semibold">{racer.championships || 0}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Years Racing:</span>
-                            <span className="text-white font-semibold">{racer.years_racing || 0}</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <h4 className="text-xl font-semibold text-white mb-4">Car Details</h4>
-                        <div className="space-y-3">
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Number:</span>
-                            <span className="text-white font-semibold">#{racer.carNumber}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Class:</span>
-                            <span className="text-white font-semibold">{racer.class}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Team:</span>
-                            <span className="text-white font-semibold">{racer.teamName || '—'}</span>
-                          </div>
-                        </div>
-                        {/* Owner-only: Upload racer's car photo */}
-                        {user && user.id === racer.id && (
-                          <div className="mt-6">
-                            <h5 className="text-sm font-semibold text-white mb-2">Upload Racer’s Car</h5>
-                            <SupabaseImageUpload
-                              type="banner"
-                              currentImage={''}
-                              userId={user.id}
-                              onImageChange={handleCarPhotoAdded}
-                              context="racer"
-                              titleOverride="Racer Car Photo"
-                              descriptionOverride="Upload a clear photo of your race car. JPG/PNG/WebP up to 5MB."
-                              placeholderOverride="Car Photo"
-                              className="mt-2"
-                            />
-                          </div>
-                        )}
-                        {/* Car Photos Grid */}
-                        {carPhotos && carPhotos.length > 0 && (
-                          <div className="mt-6">
-                            <h5 className="text-sm font-semibold text-white mb-2">Car Photos</h5>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                              {carPhotos.map((url, idx) => (
-                                <div key={`${url}-${idx}`} className="aspect-video rounded-xl overflow-hidden border border-gray-800/60 bg-gray-800/40">
-                                  <img src={url} alt={`Car ${idx + 1}`} className="w-full h-full object-cover" />
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                    <div className="flex justify-between">
+                      <span className={theme.text.tertiary}>Total Tips:</span>
+                      <span className={theme.text.primary}>${realTimeStats.tips.toLocaleString()}</span>
                     </div>
-
-                    <div className="text-center">
-                      <h3 className="text-2xl font-bold text-white mb-4">Sponsor My Racing Journey</h3>
-                      <p className="text-gray-300 mb-6 text-lg">
-                        Help me compete at the highest level by sponsoring my car. Your brand will be featured prominently.
-                      </p>
-                      <Link
-                        to={`/racer/${id}/sponsorship`}
-                        className="inline-block px-8 py-4 bg-fedex-orange hover:bg-fedex-orange-dark rounded-xl font-bold text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
-                      >
-                        View Sponsorship Packages
-                      </Link>
+                    <div className="flex justify-between">
+                      <span className={theme.text.tertiary}>Total Earnings:</span>
+                      <span className={theme.text.primary}>${realTimeStats.earnings.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+            </div>
+
+            {/* Contact Information */}
+            {viewUser?.showContactForSponsorship && (viewUser?.phone || viewUser?.email) && (
+              <div className={`${theme.bg.card} rounded-2xl p-6 border ${theme.border.primary}`}>
+                <h3 className={`text-xl font-bold ${theme.text.primary} mb-4`}>Sponsorship Contact</h3>
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+                  <p className={`${theme.text.success} font-medium mb-3`}>✓ Open to sponsorship opportunities</p>
+                  <div className="space-y-2 text-sm">
+                    {viewUser.email && (
+                      <div className="flex justify-between">
+                        <span className={theme.text.tertiary}>Email:</span>
+                        <span className={theme.text.primary}>{viewUser.email}</span>
+                      </div>
+                    )}
+                    {viewUser.phone && (
+                      <div className="flex justify-between">
+                        <span className={theme.text.tertiary}>Phone:</span>
+                        <span className={theme.text.primary}>{viewUser.phone}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Subscription Tiers */}
+            <div className={`${theme.bg.card} rounded-2xl p-6 border ${theme.border.primary}`} data-section="subscription-tiers">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className={`text-xl font-bold ${theme.text.primary}`}>Subscription Tiers</h3>
+                {isOwnProfile && (
+                  <button className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors duration-200 text-sm">
+                    Manage Tiers
+                  </button>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {mockRacer.subscriptionTiers.map((tier) => (
+                  <div key={tier.id} className={`${theme.bg.tertiary} rounded-xl p-6 border ${theme.border.secondary}`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className={`text-lg font-semibold ${theme.text.primary}`}>{tier.name}</h4>
+                      <span className="text-2xl font-bold text-orange-500 racing-number">
+                        ${tier.price}
+                      </span>
+                    </div>
+                    
+                    <div className="mb-4">
+                      <div className={`${theme.text.tertiary} text-sm mb-2`}>
+                        {tier.subscribers} subscribers
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 mb-4">
+                      {tier.perks.map((perk, index) => (
+                        <div key={index} className={`flex items-center space-x-2 text-sm ${theme.text.secondary}`}>
+                          <span className={theme.text.success}>✓</span>
+                          <span>{perk}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {!isOwnProfile && (
+                      <>
+                      <button className={`w-full px-4 py-2 ${theme.button.info} rounded-lg transition-colors duration-200 text-sm`}>
+                        <span onClick={() => addSubscriber()}>{tier.buttonText} - ${tier.price}/mo</span>
+                      </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {activeTab === 'about' && (
+          <div className="max-w-4xl space-y-8">
+            {/* Bio */}
+            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
+              <h3 className="text-xl font-bold text-white mb-4">About {viewUser?.name || mockRacer.name}</h3>
+              <p className="text-slate-300 leading-relaxed mb-6">
+                {viewUser?.bio || mockRacer.bio}
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="font-semibold text-white mb-3">Basic Info</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Username:</span>
+                      <span className="text-white">@{viewUser?.username || mockRacer.username}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Email:</span>
+                      <span className="text-white">{viewUser?.email || 'Private'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Verified:</span>
+                      <span className="text-white">{viewUser?.verified || mockRacer.verified ? 'Yes' : 'No'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-white mb-3">Platform Stats</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Member Since:</span>
+                      <span className="text-white">January 2024</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Profile Views:</span>
+                      <span className="text-white">45,782</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Engagement Rate:</span>
+                      <span className="text-white">8.4%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'schedule' && (
+          <div className="max-w-4xl">
+            <div className="bg-slate-900 rounded-2xl p-6">
+              <h3 className="text-xl font-bold text-white mb-6">Upcoming Races</h3>
+              <div className="space-y-4">
+                {mockRacer.upcomingRaces.map((race) => (
+                  <div key={race.id} className="bg-slate-800 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center">
+                        <Calendar className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-white">{race.name}</h4>
+                        <p className="text-slate-400 flex items-center space-x-2">
+                          <MapPin className="w-4 h-4" />
+                          <span>{race.track}</span>
+                          <span>•</span>
+                          <span>{new Date(race.date).toLocaleDateString()}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200">
+                      Get Notified
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'sponsors' && (
+          <div className="max-w-4xl">
+            <div className="bg-slate-900 rounded-2xl p-6">
+              <h3 className="text-xl font-bold text-white mb-6">Sponsors & Partners</h3>
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-orange-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <DollarSign className="w-8 h-8 text-orange-400" />
+                </div>
+                <h4 className="text-lg font-semibold text-white mb-2">
+                  {isOwnProfile ? 'Connect with Sponsors' : 'No Current Sponsors'}
+                </h4>
+                <p className="text-slate-400 mb-4">
+                  {isOwnProfile 
+                    ? 'Start attracting sponsors by completing your profile and creating sponsorship opportunities'
+                    : 'This racer doesn\'t have any current sponsors'
+                  }
+                </p>
+                {isOwnProfile && (
+                  <button className="px-6 py-3 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-colors duration-200">
+                    Browse Sponsors
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'sponsorship-slots' && (
+          <div className="max-w-4xl">
+            <StreamlinedSponsorshipTool
+              userId={racerId}
+              isOwner={isOwnProfile}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Modals */}
-      {showTipModal && (
-        <TipModal
-          racerId={id!}
-          racerName={racer.name}
-          onClose={() => setShowTipModal(false)}
-          onSuccess={async () => {
-            // Refresh fan data after successful tip
-            const updatedStats = await getRacerFanStats(id!);
-            setFanStats(updatedStats);
-            const updatedFansList = await getRacerFans(id!);
-            setFans(updatedFansList);
-            // Check if user became a superfan
-            const fanStatus = await checkFanStatus(user?.id!, id!);
-            setIsFan(!!fanStatus);
-            setIsSuperfan(fanStatus?.is_superfan || false);
-          }}
-        />
+      {/* Edit Profile Modal */}
+      {showEditProfile && (
+        <EditProfile onClose={() => setShowEditProfile(false)} />
       )}
-
-      {showSubscriptionModal && (
-        <SubscriptionModal
-          racerId={id!}
-          racerName={racer.name}
-          onClose={() => setShowSubscriptionModal(false)}
-          onSuccess={handleSubscriptionComplete}
-        />
-      )}
-
-      {showGiftModal && (
-        <GiftModal
-          racerId={id!}
-          racerName={racer.name}
-          onClose={() => setShowGiftModal(false)}
-          onGiftSent={async () => {
-            // Refresh fan data after successful gift
-            const updatedStats = await getRacerFanStats(id!);
-            setFanStats(updatedStats);
-            const updatedFansList = await getRacerFans(id!);
-            setFans(updatedFansList);
-          }}
-        />
-      )}
-
-      {showShareModal && racer && (
-        <ShareModal
-          isOpen={showShareModal}
-          onClose={() => setShowShareModal(false)}
-          racerName={racer.name}
-          racerId={racer.id}
-          racerImage={racer.profile_picture}
-          racerBio={racer.bio}
-        />
+        </>
       )}
     </div>
   );
 };
+
+export default RacerProfile;

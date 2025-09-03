@@ -11,7 +11,7 @@ import { Racers } from './pages/Racers';
 import { Tracks } from './pages/Tracks';
 import { HowItWorks } from './pages/HowItWorks';
 import { TrackProfile } from './pages/TrackProfile';
-import { RacerProfile } from './pages/RacerProfile';
+import RacerProfile from './pages/RacerProfile';
 import { SeriesProfile } from './pages/SeriesProfile';
 import { Series } from './pages/Series';
 import { SuperFans } from './pages/SuperFans';
@@ -38,7 +38,7 @@ import { Home } from './pages/Home';
 import { ComingSoon } from './pages/ComingSoon';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { UserProvider } from './contexts/UserContext';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import SettingsProfile from './pages/SettingsProfile';
 import TestRunner from './components/TestRunner';
@@ -46,6 +46,7 @@ import Grandstand from './pages/Grandstand';
 import { AppProvider, useApp } from './contexts/AppContext';
 import { Toaster } from 'react-hot-toast';
 import Fanheader from './components/fan-dashboard/Fanheader'; // Import Fanheader component
+import FanProfileNew from './pages/FanProfileNew';
 
 // Component to handle scroll to top on route changes
 const ScrollToTop: React.FC = () => {
@@ -130,6 +131,12 @@ const HeaderGate: React.FC = () => {
   return <Fanheader />;
 };
 
+// Wrapper to pass URL param to RacerProfile
+const RacerProfileRoute: React.FC = () => {
+  const { id } = useParams();
+  return <RacerProfile racerId={(id as string) ?? ''} />;
+};
+
 // Main content area with conditional padding based on route
 const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
   = ({ user }) => {
@@ -152,7 +159,7 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
         <Route path="/faq" element={<FAQ />} />
         <Route path="/live" element={<LiveFeed />} />
         <Route path="/track/:id" element={<TrackProfile />} />
-        <Route path="/racer/:id" element={<RacerProfile />} />
+        <Route path="/racer/:id" element={<RacerProfileRoute />} />
         <Route path="/racer/:id/sponsorship" element={<SponsorshipPackages />} />
         <Route
           path="/dashboard"
@@ -174,6 +181,11 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
         <Route path="/fan-dashboard" element={<FanDashboard />} />
         {/* Redirect generic /fan to legacy /fan-dashboard */}
         <Route path="/fan" element={<Navigate to="/fan-dashboard" replace />} />
+        {/* Fan preview route (auth protected) */}
+        <Route
+          path="/fan/:id"
+          element={user ? <FanProfileNew /> : <Navigate to="/" replace />}
+        />
         {/* Redirect old fan profile/settings routes to settings profile */}
         <Route path="/fan/profile" element={<Navigate to="/settings/profile" replace />} />
         <Route path="/fan/settings" element={<Navigate to="/settings/profile" replace />} />

@@ -1,5 +1,5 @@
 import toast from 'react-hot-toast';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Heart, 
@@ -76,6 +76,36 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [editingPost, setEditingPost] = useState(false);
   const [editedContent, setEditedContent] = useState('');
 
+  // Track comment IDs we've already added to avoid duplicates from
+  // optimistic updates racing with realtime INSERT events
+  const commentIdsRef = useRef<Set<string>>(new Set());
+  // Cache user profiles by id to avoid repeated lookups
+  const userCacheRef = useRef<Map<string, { name: string; avatar: string }>>(new Map());
+
+  const fetchUserProfile = async (userId: string): Promise<{ name: string; avatar: string }> => {
+    if (!userId) return { name: 'User', avatar: '' };
+    const cached = userCacheRef.current.get(userId);
+    if (cached) return cached;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('name, email, avatar')
+        .eq('id', userId)
+        .maybeSingle();
+      if (error) {
+        console.warn('Failed to fetch profile for comment user:', error);
+      }
+      const email = (data?.email as string | undefined) || '';
+      const emailName = email ? (email.includes('@') ? email.split('@')[0] : email) : '';
+      const result = { name: data?.name || emailName || 'User', avatar: data?.avatar || '' };
+      userCacheRef.current.set(userId, result);
+      return result;
+    } catch (e) {
+      console.warn('Exception fetching comment profile:', e);
+      return { name: 'User', avatar: '' };
+    }
+  };
+
   // Normalize profiles access
   const profile = Array.isArray(post.profiles) ? post.profiles[0] : post.profiles;
 
@@ -102,6 +132,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
 
   const dicebearUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(initials)}`;
 
+  // Simple UUID v4 validation (accepts lowercase/uppercase)
+  const isValidUUID = (value: string | undefined | null): value is string => {
+    if (!value) return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  };
+
   useEffect(() => {
     const checkLike = async () => {
       if (!user) {
@@ -127,22 +163,27 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'post_comments', filter: `post_id=eq.${post.id}` },
-        (payload) => {
+        async (payload) => {
           const c = payload.new as any;
-          setComments(prev => [{
-            id: c.id,
-            post_id: c.post_id,
-            user_id: c.user_id,
-            content: c.comment_text ?? c.content ?? '',
-            created_at: c.created_at,
-            user: {
-              id: c.user_id,
-              name: c.user_name ?? 'User',
-              avatar: c.user_avatar ?? '',
-              user_type: c.user_type ?? 'fan'
-            }
-          }, ...prev]);
-          setCommentsCount(cnt => cnt + 1);
+          const cid = c?.id != null ? String(c.id) : undefined;
+          if (cid && !commentIdsRef.current.has(cid)) {
+            commentIdsRef.current.add(cid);
+            const profile = await fetchUserProfile(String(c.user_id));
+            setComments(prev => [{
+              id: cid,
+              post_id: c.post_id,
+              user_id: c.user_id,
+              content: c.comment_text ?? c.content ?? '',
+              created_at: c.created_at,
+              user: {
+                id: c.user_id,
+                name: profile.name,
+                avatar: profile.avatar,
+                user_type: 'fan'
+              }
+            }, ...prev]);
+            setCommentsCount(cnt => cnt + 1);
+          }
         }
       )
       .on(
@@ -150,8 +191,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
         { event: 'DELETE', schema: 'public', table: 'post_comments', filter: `post_id=eq.${post.id}` },
         (payload) => {
           const oldRow = payload.old as any;
-          const deletedId = oldRow?.id as string | undefined;
+          const deletedIdRaw = oldRow?.id as string | number | undefined;
+          const deletedId = deletedIdRaw != null ? String(deletedIdRaw) : undefined;
           if (deletedId) {
+            commentIdsRef.current.delete(deletedId);
             setComments(prev => prev.filter(c => c.id !== deletedId));
           }
           setCommentsCount(cnt => (cnt > 0 ? cnt - 1 : 0));
@@ -206,7 +249,20 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
         if (error) {
           console.error('Failed to load comments:', error);
         }
-        setComments(fetchedComments ?? []);
+        // Initialize the ID set and state with fetched comments (dedup by id)
+        const normalized = (fetchedComments ?? []).map(c => ({
+          ...c,
+          id: c.id != null ? String(c.id) : c.id
+        }));
+        const seen = new Set<string>();
+        const unique = normalized.filter(c => {
+          const cid = String(c.id);
+          if (seen.has(cid)) return false;
+          seen.add(cid);
+          return true;
+        });
+        commentIdsRef.current = new Set(unique.map(c => String(c.id)));
+        setComments(unique);
         // Don't let a stale backend count overwrite our newer local count.
         // Use the max of current and fetched counts.
         const fetchedCount = typeof totalCount === 'number' && totalCount >= 0
@@ -232,11 +288,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
         return;
       }
 
-      // Optimistically update UI without full refetch to avoid overwriting with stale counts
-      if (created) {
+      // Optimistically update UI only if not already present
+      if (created && created.id) {
+        const cid = String(created.id);
+        if (!commentIdsRef.current.has(cid)) {
+          commentIdsRef.current.add(cid);
         setComments(prev => [
           {
-            id: created.id,
+            id: cid,
             post_id: created.post_id,
             user_id: created.user_id,
             content: created.content,
@@ -245,8 +304,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
           },
           ...prev
         ]);
+        setCommentsCount((c) => c + 1);
+        }
       }
-      setCommentsCount((c) => c + 1);
       setNewComment('');
     } catch (err) {
       console.error('Failed to add comment:', err);
@@ -290,6 +350,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const handleDeletePost = async () => {
     if (confirm('Are you sure you want to delete this post?')) {
       try {
+        if (!isValidUUID(post.id)) {
+          toast.error('This post has an invalid ID and cannot be deleted. Please refresh.');
+          return;
+        }
         await deletePost(post.id);
         onPostDeleted?.(post.id);
         toast.success('Post deleted successfully');
@@ -633,7 +697,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
               {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
             </h4>
             <div className="space-y-3 mb-4">
-              {comments.map((comment) => (
+              {Array.from(new Map(comments.map(c => [c.id, c])).values()).map((comment) => (
                 <div key={comment.id} className="flex items-start gap-3 mt-3">
                   <img
                     src={comment.user.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user.name || 'User'}`}

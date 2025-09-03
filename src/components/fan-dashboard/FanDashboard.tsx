@@ -105,6 +105,8 @@ const FanDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  // If we have a route param id, we're on the read-only preview route
+  const isPreviewRoute = Boolean(id);
   
   // Fan data
   const [fanProfile, setFanProfile] = useState<FanProfile | null>(null);
@@ -504,7 +506,8 @@ const FanDashboard: React.FC = () => {
         dayStreak={stats.activity_streak}
         favorites={favoriteRacers.length}
         badges={fanProfile.badges_count || 0}
-        onEditProfile={isOwnProfile ? handleEditProfile : undefined}
+        onEditProfile={!isPreviewRoute && isOwnProfile ? handleEditProfile : undefined}
+        onPreviewProfile={!isPreviewRoute && isOwnProfile && targetId ? () => navigate(`/fan/${targetId}`) : undefined}
       />
       
       {/* Navigation tabs */}

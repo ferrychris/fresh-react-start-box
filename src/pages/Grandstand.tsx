@@ -4,6 +4,7 @@ import { useUser } from '../contexts/UserContext';
 import CreatePost from '../components/fan-dashboard/posts/CreatePost';
 import { getFanPostsPage, tipPost } from '../lib/supabase/posts';
 import { PostCard, type Post as PostCardType } from '../components/PostCard';
+import { supabase } from '../lib/supabase';
 
 // Define proper types for the CreatePost component's return value
 interface NewPostData {
@@ -18,6 +19,47 @@ interface NewPostData {
   created_at?: string;
 }
 
+// Types for Supabase rows
+type FanConnectionRow = {
+  became_fan_at: string | null;
+  racer_profiles: {
+    id: string;
+    username: string | null;
+    profile_photo_url: string | null;
+    team_name: string | null;
+  } | null;
+};
+
+type RacerProfileRow = {
+  id: string;
+  username: string | null;
+  profile_photo_url: string | null;
+  car_number: string | number | null;
+  racing_class: string | null;
+  team_name: string | null;
+  profile_published?: boolean | null;
+  is_featured?: boolean | null;
+  updated_at?: string | null;
+};
+
+type PostRow = {
+  id: string;
+  content: string;
+  created_at: string;
+  likes: number;
+  comments: number;
+  media_urls: string[];
+  profiles: {
+    id: string;
+    username: string | null;
+    profile_photo_url: string | null;
+  } | {
+    id: string;
+    username: string | null;
+    profile_photo_url: string | null;
+  }[];
+};
+
 export default function Grandstand() {
   const [posts, setPosts] = useState<PostCardType[]>([]);
   const [showCreatePost, setShowCreatePost] = useState(false);
@@ -30,12 +72,121 @@ export default function Grandstand() {
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // TODO: Replace with Supabase-backed list of teams the user follows/is a fan of
-  const fanTeams: Array<{ id: string; name: string; avatar: string; since?: string }> = user ? [
-    { id: 't1', name: 'Team Velocity', avatar: 'https://images.pexels.com/photos/26994867/pexels-photo-26994867.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2', since: 'Fan since 2024' },
-    { id: 't2', name: 'Apex Racing', avatar: 'https://images.pexels.com/photos/26994866/pexels-photo-26994866.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2', since: 'Fan since 2023' },
-    { id: 't3', name: 'Thunder Motorsports', avatar: 'https://images.pexels.com/photos/26994865/pexels-photo-26994865.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2', since: 'Fan since 2022' },
-  ] : [];
+  // Dynamically load teams (racers) the user is a fan of
+  const [fanTeams, setFanTeams] = useState<Array<{ id: string; name: string; avatar: string; since?: string }>>([]);
+  const [teamsLoading, setTeamsLoading] = useState<boolean>(false);
+  const [teamsError, setTeamsError] = useState<string | null>(null);
+
+  // Suggestions: featured racers and derived teams
+  const [featuredRacers, setFeaturedRacers] = useState<Array<{ id: string; name: string; avatar: string; car?: string; cls?: string; team?: string }>>([]);
+  const [featuredTeams, setFeaturedTeams] = useState<Array<{ name: string; avatar: string }>>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState<boolean>(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchTeams = async () => {
+      if (!user?.id) {
+        if (isMounted) setFanTeams([]);
+        return;
+      }
+      setTeamsLoading(true);
+      setTeamsError(null);
+      try {
+        const { data, error } = await supabase
+          .from('fan_connections')
+          .select(`
+            became_fan_at,
+            racer_profiles!fan_connections_racer_id_fkey (
+              id,
+              username,
+              profile_photo_url,
+              team_name
+            )
+          `)
+          .eq('fan_id', user.id)
+          .order('became_fan_at', { ascending: false });
+        if (error) throw error;
+        const rows = (data ?? []) as FanConnectionRow[];
+        const teams = rows
+          .map((row) => {
+            const rp = row.racer_profiles;
+            return {
+              id: rp?.id || '',
+              name: rp?.team_name || rp?.username || 'Racer',
+              avatar:
+                rp?.profile_photo_url ||
+                'https://images.pexels.com/photos/26994867/pexels-photo-26994867.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
+              since: row.became_fan_at ? `Fan since ${new Date(row.became_fan_at).getFullYear()}` : undefined,
+            };
+          })
+          .filter((t) => Boolean(t.id));
+        if (isMounted) setFanTeams(teams);
+      } catch (e: unknown) {
+        console.error('Failed to load teams', e);
+        const msg = e instanceof Error ? e.message : 'Failed to load teams';
+        if (isMounted) setTeamsError(msg);
+      } finally {
+        if (isMounted) setTeamsLoading(false);
+      }
+    };
+    fetchTeams();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
+
+  // Load Suggestions: Featured racers and teams
+  useEffect(() => {
+    let isMounted = true;
+    const loadSuggestions = async () => {
+      setSuggestionsLoading(true);
+      setSuggestionsError(null);
+      try {
+        const { data, error } = await supabase
+          .from('racer_profiles')
+          .select('id, username, profile_photo_url, car_number, racing_class, team_name, profile_published, is_featured')
+          .eq('is_featured', true)
+          .order('updated_at', { ascending: false })
+          .limit(8);
+        if (error) throw error;
+
+        const rpRows = (data ?? []) as RacerProfileRow[];
+        const racers = rpRows
+          .filter((r) => r.profile_published !== false)
+          .map((r) => ({
+            id: String(r.id),
+            name: r.username || 'Racer',
+            avatar: r.profile_photo_url || 'https://images.pexels.com/photos/26994867/pexels-photo-26994867.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
+            car: r.car_number ? String(r.car_number) : undefined,
+            cls: r.racing_class || undefined,
+            team: r.team_name || undefined,
+          }));
+
+        // Derive teams from featured racers
+        const teamMap = new Map<string, { name: string; avatar: string }>();
+        for (const r of racers) {
+          if (r.team && !teamMap.has(r.team)) {
+            teamMap.set(r.team, { name: r.team, avatar: r.avatar });
+          }
+        }
+
+        if (isMounted) {
+          setFeaturedRacers(racers);
+          // limit to first 5 teams for suggestions
+          setFeaturedTeams(Array.from(teamMap.values()).slice(0, 5));
+        }
+      } catch (e: unknown) {
+        console.error('Failed to load suggestions', e);
+        const msg = e instanceof Error ? e.message : 'Failed to load suggestions';
+        if (isMounted) setSuggestionsError(msg);
+      } finally {
+        if (isMounted) setSuggestionsLoading(false);
+      }
+    };
+    loadSuggestions();
+    return () => { isMounted = false; };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -73,6 +224,28 @@ export default function Grandstand() {
     };
     load();
     return () => { isMounted = false; };
+  }, []);
+
+  // Realtime: remove posts from UI when they are deleted elsewhere
+  useEffect(() => {
+    const channel = supabase
+      .channel('grandstand-racer-posts-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'racer_posts' },
+        (payload) => {
+          const oldRow = payload.old as { id?: string | number } | null;
+          const deletedRaw = oldRow?.id;
+          const deletedId = deletedRaw != null ? String(deletedRaw) : undefined;
+          if (!deletedId) return;
+          setPosts((prev) => prev.filter((p) => p.id !== deletedId));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Load more posts (5 at a time) using nextCursor
@@ -288,14 +461,24 @@ export default function Grandstand() {
                   <Users className="w-4 h-4 text-slate-400" />
                 </div>
                 {user ? (
-                  fanTeams.length > 0 ? (
+                  teamsLoading ? (
+                    <div className="text-sm text-slate-400">Loading your teams…</div>
+                  ) : teamsError ? (
+                    <div className="text-sm text-red-400">{teamsError}</div>
+                  ) : fanTeams.length > 0 ? (
                     <ul className="space-y-3">
-                      {fanTeams.map(team => (
+                      {fanTeams.map((team) => (
                         <li key={team.id} className="flex items-center">
-                          <img src={team.avatar} alt={team.name} className="w-8 h-8 rounded-md object-cover ring-1 ring-slate-700" />
+                          <img
+                            src={team.avatar}
+                            alt={team.name}
+                            className="w-8 h-8 rounded-md object-cover ring-1 ring-slate-700"
+                          />
                           <div className="ml-3">
                             <div className="text-sm text-white font-medium">{team.name}</div>
-                            {team.since && <div className="text-[11px] text-slate-400">{team.since}</div>}
+                            {team.since && (
+                              <div className="text-[11px] text-slate-400">{team.since}</div>
+                            )}
                           </div>
                         </li>
                       ))}
@@ -309,11 +492,48 @@ export default function Grandstand() {
               </div>
 
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                <h3 className="text-xs font-semibold text-slate-300 mb-2">Suggestions</h3>
-                <div className="space-y-2">
-                  <button className="w-full text-left text-sm text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg px-3 py-2 transition">Explore Teams</button>
-                  <button className="w-full text-left text-sm text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg px-3 py-2 transition">Find Racers</button>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold text-slate-300">Suggestions</h3>
+                  {suggestionsLoading && (
+                    <span className="text-[11px] text-slate-500">Loading…</span>
+                  )}
                 </div>
+                {suggestionsError && (
+                  <div className="mt-2 text-xs text-red-400">{suggestionsError}</div>
+                )}
+                {/* Featured Teams */}
+                {featuredTeams.length > 0 && (
+                  <div className="mt-3">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400 mb-2">Featured Teams</div>
+                    <ul className="space-y-2">
+                      {featuredTeams.map((t) => (
+                        <li key={t.name} className="flex items-center">
+                          <img src={t.avatar} alt={t.name} className="w-7 h-7 rounded object-cover ring-1 ring-slate-700" />
+                          <div className="ml-2 text-sm text-slate-200 truncate">{t.name}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {/* Featured Racers */}
+                {featuredRacers.length > 0 && (
+                  <div className="mt-4">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400 mb-2">Featured Racers</div>
+                    <ul className="space-y-2">
+                      {featuredRacers.slice(0, 3).map((r) => (
+                        <li key={r.id} className="flex items-center">
+                          <img src={r.avatar} alt={r.name} className="w-7 h-7 rounded object-cover ring-1 ring-slate-700" />
+                          <div className="ml-2">
+                            <div className="text-sm text-slate-200 leading-tight">{r.name}</div>
+                            <div className="text-[11px] text-slate-500">
+                              {r.team ? `${r.team}` : r.cls || 'Racing'}{r.car ? ` • #${r.car}` : ''}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           </aside>

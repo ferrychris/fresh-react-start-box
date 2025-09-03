@@ -1,13 +1,14 @@
 import { supabase } from './client';
 import { DatabasePost, PostComment } from './types';
+import { getPostPublicUrl, getFanPostPublicUrl } from './storage';
 
 // Get posts for a specific racer from the unified table
-export const getPostsForRacer = async (racerId: string): Promise<{ data: DatabasePost[]; error: any | null }> => {
+export const getPostsForRacer = async (racerId: string): Promise<{ data: DatabasePost[]; error: unknown | null }> => {
   if (!racerId) {
     console.error('getPostsForRacer called without a valid racerId');
     return { data: [], error: { message: 'Racer ID is required' } };
   }
-  
+
   let retries = 0;
   const maxRetries = 3;
   
@@ -58,7 +59,20 @@ export const getPostsForRacer = async (racerId: string): Promise<{ data: Databas
         return { data: [], error };
       }
       
-      return { data: data as DatabasePost[], error: null };
+      // Normalize media_urls to public URLs (handles legacy stored paths)
+      const mapped: DatabasePost[] = (data as DatabasePost[]).map((row) => {
+        const urls = Array.isArray(row.media_urls)
+          ? row.media_urls.map((u: string) => {
+              if (typeof u !== 'string') return u;
+              // Leave already-public URLs AND data URIs untouched
+              if (/^(https?:|data:)/i.test(u)) return u;
+              const pub = row.user_type === 'fan' ? getFanPostPublicUrl(u) : getPostPublicUrl(u);
+              return pub || u;
+            })
+          : [];
+        return { ...row, media_urls: urls } as DatabasePost;
+      });
+      return { data: mapped, error: null };
     } catch (err) {
       if (retries < maxRetries - 1) {
         console.warn(`Unexpected error fetching posts for racer, retrying... (${retries + 1}/${maxRetries})`);
@@ -76,6 +90,70 @@ export const getPostsForRacer = async (racerId: string): Promise<{ data: Databas
   }
   
   return { data: [], error: { message: 'Maximum retries reached while fetching posts' } };
+};
+
+// Edit a comment's text. Verifies the user owns the comment and belongs to the same post.
+export const updateCommentOnPost = async (
+  postId: string,
+  commentId: string,
+  userId: string,
+  newText: string
+): Promise<{ data: PostComment | null; error: Error | null }> => {
+  if (!postId || !commentId || !userId || !newText?.trim()) {
+    return { data: null, error: new Error('Post ID, Comment ID, User ID and new text are required') };
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return { data: null, error: new Error('Authentication required to edit comments') };
+  if (session.user.id !== userId) return { data: null, error: new Error('You can only edit your own comments') };
+
+  try {
+    // Verify ownership and post match
+    const { data: existing, error: fetchErr } = await supabase
+      .from('post_comments')
+      .select('id, user_id, post_id')
+      .eq('id', commentId)
+      .maybeSingle();
+    if (fetchErr) return { data: null, error: new Error(fetchErr.message) };
+    if (!existing || existing.post_id !== postId) return { data: null, error: new Error('Comment not found') };
+    if (existing.user_id !== session.user.id) return { data: null, error: new Error('You can only edit your own comments') };
+
+    const { data, error } = await supabase
+      .from('post_comments')
+      .update({ comment_text: newText })
+      .eq('id', commentId)
+      .select(`
+        id,
+        post_id,
+        user_id,
+        comment_text,
+        created_at,
+        profiles!post_comments_user_id_fkey (name, email, avatar)
+      `)
+      .maybeSingle();
+    if (error) return { data: null, error };
+    if (!data) return { data: null, error: new Error('Failed to update comment') };
+
+    const prof = Array.isArray((data as any).profiles) ? (data as any).profiles[0] : (data as any).profiles;
+    const email: string | undefined = prof?.email;
+    const emailName = email ? (email.includes('@') ? email.split('@')[0] : email) : '';
+
+    const mapped: PostComment = {
+      id: String((data as any).id),
+      post_id: String((data as any).post_id),
+      user_id: String((data as any).user_id),
+      content: String((data as any).comment_text || ''),
+      created_at: String((data as any).created_at),
+      user: {
+        name: (prof?.name || emailName || 'User'),
+        avatar: (prof?.avatar || '')
+      }
+    };
+
+    return { data: mapped, error: null };
+  } catch (e) {
+    return { data: null, error: e as Error };
+  }
 };
 
 // Backward-compatible alias for legacy imports
@@ -127,8 +205,19 @@ export const getAllPublicPosts = async (): Promise<DatabasePost[]> => {
       }
 
       if (data && data.length > 0) {
-        console.log('Fetched public posts:', data);
-        return data as DatabasePost[];
+        const mapped: DatabasePost[] = (data as DatabasePost[]).map((row) => {
+          const urls = Array.isArray(row.media_urls)
+            ? row.media_urls.map((u: string) => {
+                if (typeof u !== 'string') return u;
+                // Leave already-public URLs AND data URIs untouched
+                if (/^(https?:|data:)/i.test(u)) return u;
+                const pub = row.user_type === 'fan' ? getFanPostPublicUrl(u) : getPostPublicUrl(u);
+                return pub || u;
+              })
+            : [];
+          return { ...row, media_urls: urls } as DatabasePost;
+        });
+        return mapped;
       }
       return [];
     } catch (error) {
@@ -196,7 +285,19 @@ export const getPostsForFan = async (fanId: string): Promise<DatabasePost[]> => 
         return [];
       }
 
-      return (data || []) as DatabasePost[];
+      const mapped: DatabasePost[] = ((data || []) as DatabasePost[]).map((row) => {
+        const urls = Array.isArray(row.media_urls)
+          ? row.media_urls.map((u: string) => {
+              if (typeof u !== 'string') return u;
+              // Leave already-public URLs AND data URIs untouched
+              if (/^(https?:|data:)/i.test(u)) return u;
+              const pub = row.user_type === 'fan' ? getFanPostPublicUrl(u) : getPostPublicUrl(u);
+              return pub || u;
+            })
+          : [];
+        return { ...row, media_urls: urls } as DatabasePost;
+      });
+      return mapped;
     } catch (err) {
       if (retries < maxRetries) {
         console.warn(`Unexpected error fetching posts for fan, retrying... (${retries + 1}/${maxRetries})`);
@@ -281,7 +382,19 @@ export const getFanPostsPage = async ({
       const last = rows[rows.length - 1];
       const nextCursor = (last && rows.length === limit) ? { created_at: last.created_at, id: last.id } : null;
 
-      return { data: rows as DatabasePost[], nextCursor, error: null };
+      const mapped: DatabasePost[] = (rows as DatabasePost[]).map((row) => {
+        const urls = Array.isArray(row.media_urls)
+          ? row.media_urls.map((u: string) => {
+              if (typeof u !== 'string') return u;
+              // Leave already-public URLs AND data URIs untouched
+              if (/^(https?:|data:)/i.test(u)) return u;
+              const pub = row.user_type === 'fan' ? getFanPostPublicUrl(u) : getPostPublicUrl(u);
+              return pub || u;
+            })
+          : [];
+        return { ...row, media_urls: urls } as DatabasePost;
+      });
+      return { data: mapped, nextCursor, error: null };
     } catch (error) {
       console.error('Exception in getFanPostsPage:', error);
       

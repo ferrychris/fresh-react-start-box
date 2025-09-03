@@ -253,6 +253,28 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
     }
   }, [posts, loadInitial]);
 
+  // Realtime: remove posts from UI list when they are deleted elsewhere
+  useEffect(() => {
+    const channel = supabase
+      .channel('racer-posts-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'racer_posts' },
+        (payload) => {
+          const oldRow = payload.old as { id?: string | number } | null;
+          const deletedRaw = oldRow?.id;
+          const deletedId = deletedRaw != null ? String(deletedRaw) : undefined;
+          if (!deletedId) return;
+          setList((prev) => prev.filter((p) => p.id !== deletedId));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const handleCreate = (post: Post) => {
     if (onCreatePost) {
       onCreatePost(post);

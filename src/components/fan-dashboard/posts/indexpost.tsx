@@ -131,42 +131,46 @@ const IndexPost: React.FC = () => {
       }
       
       // Create the post
-      const newPost = await createFanPost({
+      const { data: created, error: createErr } = await createFanPost({
         content: payload.content,
         fan_id: user.id, // Use fan_id instead of user_id to match the expected type
         media_urls: mediaUrls,
         post_type: postType,
         visibility: payload.visibility,
       });
-      
-      if (newPost) {
-        // Create a Post object from the newly created post
-        const newUiPost: Post = {
-          id: (newPost as any).id || Date.now().toString(),
-          userId: user.id,
-          userType: 'FAN',
-          userName: user.name || 'Fan',
-          userAvatar: user.avatar || '',
-          userVerified: false,
-          content: payload.content,
-          mediaUrls: mediaUrls,
-          mediaType: postType === 'photo' ? 'image' : postType === 'video' ? 'video' : postType === 'gallery' ? 'gallery' : undefined,
-          timestamp: new Date().toLocaleString(),
-          updated_at: new Date().toISOString(),
-          likes: 0,
-          comments: 0,
-          shares: 0,
-          isLiked: false,
-        };
-        
-        // Add the new post to the beginning of the posts list
-        setPosts([newUiPost, ...posts]);
-        
-        // Close the modal after successful post creation
-        setShowCreatePostModal(false);
-        
-        toast.success('Post created successfully!');
+
+      if (createErr || !created) {
+        console.error('Error creating fan post:', createErr);
+        toast.error(`Failed to create post: ${createErr?.message || 'Unknown error'}`);
+        return;
       }
+
+      // Create a Post object from the newly created post (use UUID from DB)
+      const newUiPost: Post = {
+        id: created.id,
+        userId: user.id,
+        userType: 'FAN',
+        userName: user.name || 'Fan',
+        userAvatar: user.avatar || '',
+        userVerified: false,
+        content: payload.content,
+        mediaUrls: mediaUrls,
+        mediaType: postType === 'photo' ? 'image' : postType === 'video' ? 'video' : postType === 'gallery' ? 'gallery' : undefined,
+        timestamp: new Date().toLocaleString(),
+        updated_at: new Date().toISOString(),
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        isLiked: false,
+      };
+
+      // Add the new post to the beginning of the posts list
+      setPosts([newUiPost, ...posts]);
+
+      // Close the modal after successful post creation
+      setShowCreatePostModal(false);
+
+      toast.success('Post created successfully!');
     } catch (error) {
       console.error('Error creating post:', error);
       toast.error(`Failed to create post: ${error instanceof Error ? error.message : 'Unknown error'}`);

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Eye } from 'lucide-react';
 
 interface ProfileHeaderProps {
   name: string;
@@ -12,6 +13,7 @@ interface ProfileHeaderProps {
   favorites: number;
   badges: number;
   onEditProfile?: () => void;
+  onPreviewProfile?: () => void;
 }
 
 const ProfileHeader: React.FC<ProfileHeaderProps> = ({
@@ -25,7 +27,8 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   dayStreak,
   favorites,
   badges,
-  onEditProfile
+  onEditProfile,
+  onPreviewProfile
 }) => {
 
   return (
@@ -49,20 +52,37 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           <div className="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent"></div>
         </div>
 
-        {/* Edit Profile button with modern styling */}
-        {onEditProfile && (
-          <button
-            onClick={onEditProfile}
-            className="absolute top-6 right-6 z-20 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white rounded-xl text-sm font-medium transition-all duration-300 hover:scale-105 shadow-lg"
-            aria-label="Edit Profile"
-          >
-            <div className="flex items-center gap-2">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-              <span className="hidden sm:inline">Edit Profile</span>
-            </div>
-          </button>
+        {/* Action buttons */}
+        {(onEditProfile || onPreviewProfile) && (
+          <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
+            {onPreviewProfile && (
+              <button
+                onClick={onPreviewProfile}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white rounded-xl text-sm font-medium transition-all duration-300 hover:scale-105 shadow-lg"
+                aria-label="Preview Profile"
+                title="Preview Profile"
+              >
+                <div className="flex items-center gap-2">
+                  <Eye className="h-4 w-4" />
+                  <span className="hidden sm:inline">Preview Profile</span>
+                </div>
+              </button>
+            )}
+            {onEditProfile && (
+              <button
+                onClick={onEditProfile}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white rounded-xl text-sm font-medium transition-all duration-300 hover:scale-105 shadow-lg"
+                aria-label="Edit Profile"
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                  <span className="hidden sm:inline">Edit Profile</span>
+                </div>
+              </button>
+            )}
+          </div>
         )}
 
         {/* Content container with proper spacing */}

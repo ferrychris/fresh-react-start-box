@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Image, Video, Globe, Users, MapPin, Calendar, Upload, Trash2, Smile } from 'lucide-react';
 import { Post, PostCreationPayload } from './types';
-import { createFanPost } from '../../../lib/supabase';
+import { createFanPost } from '../../../lib/supabase/posts';
 import {
   uploadPostImage,
   uploadPostVideo,
@@ -24,6 +24,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
   const [content, setContent] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [mediaType, setMediaType] = useState<'photo' | 'video' | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [visibility, setVisibility] = useState<'public' | 'community'>('public');
   const [location, setLocation] = useState('');
   const [eventDate, setEventDate] = useState('');
@@ -69,6 +70,18 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
     setSelectedFiles(files);
     setMediaType(isVideo ? 'video' : 'photo');
   };
+
+  // Maintain object URLs for previews and revoke on cleanup to prevent broken blob links
+  useEffect(() => {
+    // Create object URLs for current files
+    const urls = selectedFiles.map((f) => URL.createObjectURL(f));
+    setPreviewUrls(urls);
+
+    // Cleanup on change/unmount
+    return () => {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [selectedFiles]);
 
   const removeFile = (index: number) => {
     const newFiles = selectedFiles.filter((_, i) => i !== index);
@@ -152,7 +165,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
       })();
 
       // Create the fan post
-      const { error: postError } = await createFanPost({
+      const { data: created, error: postError } = await createFanPost({
         fan_id: user.id,
         content: composedContent,
         media_urls: uploadedUrls,
@@ -160,16 +173,16 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
         visibility: visibility,
       });
 
-      if (postError) {
+      if (postError || !created) {
         console.error('Error creating post:', postError);
-        alert(`Failed to create post: ${postError.message || 'Unknown error'}`);
+        alert(`Failed to create post: ${postError?.message || 'Unknown error'}`);
         setIsSubmitting(false);
         return;
       }
 
-      // Create mock post for immediate UI update
+      // Use the UUID returned by Supabase for UI post
       const newPost: Post = {
-        id: Date.now().toString(),
+        id: created.id,
         userId: user.id,
         userName: user.name || 'Fan',
         userAvatar: user.avatar || '',
@@ -287,13 +300,13 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
                     <div key={index} className="relative aspect-video">
                       {file.type.startsWith('image/') ? (
                         <img
-                          src={URL.createObjectURL(file)}
+                          src={previewUrls[index]}
                           alt={`Upload ${index + 1}`}
                           className="w-full h-full object-cover"
                         />
                       ) : (
                         <video
-                          src={URL.createObjectURL(file)}
+                          src={previewUrls[index]}
                           className="w-full h-full object-cover"
                           controls
                         />

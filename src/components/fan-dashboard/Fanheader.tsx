@@ -69,8 +69,9 @@ const Fanheader = () => {
         {/* Left: Logo + Racers search */}
         <div className="flex items-center gap-4 min-w-0">
           <Link to="/" className="shrink-0" aria-label="OnlyRaceFans Home">
-            <img src="/onlyracefans-logo.png" alt="OnlyRaceFans" className="h-8 w-auto" />
+          <div className="w-9 h-7 lg:w-11 lg:h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-pink-500 via-pink-400 to-orange-500 shadow-md group-hover:scale-110 transition-transform duration-300"><span className="text-white font-bold text-lg">🏁</span></div>
           </Link>
+          <div className="hidden sm:block"><h1 className="text-lg lg:text-xl font-bold text-white racing-number">OnlyRace<span className="text-orange-500">Fans</span></h1></div>
           <div className="relative hidden md:block w-full max-w-md" ref={inputWrapperRef}>
             <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-6 w-6 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`} />
             <input
@@ -284,12 +285,12 @@ const Fanheader = () => {
               align="end"
             >
               <DropdownMenuItem asChild>
-                <Link to="/settings/profile" className="w-full">
+                <Link to="/fan-dashboard" className="w-full">
                   Profile
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/settings/profile" className="w-full">
+                <Link to="/fan-dashboard" className="w-full">
                   Settings
                 </Link>
               </DropdownMenuItem>

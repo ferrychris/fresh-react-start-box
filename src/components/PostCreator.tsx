@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Camera, 
   Video, 
@@ -34,6 +34,17 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ racerId, onPostCreated
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [isPosting, setIsPosting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number[]>([]);
+
+  // Revoke blob object URLs when mediaUrls changes or on unmount to avoid stale blobs
+  useEffect(() => {
+    return () => {
+      mediaUrls.forEach((url) => {
+        if (typeof url === 'string' && url.startsWith('blob:')) {
+          try { URL.revokeObjectURL(url); } catch {}
+        }
+      });
+    };
+  }, [mediaUrls]);
 
   const handleFileSelect = (files: FileList | null) => {
     if (!files) return;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -25,6 +25,11 @@ const SettingsProfile: React.FC = () => {
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
+  // Track original URLs from database to avoid writing blob: URLs if user doesn't save new files
+  const [originalAvatarUrl, setOriginalAvatarUrl] = useState<string | null>(null);
+  const [originalBannerUrl, setOriginalBannerUrl] = useState<string | null>(null);
+  const avatarObjectUrlRef = useRef<string | null>(null);
+  const bannerObjectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -48,8 +53,12 @@ const SettingsProfile: React.FC = () => {
         if (data) {
           const p = data as Profile;
           setName(p.name || '');
-          setAvatarPreview(p.avatar || null);
-          setBannerPreview(p.banner_image || null);
+          const avatarFromDb = p.avatar && p.avatar.startsWith('blob:') ? null : (p.avatar || null);
+          const bannerFromDb = p.banner_image && p.banner_image.startsWith('blob:') ? null : (p.banner_image || null);
+          setAvatarPreview(avatarFromDb);
+          setBannerPreview(bannerFromDb);
+          setOriginalAvatarUrl(avatarFromDb);
+          setOriginalBannerUrl(bannerFromDb);
         }
       } catch (e: unknown) {
         console.error(e);
@@ -61,6 +70,25 @@ const SettingsProfile: React.FC = () => {
     };
     init();
   }, []);
+
+  // Defensive handler: if a preview image fails to load (stale blob, etc), revoke and clear it
+  const handlePreviewError = (type: 'avatar' | 'banner') => () => {
+    if (type === 'avatar') {
+      if (avatarObjectUrlRef.current) {
+        try { URL.revokeObjectURL(avatarObjectUrlRef.current); } catch {}
+        avatarObjectUrlRef.current = null;
+      }
+      setAvatarPreview(null);
+      setAvatarFile(null);
+    } else {
+      if (bannerObjectUrlRef.current) {
+        try { URL.revokeObjectURL(bannerObjectUrlRef.current); } catch {}
+        bannerObjectUrlRef.current = null;
+      }
+      setBannerPreview(null);
+      setBannerFile(null);
+    }
+  };
 
   const uploadToStorage = async (bucket: string, path: string, file: File): Promise<string> => {
     const { error: uploadErr } = await supabase.storage.from(bucket).upload(path, file, {
@@ -80,27 +108,31 @@ const SettingsProfile: React.FC = () => {
       setError(null);
       setSuccess(null);
 
-      let newAvatarUrl = avatarPreview;
-      let newBannerUrl = bannerPreview;
+      // Compute final URLs; do not persist blob: preview URLs
+      let newAvatarUrl = originalAvatarUrl;
+      let newBannerUrl = originalBannerUrl;
 
       if (avatarFile) {
         const ext = avatarFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-        const path = `profiles/${userId}-avatar.${ext}`;
+        // Path must start with the authenticated user's id to satisfy RLS
+        const path = `${userId}/avatar.${ext}`;
         newAvatarUrl = await uploadToStorage('avatars', path, avatarFile);
       }
 
       if (bannerFile) {
         const ext = bannerFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-        const path = `profiles/${userId}-banner.${ext}`;
-        newBannerUrl = await uploadToStorage('profilebaner', path, bannerFile);
+        // Path must start with the authenticated user's id to satisfy RLS
+        const path = `${userId}/banner.${ext}`;
+        newBannerUrl = await uploadToStorage('avatars', path, bannerFile);
       }
 
-      const updates = {
+      type ProfileUpdates = { name: string; updated_at: string } & Partial<Pick<Profile, 'avatar' | 'banner_image'>>;
+      const updates: ProfileUpdates = {
         name,
-        avatar: newAvatarUrl,
-        banner_image: newBannerUrl,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
+      if (typeof newAvatarUrl === 'string') updates.avatar = newAvatarUrl;
+      if (typeof newBannerUrl === 'string') updates.banner_image = newBannerUrl;
 
       const { error: updateErr } = await supabase
         .from('profiles')
@@ -112,6 +144,8 @@ const SettingsProfile: React.FC = () => {
       setSuccess('Profile updated successfully');
       setAvatarFile(null);
       setBannerFile(null);
+      setOriginalAvatarUrl(newAvatarUrl || null);
+      setOriginalBannerUrl(newBannerUrl || null);
 
       // small delay, then navigate back
       setTimeout(() => navigate(-1), 800);
@@ -128,7 +162,14 @@ const SettingsProfile: React.FC = () => {
     const f = e.target.files?.[0];
     if (f) {
       setAvatarFile(f);
-      setAvatarPreview(URL.createObjectURL(f));
+      // Revoke previous object URL if any to prevent leaks and stale refs
+      if (avatarObjectUrlRef.current) {
+        URL.revokeObjectURL(avatarObjectUrlRef.current);
+        avatarObjectUrlRef.current = null;
+      }
+      const url = URL.createObjectURL(f);
+      avatarObjectUrlRef.current = url;
+      setAvatarPreview(url);
     }
   };
 
@@ -136,9 +177,30 @@ const SettingsProfile: React.FC = () => {
     const f = e.target.files?.[0];
     if (f) {
       setBannerFile(f);
-      setBannerPreview(URL.createObjectURL(f));
+      // Revoke previous object URL if any
+      if (bannerObjectUrlRef.current) {
+        URL.revokeObjectURL(bannerObjectUrlRef.current);
+        bannerObjectUrlRef.current = null;
+      }
+      const url = URL.createObjectURL(f);
+      bannerObjectUrlRef.current = url;
+      setBannerPreview(url);
     }
   };
+
+  // Cleanup any object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (avatarObjectUrlRef.current) {
+        URL.revokeObjectURL(avatarObjectUrlRef.current);
+        avatarObjectUrlRef.current = null;
+      }
+      if (bannerObjectUrlRef.current) {
+        URL.revokeObjectURL(bannerObjectUrlRef.current);
+        bannerObjectUrlRef.current = null;
+      }
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -164,7 +226,7 @@ const SettingsProfile: React.FC = () => {
       <div className="mb-6">
         <div className="relative h-48 w-full rounded-lg overflow-hidden bg-gray-800 border border-gray-700">
           {bannerPreview ? (
-            <img src={bannerPreview} alt="Banner" className="w-full h-full object-cover" />
+            <img src={bannerPreview} alt="Banner" className="w-full h-full object-cover" onError={handlePreviewError('banner')} />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-400">No banner image</div>
           )}
@@ -183,7 +245,7 @@ const SettingsProfile: React.FC = () => {
           <div className="relative">
             <div className="h-24 w-24 rounded-full overflow-hidden border border-gray-700 bg-gray-800">
               {avatarPreview ? (
-                <img src={avatarPreview} alt="Avatar" className="h-full w-full object-cover" />
+                <img src={avatarPreview} alt="Avatar" className="h-full w-full object-cover" onError={handlePreviewError('avatar')} />
               ) : (
                 <div className="h-full w-full flex items-center justify-center text-gray-400 text-sm">No avatar</div>
               )}
