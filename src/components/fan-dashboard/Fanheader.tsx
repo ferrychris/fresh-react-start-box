@@ -58,6 +58,7 @@ const Fanheader = () => {
   if (!user) return null;
   
   return (
+    <>
     <header
       className={`sticky top-0 z-50 pt-3 pb-3 px-6 backdrop-blur-xl border-b shadow-lg transition-all duration-300 ${
         theme === 'dark'
@@ -311,6 +312,79 @@ const Fanheader = () => {
         />
       )}
     </header>
+
+    {/* Mobile Bottom Navigation - shows on all authenticated pages */}
+    <nav
+      className={`fixed bottom-0 inset-x-0 z-50 md:hidden border-t backdrop-blur-xl ${
+        theme === 'dark' ? 'bg-black/90 border-gray-800/50' : 'bg-white/90 border-gray-200/50'
+      }`}
+      aria-label="Mobile bottom navigation"
+    >
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="grid grid-cols-5 py-2 gap-1">
+          <button
+            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+              location.pathname.startsWith('/grandstand')
+                ? 'text-fedex-orange'
+                : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+            }`}
+            onClick={() => navigate('/grandstand')}
+          >
+            <Megaphone className="h-5 w-5" />
+            <span className="text-[10px] mt-0.5">Grandstand</span>
+          </button>
+
+          <button
+            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+              location.pathname.startsWith('/racers')
+                ? 'text-fedex-orange'
+                : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+            }`}
+            onClick={() => navigate('/racers')}
+          >
+            <Search className="h-5 w-5" />
+            <span className="text-[10px] mt-0.5">Racers</span>
+          </button>
+
+          <button
+            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+              location.pathname.startsWith('/super-fans')
+                ? 'text-fedex-orange'
+                : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+            }`}
+            onClick={() => navigate('/super-fans')}
+          >
+            <Trophy className="h-5 w-5" />
+            <span className="text-[10px] mt-0.5">Super Fans</span>
+          </button>
+
+          <button
+            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+              location.pathname.startsWith('/series')
+                ? 'text-fedex-orange'
+                : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+            }`}
+            onClick={() => navigate('/series')}
+          >
+            <Layers className="h-5 w-5" />
+            <span className="text-[10px] mt-0.5">Series</span>
+          </button>
+
+          <button
+            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+              location.pathname.startsWith('/sponsorships')
+                ? 'text-fedex-orange'
+                : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+            }`}
+            onClick={() => navigate('/sponsorships')}
+          >
+            <Handshake className="h-5 w-5" />
+            <span className="text-[10px] mt-0.5">Sponsors</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+    </>
   );
 };
 
