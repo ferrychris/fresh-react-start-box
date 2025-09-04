@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getSubscriptionTiersForRacers, getFanCountsForRacers } from '@/lib/supabase';
+import { getJSONCookie, setJSONCookie, deleteCookie } from '@/lib/cookies';
 
 // Interfaces
 export interface User {
@@ -117,6 +118,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const isLoadingRacersRef = useRef(false);
+
+  // Prime user from cookie to reduce first-paint flicker on repeat visits
+  useEffect(() => {
+    try {
+      if (!user) {
+        const cached = getJSONCookie<User>('app_user');
+        if (cached && cached.id) {
+          setUser(cached);
+        }
+      }
+    } catch {/* ignore cookie parse errors */}
+    // no deps: run once at mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep a small user snapshot in cookies (1 hour TTL)
+  useEffect(() => {
+    try {
+      if (user) {
+        const snapshot: User = {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          type: user.type,
+          user_type: user.user_type,
+          profilePicture: user.profilePicture,
+          profileComplete: user.profileComplete,
+        };
+        setJSONCookie('app_user', snapshot, 60 * 60);
+      } else {
+        deleteCookie('app_user');
+      }
+    } catch {/* ignore cookie write errors */}
+  }, [user]);
 
   const loadRacers = useCallback(async () => {
     if (isLoadingRacersRef.current) return;

@@ -5,6 +5,7 @@ import CreatePost from '../components/fan-dashboard/posts/CreatePost';
 import { getPublicPostsPage, tipPost } from '../lib/supabase/posts';
 import { PostCard, type Post as PostCardType } from '../components/PostCard';
 import { supabase } from '../lib/supabase';
+import { getJSONCookie, setJSONCookie } from '@/lib/cookies';
 
 // Define proper types for the CreatePost component's return value
 interface NewPostData {
@@ -61,6 +62,11 @@ type PostRow = {
 };
 
 export default function Grandstand() {
+  // Simple localStorage cache for first page of posts
+  const POSTS_CACHE_KEY = 'gs_public_posts_page1';
+  const POSTS_CURSOR_CACHE_KEY = 'gs_public_posts_page1_cursor';
+  const POSTS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
   const [posts, setPosts] = useState<PostCardType[]>([]);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [composeAutoOpen, setComposeAutoOpen] = useState<'media' | 'feeling' | null>(null);
@@ -100,6 +106,13 @@ export default function Grandstand() {
         if (isMounted) setFanTeams([]);
         return;
       }
+      // Prefill from cookie for faster first paint
+      try {
+        const cached = getJSONCookie<Array<{ id: string; name: string; avatar: string; since?: string }>>('gs_fan_teams');
+        if (cached && Array.isArray(cached) && cached.length && isMounted) {
+          setFanTeams(cached);
+        }
+      } catch {/* ignore bad cookie */}
       setTeamsLoading(true);
       setTeamsError(null);
       try {
@@ -132,7 +145,11 @@ export default function Grandstand() {
             };
           })
           .filter((t) => Boolean(t.id));
-        if (isMounted) setFanTeams(teams);
+        if (isMounted) {
+          setFanTeams(teams);
+          // Cache for 10 minutes
+          setJSONCookie('gs_fan_teams', teams, 60 * 10);
+        }
       } catch (e: unknown) {
         console.error('[Grandstand] Failed to load teams', e);
         const msg = e instanceof Error ? e.message : 'Failed to load teams';
@@ -154,6 +171,15 @@ export default function Grandstand() {
       setSuggestionsLoading(true);
       setSuggestionsError(null);
       try {
+        // Prefill from cookies to reduce perceived load
+        try {
+          const cachedRacers = getJSONCookie<Array<{ id: string; name: string; avatar: string; car?: string; cls?: string; team?: string }>>('gs_featured_racers');
+          const cachedTeams = getJSONCookie<Array<{ name: string; avatar: string }>>('gs_featured_teams');
+          if (isMounted) {
+            if (cachedRacers && cachedRacers.length) setFeaturedRacers(cachedRacers);
+            if (cachedTeams && cachedTeams.length) setFeaturedTeams(cachedTeams);
+          }
+        } catch {/* ignore cookie parse issues */}
         const { data, error } = await supabase
           .from('racer_profiles')
           .select('id, username, profile_photo_url, car_number, racing_class, team_name, profile_published, is_featured')
@@ -185,7 +211,11 @@ export default function Grandstand() {
         if (isMounted) {
           setFeaturedRacers(racers);
           // limit to first 5 teams for suggestions
-          setFeaturedTeams(Array.from(teamMap.values()).slice(0, 5));
+          const teamsArr = Array.from(teamMap.values()).slice(0, 5);
+          setFeaturedTeams(teamsArr);
+          // Cache for 10 minutes
+          setJSONCookie('gs_featured_racers', racers, 60 * 10);
+          setJSONCookie('gs_featured_teams', teamsArr, 60 * 10);
           console.debug('[Grandstand] Suggestions loaded:', { racers: racers.length, teams: teamMap.size });
         }
       } catch (e: unknown) {
@@ -202,10 +232,31 @@ export default function Grandstand() {
 
   useEffect(() => {
     let isMounted = true;
+    const prefillFromCache = () => {
+      try {
+        const raw = localStorage.getItem(POSTS_CACHE_KEY);
+        const rawCursor = localStorage.getItem(POSTS_CURSOR_CACHE_KEY);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw) as { data: PostCardType[]; ts: number };
+        if (!parsed || !Array.isArray(parsed.data)) return false;
+        const fresh = Date.now() - (parsed.ts || 0) < POSTS_CACHE_TTL_MS;
+        if (fresh) {
+          const cursor = rawCursor ? (JSON.parse(rawCursor) as { created_at: string; id: string } | null) : null;
+          setPosts(parsed.data);
+          setNextCursor(cursor || null);
+          setLoading(false);
+          return true;
+        }
+      } catch {/* ignore parse errors */}
+      return false;
+    };
+
     const load = async () => {
       try {
         console.time('grandstand:firstLoad');
-        setLoading(true);
+        // Prefill from cache for instant paint if available
+        const hadCache = prefillFromCache();
+        if (!hadCache) setLoading(true);
         setError(null);
         const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 3 });
         if (error) throw error;
@@ -227,6 +278,11 @@ export default function Grandstand() {
 
         setPosts(mapped);
         setNextCursor(cursor || null);
+        // Update cache
+        try {
+          localStorage.setItem(POSTS_CACHE_KEY, JSON.stringify({ data: mapped, ts: Date.now() }));
+          localStorage.setItem(POSTS_CURSOR_CACHE_KEY, JSON.stringify(cursor || null));
+        } catch {/* quota or serialization issues */}
         console.timeEnd('grandstand:firstLoad');
       } catch (e) {
         console.error('[Grandstand] Initial load failed', e);
