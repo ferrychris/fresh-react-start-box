@@ -134,9 +134,9 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             </div>
           </div>
 
-          {/* Premium stats display - flex on mobile, grid on larger screens */}
-          <div className="flex flex-wrap sm:grid sm:grid-cols-4 gap-4 p-6 bg-black/30 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl">
-            <div className="text-center w-1/2 sm:w-auto">
+          {/* Premium stats display - column on mobile, grid on larger screens */}
+          <div className="flex flex-col sm:grid sm:grid-cols-4 gap-4 p-6 bg-black/30 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl">
+            <div className="text-center w-full sm:w-auto">
               <div className="flex items-center justify-center mb-2">
                 <span className="text-2xl">🏆</span>
               </div>
@@ -144,7 +144,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               <div className="text-xs text-gray-400 uppercase tracking-wide">Points</div>
             </div>
             
-            <div className="text-center w-1/2 sm:w-auto">
+            <div className="text-center w-full sm:w-auto">
               <div className="flex items-center justify-center mb-2">
                 <span className="text-2xl">🔥</span>
               </div>
@@ -152,7 +152,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               <div className="text-xs text-gray-400 uppercase tracking-wide">Day Streak</div>
             </div>
             
-            <div className="text-center w-1/2 sm:w-auto">
+            <div className="text-center w-full sm:w-auto">
               <div className="flex items-center justify-center mb-2">
                 <span className="text-2xl">❤️</span>
               </div>
@@ -160,7 +160,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               <div className="text-xs text-gray-400 uppercase tracking-wide">Favorites</div>
             </div>
             
-            <div className="text-center w-1/2 sm:w-auto">
+            <div className="text-center w-full sm:w-auto">
               <div className="flex items-center justify-center mb-2">
                 <span className="text-2xl">🏅</span>
               </div>

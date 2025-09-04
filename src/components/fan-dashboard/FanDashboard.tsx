@@ -496,20 +496,50 @@ const FanDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Profile header */}
-      <ProfileHeader
-        name={fanProfile.name || 'Racing Fan'}
-        username={fanProfile.username || 'user'}
-        avatarUrl={fanProfile.avatar_url || fanProfile.avatar || 'https://placehold.co/150'}
-        bannerImageUrl={fanProfile?.banner_image || bannerImage || undefined}
-        memberSince={new Date(fanProfile.created_at).toLocaleDateString()}
-        fanType={fanProfile.fan_type || 'Racing Fan'}
-        points={stats.support_points}
-        dayStreak={stats.activity_streak}
-        favorites={favoriteRacers.length}
-        badges={fanProfile.badges_count || 0}
-        onEditProfile={!isPreviewRoute && isOwnProfile ? handleEditProfile : undefined}
-        onPreviewProfile={!isPreviewRoute && isOwnProfile && targetId ? () => navigate(`/fan/${targetId}`) : undefined}
-      />
+      {loadingProfile ? (
+        <div className="relative w-full" aria-hidden="true">
+          <div className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-black rounded-3xl overflow-hidden border border-gray-800/50 shadow-2xl mx-4 sm:mx-6 lg:mx-8 animate-pulse">
+            <div className="h-64 sm:h-72 lg:h-80 bg-gray-800/70" />
+            <div className="relative pt-16 sm:pt-20 lg:pt-24 pb-8 px-6 sm:px-8 lg:px-10">
+              <div className="flex flex-col sm:flex-row items-start sm:items-end gap-6 mb-8">
+                <div>
+                  <div className="w-28 h-28 sm:w-32 sm:h-32 lg:w-36 lg:h-36 rounded-full bg-gray-700" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="h-8 sm:h-10 w-48 sm:w-64 bg-gray-700 rounded mb-3" />
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-24 bg-gray-700 rounded-full" />
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-4 p-6 bg-black/30 backdrop-blur-xl border border-white/10 rounded-2xl">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="text-center w-1/2 sm:w-auto">
+                    <div className="w-8 h-8 bg-gray-700 rounded mx-auto mb-2" />
+                    <div className="h-6 w-16 bg-gray-700 rounded mx-auto mb-1" />
+                    <div className="h-3 w-20 bg-gray-800 rounded mx-auto" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <ProfileHeader
+          name={fanProfile.name || 'Racing Fan'}
+          username={fanProfile.username || 'user'}
+          avatarUrl={fanProfile.avatar_url || fanProfile.avatar || 'https://placehold.co/150'}
+          bannerImageUrl={fanProfile?.banner_image || bannerImage || undefined}
+          memberSince={new Date(fanProfile.created_at).toLocaleDateString()}
+          fanType={fanProfile.fan_type || 'Racing Fan'}
+          points={stats.support_points}
+          dayStreak={stats.activity_streak}
+          favorites={favoriteRacers.length}
+          badges={fanProfile.badges_count || 0}
+          onEditProfile={!isPreviewRoute && isOwnProfile ? handleEditProfile : undefined}
+          onPreviewProfile={!isPreviewRoute && isOwnProfile && targetId ? () => navigate(`/fan/${targetId}`) : undefined}
+        />
+      )}
       
       {/* Navigation tabs */}
       <NavigationTabs
@@ -524,12 +554,23 @@ const FanDashboard: React.FC = () => {
           <div className="space-y-8">
             {/* Enhanced stats cards section */}
             <div className="mb-8">
-              <StatsCards
-                supportPoints={stats.support_points}
-                totalTips={stats.total_tips}
-                activeSubscriptions={stats.active_subscriptions}
-                activityStreak={stats.activity_streak}
-              />
+              {loadingStats ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4" aria-hidden="true">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-6 shadow-xl animate-pulse">
+                      <div className="h-4 w-24 bg-gray-700 rounded mb-3" />
+                      <div className="h-8 w-20 bg-gray-600 rounded" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <StatsCards
+                  supportPoints={stats.support_points}
+                  totalTips={stats.total_tips}
+                  activeSubscriptions={stats.active_subscriptions}
+                  activityStreak={stats.activity_streak}
+                />
+              )}
             </div>
             
             {/* Improved responsive layout */}
@@ -537,20 +578,49 @@ const FanDashboard: React.FC = () => {
               {/* Favorite racers section with better styling */}
               <div className="xl:col-span-2">
                 <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-6 shadow-xl">
-                  <FavoriteRacers
-                    racers={favoriteRacers}
-                    onTip={handleTipRacer}
-                  />
+                  {loadingFavorites ? (
+                    <div className="space-y-4" aria-hidden="true">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-full bg-gray-700" />
+                          <div className="flex-1">
+                            <div className="h-4 w-40 bg-gray-700 rounded mb-2" />
+                            <div className="h-3 w-24 bg-gray-800 rounded" />
+                          </div>
+                          <div className="h-8 w-20 bg-gray-700 rounded" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <FavoriteRacers
+                      racers={favoriteRacers}
+                      onTip={handleTipRacer}
+                    />
+                  )}
                 </div>
               </div>
               
               {/* Recent activity with premium styling */}
               <div className="xl:col-span-1">
                 <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-6 shadow-xl">
-                  <RecentActivity
-                    activities={recentActivity}
-                    onViewAllActivity={handleViewAllActivity}
-                  />
+                  {loadingActivity ? (
+                    <div className="space-y-4" aria-hidden="true">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gray-700" />
+                          <div className="flex-1">
+                            <div className="h-3 w-32 bg-gray-700 rounded mb-2" />
+                            <div className="h-3 w-48 bg-gray-800 rounded" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <RecentActivity
+                      activities={recentActivity}
+                      onViewAllActivity={handleViewAllActivity}
+                    />
+                  )}
                 </div>
               </div>
             </div>

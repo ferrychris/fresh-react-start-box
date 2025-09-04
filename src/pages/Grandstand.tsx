@@ -259,7 +259,7 @@ export default function Grandstand() {
         const hadCache = prefillFromCache();
         if (!hadCache) setLoading(true);
         setError(null);
-        const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 3 });
+        const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 10 });
         if (error) throw error;
         if (!isMounted) return;
 
@@ -534,7 +534,35 @@ export default function Grandstand() {
               </div>
             )}
             {loading && (
-              <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 text-slate-400">Loading posts...</div>
+              <div className="space-y-4" aria-hidden="true">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div key={i} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 animate-pulse">
+                    {/* Header */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-full bg-slate-800" />
+                      <div className="flex-1">
+                        <div className="w-40 h-3 bg-slate-800 rounded" />
+                        <div className="w-24 h-2 bg-slate-800 rounded mt-2" />
+                      </div>
+                      <div className="w-6 h-6 bg-slate-800 rounded" />
+                    </div>
+                    {/* Body text */}
+                    <div className="space-y-2 mb-3">
+                      <div className="w-full h-3 bg-slate-800 rounded" />
+                      <div className="w-11/12 h-3 bg-slate-800 rounded" />
+                      <div className="w-5/12 h-3 bg-slate-800 rounded" />
+                    </div>
+                    {/* Media placeholder */}
+                    <div className="w-full h-64 bg-slate-800/80 rounded-xl mb-4" />
+                    {/* Footer actions */}
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-6 bg-slate-800 rounded" />
+                      <div className="w-16 h-6 bg-slate-800 rounded" />
+                      <div className="w-16 h-6 bg-slate-800 rounded" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
             {error && (
               <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 text-red-400">{error}</div>
@@ -575,6 +603,22 @@ export default function Grandstand() {
                 >
                   {loadingMore ? 'Loading…' : 'Load more'}
                 </button>
+              </div>
+            )}
+            {loadingMore && (
+              <div className="space-y-4 mt-2" aria-hidden="true">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 animate-pulse">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-full bg-slate-800" />
+                      <div className="flex-1">
+                        <div className="w-32 h-3 bg-slate-800 rounded" />
+                        <div className="w-20 h-2 bg-slate-800 rounded mt-2" />
+                      </div>
+                    </div>
+                    <div className="w-full h-24 bg-slate-800 rounded-lg" />
+                  </div>
+                ))}
               </div>
             )}
           </div>
