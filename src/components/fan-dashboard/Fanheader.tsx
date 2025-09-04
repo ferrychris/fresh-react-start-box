@@ -55,12 +55,47 @@ const Fanheader = () => {
     }
   }, [racerSearch]);
   
+  // Ensure page content isn't hidden behind fixed header and bottom nav on mobile
+  useEffect(() => {
+    // Add bottom padding on mobile to account for fixed bottom nav
+    const mm = window.matchMedia('(max-width: 767px)');
+    const origPaddingBottom = document.body.style.paddingBottom;
+    const applyPadding = () => {
+      if (mm.matches) {
+        document.body.style.paddingBottom = '64px'; // approximate height of mobile bottom nav
+      } else {
+        document.body.style.paddingBottom = origPaddingBottom;
+      }
+    };
+    applyPadding();
+    const listener = () => applyPadding();
+    type SafeMQL = MediaQueryList & {
+      addListener?: (listener: (ev: MediaQueryListEvent) => void) => void;
+      removeListener?: (listener: (ev: MediaQueryListEvent) => void) => void;
+    };
+    const smm = mm as SafeMQL;
+    if (typeof smm.addEventListener === 'function') {
+      smm.addEventListener('change', listener);
+    } else if (typeof smm.addListener === 'function') {
+      smm.addListener(listener);
+    }
+    return () => {
+      // Cleanup: restore original padding and remove listener
+      document.body.style.paddingBottom = origPaddingBottom;
+      if (typeof smm.removeEventListener === 'function') {
+        smm.removeEventListener('change', listener);
+      } else if (typeof smm.removeListener === 'function') {
+        smm.removeListener(listener);
+      }
+    };
+  }, []);
+  
   if (!user) return null;
   
   return (
     <>
     <header
-      className={`md:sticky md:top-0 md:z-50 pt-3 pb-3 px-6 backdrop-blur-xl border-b shadow-lg transition-all duration-300 ${
+      className={`fixed top-0 inset-x-0 z-50 pt-3 pb-3 px-6 backdrop-blur-xl border-b shadow-lg transition-all duration-300 ${
         theme === 'dark'
           ? 'bg-black/95 border-gray-800/50 shadow-black/20'
           : 'bg-white/95 border-gray-200/50 shadow-gray-200/20'
@@ -312,10 +347,12 @@ const Fanheader = () => {
         />
       )}
     </header>
+    {/* Spacer to offset fixed header height */}
+    <div className="h-16" aria-hidden="true" />
 
     {/* Mobile Bottom Navigation - shows on all authenticated pages */}
     <nav
-      className={`md:hidden border-t backdrop-blur-xl ${
+      className={`fixed bottom-0 inset-x-0 z-50 md:hidden border-t backdrop-blur-xl ${
         theme === 'dark' ? 'bg-black/90 border-gray-800/50' : 'bg-white/90 border-gray-200/50'
       }`}
       aria-label="Mobile bottom navigation"
