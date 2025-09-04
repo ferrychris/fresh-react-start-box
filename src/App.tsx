@@ -157,7 +157,7 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
   return (
     <main className={mainClasses}>
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={authUser ? <Navigate to="/grandstand" replace /> : <Home />} />
         <Route path="/feed" element={<Feed />} />
         <Route path="/racers" element={<Racers />} />
         <Route path="/tracks" element={<Tracks />} />

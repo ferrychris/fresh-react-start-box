@@ -75,6 +75,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [editingPost, setEditingPost] = useState(false);
   const [editedContent, setEditedContent] = useState('');
+  const [isDeleted, setIsDeleted] = useState(false);
 
   // Track comment IDs we've already added to avoid duplicates from
   // optimistic updates racing with realtime INSERT events
@@ -385,7 +386,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
           return;
         }
         await deletePost(post.id);
-        onPostDeleted?.(post.id);
+        if (onPostDeleted) {
+          onPostDeleted(post.id);
+        } else {
+          // Optimistically hide this card if parent doesn't handle removal
+          setIsDeleted(true);
+        }
+        // Ask parent to refresh lists if it provided a callback
+        onPostUpdate?.();
         toast.success('Post deleted successfully');
       } catch (error) {
         toast.error('Failed to delete post');
@@ -430,7 +438,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
 
   const PostMedia: React.FC = () => {
     if (post.post_type === 'video' && post.media_urls.length > 0) {
-      return (
+      if (isDeleted) return null;
+
+  return (
         <div className="relative bg-gray-900 rounded-lg overflow-hidden">
           <video
             src={post.media_urls[0]}

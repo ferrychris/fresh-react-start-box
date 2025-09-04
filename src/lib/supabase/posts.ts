@@ -1262,31 +1262,81 @@ export const deletePostById = async (
 
   while (retries <= maxRetries) {
     try {
-      // Verify the post exists and is owned by the current user
-      const { data: post, error: fetchErr } = await supabase
+      // Try racer_posts first
+      const { data: racerPost, error: fetchRacerErr } = await supabase
         .from('racer_posts')
         .select('id, user_id')
         .eq('id', postId)
         .maybeSingle();
 
-      if (fetchErr) {
-        if (fetchErr.message?.includes('Failed to fetch') && retries < maxRetries) {
+      if (fetchRacerErr && !fetchRacerErr.message?.includes('No rows')) {
+        if (fetchRacerErr.message?.includes('Failed to fetch') && retries < maxRetries) {
           retries++;
           await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
           continue;
         }
-        return { success: false, error: new Error(fetchErr.message) };
+        return { success: false, error: new Error(fetchRacerErr.message) };
       }
 
-      if (!post) {
+      if (racerPost) {
+        if (racerPost.user_id !== userId) {
+          return { success: false, error: new Error('You can only delete your own posts') };
+        }
+
+        // Clean up shared dependent rows
+        try {
+          await supabase.from('post_likes').delete().eq('post_id', postId);
+        } catch (error) {
+          console.warn('Error deleting post likes:', error);
+        }
+        try {
+          await supabase.from('post_comments').delete().eq('post_id', postId);
+        } catch (error) {
+          console.warn('Error deleting post comments:', error);
+        }
+
+        const { error: delRacerErr } = await supabase
+          .from('racer_posts')
+          .delete()
+          .eq('id', postId);
+
+        if (delRacerErr) {
+          if (delRacerErr.message?.includes('Failed to fetch') && retries < maxRetries) {
+            retries++;
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+            continue;
+          }
+          return { success: false, error: new Error(delRacerErr.message) };
+        }
+
+        return { success: true, error: null };
+      }
+
+      // If not a racer post, try fan_posts
+      const { data: fanPost, error: fetchFanErr } = await supabase
+        .from('fan_posts')
+        .select('id, user_id')
+        .eq('id', postId)
+        .maybeSingle();
+
+      if (fetchFanErr) {
+        if (fetchFanErr.message?.includes('Failed to fetch') && retries < maxRetries) {
+          retries++;
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        return { success: false, error: new Error(fetchFanErr.message) };
+      }
+
+      if (!fanPost) {
         return { success: false, error: new Error('Post not found') };
       }
 
-      if (post.user_id !== userId) {
+      if (fanPost.user_id !== userId) {
         return { success: false, error: new Error('You can only delete your own posts') };
       }
 
-      // Optionally clean up dependent rows if cascade is not configured
+      // Clean up shared dependent rows
       try {
         await supabase.from('post_likes').delete().eq('post_id', postId);
       } catch (error) {
@@ -1298,18 +1348,18 @@ export const deletePostById = async (
         console.warn('Error deleting post comments:', error);
       }
 
-      const { error: delErr } = await supabase
-        .from('racer_posts')
+      const { error: delFanErr } = await supabase
+        .from('fan_posts')
         .delete()
         .eq('id', postId);
 
-      if (delErr) {
-        if (delErr.message?.includes('Failed to fetch') && retries < maxRetries) {
+      if (delFanErr) {
+        if (delFanErr.message?.includes('Failed to fetch') && retries < maxRetries) {
           retries++;
           await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
           continue;
         }
-        return { success: false, error: new Error(delErr.message) };
+        return { success: false, error: new Error(delFanErr.message) };
       }
 
       return { success: true, error: null };
