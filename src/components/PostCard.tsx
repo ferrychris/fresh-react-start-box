@@ -157,7 +157,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     setLikesCount(post.likes_count || 0);
   }, [post.id, user, post.likes_count]);
 
-  // Realtime: listen for comments INSERT/DELETE for this post
+  // Realtime: listen for comments INSERT/DELETE for this post and racer_posts updates
   useEffect(() => {
     const channel = supabase
       .channel(`comments-${post.id}`)
@@ -183,7 +183,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                 user_type: 'fan'
               }
             }, ...prev]);
-            setCommentsCount(cnt => cnt + 1);
+            // Don't manually increment here as the database trigger handles it
           }
         }
       )
@@ -197,8 +197,18 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
           if (deletedId) {
             commentIdsRef.current.delete(deletedId);
             setComments(prev => prev.filter(c => c.id !== deletedId));
+            // Don't manually decrement here as the database trigger handles it
           }
-          setCommentsCount(cnt => (cnt > 0 ? cnt - 1 : 0));
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'racer_posts', filter: `id=eq.${post.id}` },
+        (payload) => {
+          const updatedPost = payload.new as any;
+          if (updatedPost?.comments_count !== undefined) {
+            setCommentsCount(updatedPost.comments_count);
+          }
         }
       )
       .subscribe();

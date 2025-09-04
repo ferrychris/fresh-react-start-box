@@ -59,6 +59,13 @@ export const SupabaseImageUpload = ({
         return;
       }
 
+      // Check authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({ title: 'Authentication required', description: 'Please log in to upload images' });
+        return;
+      }
+
       const bucket = getBucketName(type);
       const fileExt = file.name.split('.').pop();
       const fileName = `${userId}_${type}_${Date.now()}.${fileExt}`;
@@ -66,31 +73,63 @@ export const SupabaseImageUpload = ({
 
       console.log(`Uploading to bucket: ${bucket}, path: ${filePath}`);
 
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
+      // Upload with better error handling and retry logic
+      let uploadResult;
+      const maxRetries = 3;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        uploadResult = await supabase.storage
+          .from(bucket)
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: true
+          });
 
-      if (error) {
-        console.error('Upload error:', error);
-        toast({ title: 'Upload failed', description: error.message });
+        if (!uploadResult.error) break;
+        
+        if (attempt === maxRetries) {
+          console.error('Upload error after retries:', uploadResult.error);
+          toast({ 
+            title: 'Upload failed', 
+            description: uploadResult.error.message || 'Failed to upload image after multiple attempts'
+          });
+          return;
+        }
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+
+      if (!uploadResult || uploadResult.error) {
+        console.error('Upload error:', uploadResult?.error);
+        toast({ title: 'Upload failed', description: uploadResult?.error?.message || 'Unknown error' });
         return;
       }
 
-      console.log('Upload successful:', data);
+      console.log('Upload successful:', uploadResult.data);
 
-      // Get public URL
+      // Get public URL with error handling
       const { data: { publicUrl } } = supabase.storage
         .from(bucket)
         .getPublicUrl(filePath);
 
+      if (!publicUrl) {
+        toast({ title: 'Error', description: 'Failed to generate public URL for uploaded image' });
+        return;
+      }
+
       console.log('Public URL:', publicUrl);
 
-      onImageChange(publicUrl);
-      setPreview(publicUrl);
-      toast({ title: 'Success', description: 'Image uploaded successfully!' });
+      // Verify image loads before updating state
+      const img = new Image();
+      img.onload = () => {
+        onImageChange(publicUrl);
+        setPreview(publicUrl);
+        toast({ title: 'Success', description: 'Image uploaded successfully!' });
+      };
+      img.onerror = () => {
+        toast({ title: 'Error', description: 'Uploaded image could not be loaded' });
+      };
+      img.src = publicUrl;
 
     } catch (error) {
       console.error('Unexpected error:', error);

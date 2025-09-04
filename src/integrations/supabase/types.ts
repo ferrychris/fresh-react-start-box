@@ -537,7 +537,22 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "racer_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       post_interactions: {
         Row: {
@@ -829,7 +844,7 @@ export type Database = {
           content: string | null
           created_at: string | null
           id: string
-          likes_count: number | null
+          likes_count: number
           media_urls: Json | null
           post_type: string | null
           racer_id: string | null
@@ -845,7 +860,7 @@ export type Database = {
           content?: string | null
           created_at?: string | null
           id?: string
-          likes_count?: number | null
+          likes_count?: number
           media_urls?: Json | null
           post_type?: string | null
           racer_id?: string | null
@@ -861,7 +876,7 @@ export type Database = {
           content?: string | null
           created_at?: string | null
           id?: string
-          likes_count?: number | null
+          likes_count?: number
           media_urls?: Json | null
           post_type?: string | null
           racer_id?: string | null
@@ -877,6 +892,13 @@ export type Database = {
             columns: ["racer_id"]
             isOneToOne: false
             referencedRelation: "racer_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "racer_posts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1772,8 +1794,15 @@ export type Database = {
         Returns: boolean
       }
       decrement_post_likes: {
-        Args: { post_id: string }
-        Returns: undefined
+        Args: { post_id_param: string }
+        Returns: number
+      }
+      get_fan_counts: {
+        Args: { racer_ids: string[] }
+        Returns: {
+          fan_count: number
+          racer_id: string
+        }[]
       }
       get_fan_monthly_spend: {
         Args: { p_fan_id: string }
@@ -1791,6 +1820,10 @@ export type Database = {
           tips_cents: number
           tips_count: number
         }[]
+      }
+      get_post_comment_count: {
+        Args: { post_uuid: string }
+        Returns: number
       }
       get_racer_fan_stats: {
         Args: { racer_uuid: string }
@@ -1828,8 +1861,8 @@ export type Database = {
         }[]
       }
       increment_post_likes: {
-        Args: { post_id: string }
-        Returns: undefined
+        Args: { post_id_param: string }
+        Returns: number
       }
       increment_profile_views: {
         Args: {
@@ -1851,6 +1884,10 @@ export type Database = {
           p_sender_id: string
         }
         Returns: string
+      }
+      sync_comment_counts: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       toggle_track_follow: {
         Args: { p_track_id: string; p_user_id: string }

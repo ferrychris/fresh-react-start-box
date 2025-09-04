@@ -693,47 +693,9 @@ export const addCommentToPost = async (
         throw new Error('Failed to add comment: No data returned.');
       }
 
-      // After adding comment, increment the comments count on the post.
-      // Prefer a lightweight increment over a full recount for performance.
-      try {
-        // Attempt to increment comments_count if present
-        // Note: Supabase client doesn't support expressions directly in update payload,
-        // so we fetch current value and write back +1 as a fallback.
-        const { data: currentPost, error: fetchPostErr } = await supabase
-          .from('racer_posts')
-          .select('id, comments_count, comment_count')
-          .eq('id', postId)
-          .maybeSingle();
-
-        if (fetchPostErr) {
-          console.warn('Failed to fetch post for comment count increment:', fetchPostErr);
-        } else if (currentPost) {
-          // Prefer comments_count; fallback to comment_count if that exists instead
-          const hasPlural = typeof (currentPost as any).comments_count === 'number';
-          const hasSingular = typeof (currentPost as any).comment_count === 'number';
-
-          if (hasPlural) {
-            const newVal = ((currentPost as any).comments_count || 0) + 1;
-            const { error: updErr } = await supabase
-              .from('racer_posts')
-              .update({ comments_count: newVal })
-              .eq('id', postId);
-            if (updErr) console.warn('Failed to increment comments_count:', updErr);
-          } else if (hasSingular) {
-            const newVal = ((currentPost as any).comment_count || 0) + 1;
-            const { error: updErr2 } = await supabase
-              .from('racer_posts')
-              .update({ comment_count: newVal })
-              .eq('id', postId);
-            if (updErr2) console.warn('Failed to increment comment_count:', updErr2);
-          } else {
-            // Neither column exists; log once
-            console.warn('No comments_count/comment_count column found on racer_posts');
-          }
-        }
-      } catch (incErr) {
-        console.warn('Exception while incrementing comment count:', incErr);
-      }
+      // The database trigger will automatically handle comment count updates
+      // No manual intervention needed here as the trigger function handles it
+      console.log('Comment added successfully, database trigger will update comment count');
 
       // Map the returned data to the PostComment type
       const mappedComment: Comment = {
