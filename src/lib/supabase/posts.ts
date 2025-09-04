@@ -1051,7 +1051,22 @@ export const createFanPost = async (post: {
   visibility: string; 
 }): Promise<{ data: DatabasePost | null; error: any | null }> => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    // Check environment variables first
+    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      console.error('Supabase environment variables not configured');
+      return { 
+        data: null, 
+        error: { message: 'Database configuration error. Please check environment variables.' } 
+      };
+    }
+
+    // Check authentication
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      console.error('Session error:', sessionError);
+      return { data: null, error: { message: 'Authentication error: ' + sessionError.message } };
+    }
+    
     if (!session) {
       return { data: null, error: { message: 'Authentication required to create posts' } };
     }
@@ -1059,12 +1074,25 @@ export const createFanPost = async (post: {
     if (session.user.id !== post.fan_id) {
       return { data: null, error: { message: 'Unauthorized: You can only create posts for yourself' } };
     }
+
+    // Validate required fields
+    if (!post.content?.trim()) {
+      return { data: null, error: { message: 'Post content is required' } };
+    }
+
+    console.log('Creating fan post with data:', {
+      content: post.content.substring(0, 50) + '...',
+      media_urls_count: post.media_urls?.length || 0,
+      post_type: post.post_type,
+      visibility: post.visibility,
+      user_id: post.fan_id
+    });
     
     const { data, error } = await supabase.from('racer_posts').insert([{
       content: post.content,
-      media_urls: post.media_urls,
-      post_type: post.post_type,
-      visibility: post.visibility,
+      media_urls: post.media_urls || [],
+      post_type: post.post_type || 'text',
+      visibility: post.visibility || 'public',
       user_id: post.fan_id,
       user_type: 'fan',
       allow_tips: false,
@@ -1072,13 +1100,45 @@ export const createFanPost = async (post: {
     }]).select();
     
     if (error) {
-      console.error('Error creating fan post:', error);
+      console.error('Supabase error creating fan post:', error);
+      
+      // Provide more specific error messages
+      if (error.code === 'PGRST301') {
+        return { data: null, error: { message: 'Database connection failed. Please try again.' } };
+      } else if (error.code === '42501') {
+        return { data: null, error: { message: 'Permission denied. Please check your account permissions.' } };
+      } else if (error.message?.includes('Failed to fetch')) {
+        return { data: null, error: { message: 'Network error. Please check your internet connection and try again.' } };
+      }
+      
       return { data: null, error };
     }
+
+    if (!data || data.length === 0) {
+      console.error('No data returned from insert operation');
+      return { data: null, error: { message: 'Post creation failed - no data returned' } };
+    }
     
+    console.log('Fan post created successfully:', data[0].id);
     return { data: data[0] as DatabasePost, error: null };
   } catch (error) {
     console.error('Exception creating fan post:', error);
+    
+    // Handle specific network errors
+    if (error instanceof Error) {
+      if (error.message.includes('Failed to fetch') || error.message.includes('fetch')) {
+        return { 
+          data: null, 
+          error: { message: 'Network connection failed. Please check your internet connection and try again.' } 
+        };
+      } else if (error.message.includes('NetworkError')) {
+        return { 
+          data: null, 
+          error: { message: 'Network error occurred. Please try again.' } 
+        };
+      }
+    }
+    
     return { 
       data: null, 
       error: { message: error instanceof Error ? error.message : 'Unknown error creating fan post' } 
