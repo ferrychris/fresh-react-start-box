@@ -3,9 +3,9 @@
 
 export const primaryButton = [
   'inline-flex items-center justify-center',
-  'px-12 py-6',
-  'rounded-2xl',
-  'text-white text-xl font-bold',
+  'px-8 py-3',
+  'rounded-xl',
+  'text-white text-sm font-bold',
   'bg-gradient-to-r from-purple-600 to-orange-500',
   'hover:from-purple-700 hover:to-orange-600',
   'transition-all duration-300',

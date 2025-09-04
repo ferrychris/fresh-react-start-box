@@ -8,7 +8,7 @@ interface AuthModalProps {
 
 export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [userType, setUserType] = useState<'FAN' | 'RACER' | 'TRACK' | 'SERIES'>('FAN');
+  const [userType, setUserType] = useState<'FAN' | 'RACER' | 'TRACK' | 'SERIES'>('RACER');
   const [isLoading, setIsLoading] = useState(false);
   const { login, register } = useAuth();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -158,8 +158,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-900 rounded-2xl border border-slate-800 w-full max-w-2xl max-h-[95vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-slate-900 rounded-2xl border border-slate-800 w-full max-w-[22rem] sm:max-w-xl md:max-w-2xl max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white transition-colors duration-200 min-w-[44px] min-h-[44px] flex items-center justify-center z-10"
@@ -167,16 +167,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           <X className="w-5 h-5" />
         </button>
 
-        <div className="p-4 lg:p-6">
+        <div className="pt-2 pb-3 px-3 sm:pt-3 sm:pb-4 sm:px-4 lg:pt-4 lg:pb-6 lg:px-6">
           {/* Header */}
-          <div className="text-center mb-6 lg:mb-8">
-            <div className="w-12 h-12 lg:w-16 lg:h-16 brand-gradient rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <span className="text-white font-bold text-xl">🏁</span>
+          <div className="text-center mb-4 sm:mb-5 lg:mb-6">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 lg:w-12 lg:h-12 brand-gradient rounded-md flex items-center justify-center mx-auto mb-2 sm:mb-3">
+              <span className="text-white font-bold text-lg">🏁</span>
             </div>
-            <h2 className="text-xl lg:text-2xl font-bold text-white racing-number">
+            <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white racing-number">
               {mode === 'login' ? 'Welcome Back' : 'Join OnlyRaceFans'}
             </h2>
-            <p className="text-slate-400 mt-2 text-sm lg:text-base">
+            <p className="text-slate-400 mt-1 text-[11px] sm:text-xs lg:text-sm">
               {mode === 'login' 
                 ? 'Sign in to your account' 
                 : 'Start your racing journey today'
@@ -186,34 +186,46 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
           {/* Error Message */}
           {errorMsg && (
-            <div className="mb-4 lg:mb-6 bg-red-500/10 border border-red-500/30 text-red-200 text-sm rounded-xl p-3">
+            <div className="mb-3 lg:mb-4 bg-red-500/10 border border-red-500/30 text-red-200 text-xs rounded-lg p-2">
               {errorMsg}
             </div>
           )}
 
           {/* User Type Selection - Registration Only */}
           {mode === 'register' && (
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-slate-300 mb-3">
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-slate-300 mb-2">
                 I want to join as:
               </label>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
                 {userTypes.map((type) => {
                   const Icon = type.icon;
+                  const isDisabled = !(type.value === 'RACER' || type.value === 'FAN');
+                  const isSelected = userType === type.value;
                   return (
                     <button
                       key={type.value}
                       type="button"
-                      onClick={() => setUserType(type.value)}
-                      className={`p-3 lg:p-4 rounded-xl border-2 transition-all duration-200 min-h-[80px] ${
-                        userType === type.value
+                      disabled={isDisabled}
+                      onClick={() => {
+                        if (!isDisabled) setUserType(type.value);
+                      }}
+                      title={type.description}
+                      aria-label={`${type.label} — ${type.description}`}
+                      className={`relative p-1 rounded-xl border-2 transition-all duration-200 min-h-[40px] w-24 sm:w-28 lg:w-28 mx-auto ${
+                        isSelected
                           ? 'border-orange-500 bg-orange-500/10'
-                          : 'border-slate-700 hover:border-slate-600'
+                          : isDisabled
+                            ? 'border-slate-800 opacity-60 cursor-not-allowed'
+                            : 'border-slate-700 hover:border-slate-600'
                       }`}
                     >
-                      <Icon className="w-5 h-5 lg:w-6 lg:h-6 text-orange-500 mx-auto mb-2" />
-                      <div className="text-white font-medium text-sm lg:text-base">{type.label}</div>
-                      <div className="text-xs text-slate-400 mt-1 hidden lg:block">{type.description}</div>
+                      {isDisabled && (
+                        <span className="absolute top-0.5 right-1 text-[8px] sm:text-[9px] px-1 py-0.5 rounded bg-slate-700/80 text-slate-200 border border-slate-600">
+                          Coming Soon
+                        </span>
+                      )}
+                      <Icon className="w-4 h-4 sm:w-4 sm:h-4 lg:w-5 lg:h-5 text-orange-500 mx-auto" />
                     </button>
                   );
                 })}
@@ -222,20 +234,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-3 lg:space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-2 sm:space-y-3">
             {/* Basic Information */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 lg:gap-3">
               <div>
-                <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-[10px] sm:text-xs font-medium text-slate-300 mb-1">
                   Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4 lg:w-5 lg:h-5" />
+                  <Mail className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-slate-400 w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   <input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full pl-9 lg:pl-10 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                    className="w-full pl-7 sm:pl-8 pr-2 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] sm:text-xs min-h-[28px] sm:min-h-[32px]"
                     placeholder="your@email.com"
                     required
                   />
@@ -243,16 +255,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
               </div>
 
               <div>
-                <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-[10px] sm:text-xs font-medium text-slate-300 mb-1">
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4 lg:w-5 lg:h-5" />
+                  <Lock className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-slate-400 w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   <input
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full pl-9 lg:pl-10 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                    className="w-full pl-7 sm:pl-8 pr-2 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] sm:text-xs min-h-[28px] sm:min-h-[32px]"
                     placeholder="Password"
                     required
                   />
@@ -265,12 +277,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                 {/* Common Registration Fields */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
                   <div>
-                    <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-1">
                       {userType === 'TRACK' ? 'Track Name' : 
                        userType === 'SERIES' ? 'Series Name' : 'Full Name'}
                     </label>
                     <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4 lg:w-5 lg:h-5" />
+                      <User className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-slate-400 w-3 h-3 lg:w-4 lg:h-4" />
                       <input
                         type="text"
                         value={userType === 'TRACK' ? formData.trackName : 
@@ -281,7 +293,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                               userType === 'SERIES' ? { seriesName: e.target.value } :
                               { name: e.target.value })
                         })}
-                        className="w-full pl-9 lg:pl-10 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                        className="w-full pl-7 lg:pl-8 pr-2 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                         placeholder={userType === 'TRACK' ? 'Charlotte Motor Speedway' : 
                                    userType === 'SERIES' ? 'Late Model Championship' : 'Your full name'}
                         required
@@ -291,16 +303,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
                   {userType !== 'TRACK' && userType !== 'SERIES' && (
                     <div>
-                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-1">
                         Username
                       </label>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 text-sm lg:text-base">@</span>
+                        <span className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-slate-400 text-xs lg:text-sm">@</span>
                         <input
                           type="text"
                           value={formData.username}
                           onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                          className="w-full pl-7 lg:pl-8 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                          className="w-full pl-7 lg:pl-8 pr-2 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                           placeholder="username"
                           required
                         />
@@ -312,16 +324,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                 {/* Contact Information */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
                   <div>
-                    <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-1">
                       Phone Number
                     </label>
                     <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4 lg:w-5 lg:h-5" />
+                      <Phone className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-slate-400 w-3 h-3 lg:w-4 lg:h-4" />
                       <input
                         type="tel"
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full pl-9 lg:pl-10 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                        className="w-full pl-7 lg:pl-8 pr-2 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                         placeholder="(555) 123-4567"
                       />
                     </div>
@@ -329,16 +341,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
                   {(userType === 'TRACK' || userType === 'SERIES') && (
                     <div>
-                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-1">
                         Contact Person
                       </label>
                       <div className="relative">
-                        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4 lg:w-5 lg:h-5" />
+                        <User className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-slate-400 w-3 h-3 lg:w-4 lg:h-4" />
                         <input
                           type="text"
                           value={formData.contactPerson}
                           onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-                          className="w-full pl-9 lg:pl-10 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                          className="w-full pl-7 lg:pl-8 pr-2 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                           placeholder="Contact person name"
                         />
                       </div>
@@ -359,7 +371,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                           type="text"
                           value={formData.address}
                           onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                          className="w-full pl-9 lg:pl-10 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                          className="w-full pl-7 lg:pl-8 pr-2 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                           placeholder="Street address"
                         />
                       </div>
@@ -374,7 +386,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                           type="text"
                           value={formData.city}
                           onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                          className="w-full px-3 lg:px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                          className="w-full px-2 lg:px-3 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                           placeholder="City"
                         />
                       </div>
@@ -386,7 +398,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                           type="text"
                           value={formData.state}
                           onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                          className="w-full px-3 lg:px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                          className="w-full px-2 lg:px-3 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                           placeholder="State"
                         />
                       </div>
@@ -398,7 +410,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                           type="text"
                           value={formData.zipCode}
                           onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
-                          className="w-full px-3 lg:px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                          className="w-full px-2 lg:px-3 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                           placeholder="ZIP"
                         />
                       </div>
@@ -410,26 +422,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                 {userType === 'RACER' && (
                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4">
                     <div>
-                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-1">
                         Car Number
                       </label>
                       <input
                         type="text"
                         value={formData.carNumber}
                         onChange={(e) => setFormData({ ...formData, carNumber: e.target.value })}
-                        className="w-full px-3 lg:px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                        className="w-full px-2 lg:px-3 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                         placeholder="23"
                         required
                       />
                     </div>
                     <div className="lg:col-span-2">
-                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-1">
                         Racing Class
                       </label>
                       <select
                         value={formData.racingClass}
                         onChange={(e) => setFormData({ ...formData, racingClass: e.target.value })}
-                        className="w-full px-3 lg:px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                        className="w-full px-2 lg:px-3 py-1 bg-slate-800 border border-slate-700 rounded-md text-white focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                         required
                       >
                         <option value="">Select racing class</option>
@@ -445,13 +457,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                 {userType === 'TRACK' && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
                     <div>
-                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-1">
                         Track Type
                       </label>
                       <select
                         value={formData.trackType}
                         onChange={(e) => setFormData({ ...formData, trackType: e.target.value })}
-                        className="w-full px-3 lg:px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                        className="w-full px-2 lg:px-3 py-1 bg-slate-800 border border-slate-700 rounded-md text-white focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                       >
                         <option value="">Select track type</option>
                         {trackTypes.map((type) => (
@@ -460,14 +472,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-1">
                         Capacity
                       </label>
                       <input
                         type="number"
                         value={formData.capacity}
                         onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
-                        className="w-full px-3 lg:px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                        className="w-full px-2 lg:px-3 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                         placeholder="5000"
                       />
                     </div>
@@ -478,13 +490,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                 {userType === 'SERIES' && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
                     <div>
-                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-1">
                         Category
                       </label>
                       <select
                         value={formData.category}
                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        className="w-full px-3 lg:px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                        className="w-full px-2 lg:px-3 py-1 bg-slate-800 border border-slate-700 rounded-md text-white focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                       >
                         <option value="">Select category</option>
                         {seriesCategories.map((cat) => (
@@ -493,14 +505,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-1">
                         Season
                       </label>
                       <input
                         type="text"
                         value={formData.season}
                         onChange={(e) => setFormData({ ...formData, season: e.target.value })}
-                        className="w-full px-3 lg:px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base min-h-[48px]"
+                        className="w-full px-2 lg:px-3 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs min-h-[28px] lg:min-h-[32px]"
                         placeholder="2024"
                       />
                     </div>
@@ -510,13 +522,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                 {/* Fan Specific Fields */}
                 {userType === 'FAN' && (
                   <div>
-                    <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-xs lg:text-sm font-medium text-slate-300 mb-1">
                       Racing Interests (Optional)
                     </label>
                     <textarea
                       value={formData.racingInterests}
                       onChange={(e) => setFormData({ ...formData, racingInterests: e.target.value })}
-                      className="w-full px-3 lg:px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm lg:text-base"
+                      className="w-full px-2 lg:px-3 py-1 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] lg:text-xs"
                       rows={2}
                       placeholder="Tell us about your favorite racers, series, or racing interests..."
                     />
@@ -525,19 +537,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
                 {/* Privacy Settings */}
                 {(userType === 'RACER' || userType === 'TRACK' || userType === 'SERIES') && (
-                  <div className="bg-slate-800 rounded-xl p-4">
+                  <div className="bg-slate-800 rounded-md p-2">
                     <label className="flex items-start space-x-3 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={formData.showContactForSponsorship}
                         onChange={(e) => setFormData({ ...formData, showContactForSponsorship: e.target.checked })}
-                        className="mt-1 w-4 h-4 text-orange-500 bg-slate-700 border-slate-600 rounded focus:ring-orange-500 focus:ring-2"
+                        className="mt-0.5 w-3.5 h-3.5 text-orange-500 bg-slate-700 border-slate-600 rounded focus:ring-orange-500 focus:ring-1"
                       />
                       <div>
-                        <span className="text-white font-medium text-sm lg:text-base">
+                        <span className="text-white font-medium text-xs lg:text-sm">
                           Show contact information for sponsorship inquiries
                         </span>
-                        <p className="text-slate-400 text-xs lg:text-sm mt-1">
+                        <p className="text-slate-400 text-[11px] lg:text-xs mt-1">
                           Allow potential sponsors to see your contact details when requesting sponsorships
                         </p>
                       </div>
@@ -550,17 +562,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm lg:text-base min-h-[48px]"
+              className="w-full py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm min-h-[36px] sm:min-h-[40px]"
             >
               {isLoading ? 'Loading...' : mode === 'login' ? 'Sign In' : 'Create Account'}
             </button>
           </form>
 
           {/* Switch Mode */}
-          <div className="text-center mt-4 lg:mt-6">
+          <div className="text-center mt-3 sm:mt-4 lg:mt-5">
             <button
               onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setErrorMsg(null); }}
-              className="text-slate-400 hover:text-white transition-colors duration-200 text-sm lg:text-base min-h-[44px] px-4 py-2"
+              className="text-slate-400 hover:text-white transition-colors duration-200 text-xs sm:text-sm min-h-[32px] px-3 py-1.5"
             >
               {mode === 'login' 
                 ? "Don't have an account? Sign up" 
@@ -571,7 +583,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
           {/* Debug Section - Remove this in production */}
           {mode === 'login' && (
-            <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+            <div className="mt-4 p-2 bg-blue-500/10 border border-blue-500/30 rounded-md">
               <p className="text-blue-200 text-xs mb-2">
                 🔧 Debug: If you're having login issues, try these test accounts:
               </p>

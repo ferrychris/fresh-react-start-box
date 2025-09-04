@@ -261,21 +261,15 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div onClick={() => onViewChange('home')} className="flex items-center space-x-3 group flex-shrink-0 cursor-pointer">
-              <div className="relative flex items-center space-x-2">
-                <Flag className="h-4 w-4 text-fedex-orange" aria-hidden="true" />
-                <img 
-                  src="/files_4459890-1753947080801-only%20race%20fans%20logo.png" 
-                  alt="OnlyRaceFans flag logo" 
-                  className="h-7 w-7 rounded-2xl object-cover group-hover:opacity-90 transition-all duration-200 group-hover:scale-105"
-                />
-                <span className={`text-base font-extrabold tracking-tight select-none ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
-                  OnlyRace
-                  <span className="text-fedex-orange">Fans</span>
-                </span>
+            {/* Logo (match Fanheader style) */}
+            <div onClick={() => onViewChange('home')} className="flex items-center gap-3 group flex-shrink-0 cursor-pointer">
+              <div className="w-9 h-7 lg:w-11 lg:h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-pink-500 via-pink-400 to-orange-500 shadow-md group-hover:scale-110 transition-transform duration-300">
+                <span className="text-white font-bold text-lg">🏁</span>
+              </div>
+              <div className="hidden sm:block">
+                <h1 className={`text-lg lg:text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} racing-number`}>
+                  OnlyRace<span className="text-orange-500">Fans</span>
+                </h1>
               </div>
             </div>
 

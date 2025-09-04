@@ -7,56 +7,56 @@ interface HowItWorksSectionProps {
 
 const HowItWorksSection: React.FC<HowItWorksSectionProps> = ({ theme }) => {
   return (
-    <section className={`py-16 ${
+    <section className={`py-12 ${
       theme === 'dark' ? 'bg-gray-900' : 'bg-white'
     }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h2 className={`text-3xl font-bold mb-4 ${
+        <div className="text-center mb-10">
+          <h2 className={`text-2xl md:text-3xl font-bold mb-3 ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>How It Works</h2>
-          <p className={`text-xl max-w-3xl mx-auto ${
+          <p className={`text-base md:text-lg max-w-3xl mx-auto ${
             theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
           }`}>
             Support your favorite racers and get exclusive access to their journey
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center">
-            <div className="w-16 h-16 bg-fedex-orange rounded-full flex items-center justify-center mx-auto mb-4">
-              <Users className="h-8 w-8 text-white" />
+            <div className="w-14 h-14 bg-fedex-orange rounded-full flex items-center justify-center mx-auto mb-3.5">
+              <Users className="h-7 w-7 text-white" />
             </div>
-            <h3 className={`text-xl font-semibold mb-2 ${
+            <h3 className={`text-lg font-semibold mb-1.5 ${
               theme === 'dark' ? 'text-white' : 'text-gray-900'
             }`}>Discover Racers</h3>
-            <p className={`${
+            <p className={`text-sm ${
               theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
             }`}>
               Browse through verified racers from various classes and locations
             </p>
           </div>
           <div className="text-center">
-            <div className="w-16 h-16 bg-fedex-orange rounded-full flex items-center justify-center mx-auto mb-4">
-              <Heart className="h-8 w-8 text-white" />
+            <div className="w-14 h-14 bg-fedex-orange rounded-full flex items-center justify-center mx-auto mb-3.5">
+              <Heart className="h-7 w-7 text-white" />
             </div>
-            <h3 className={`text-xl font-semibold mb-2 ${
+            <h3 className={`text-lg font-semibold mb-1.5 ${
               theme === 'dark' ? 'text-white' : 'text-gray-900'
             }`}>Support & Subscribe</h3>
-            <p className={`${
+            <p className={`text-sm ${
               theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
             }`}>
               Choose a subscription tier and support your favorite racers
             </p>
           </div>
           <div className="text-center">
-            <div className="w-16 h-16 bg-fedex-orange rounded-full flex items-center justify-center mx-auto mb-4">
-              <Trophy className="h-8 w-8 text-white" />
+            <div className="w-14 h-14 bg-fedex-orange rounded-full flex items-center justify-center mx-auto mb-3.5">
+              <Trophy className="h-7 w-7 text-white" />
             </div>
-            <h3 className={`text-xl font-semibold mb-2 ${
+            <h3 className={`text-lg font-semibold mb-1.5 ${
               theme === 'dark' ? 'text-white' : 'text-gray-900'
             }`}>Exclusive Content</h3>
-            <p className={`${
+            <p className={`text-sm ${
               theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
             }`}>
               Get behind-the-scenes content, live streams, and exclusive updates

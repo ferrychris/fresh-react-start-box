@@ -6,6 +6,7 @@ import { HeroSection } from '../components/home/HeroSection';
 import FeaturedRacersSection from '../components/home/FeaturedRacersSection';
 import HowItWorksSection from '../components/home/HowItWorksSection';
 import { CallToActionSection } from '../components/home/CTASection';
+import Footer from '../components/Footer';
 
 export const Home: React.FC = () => {
   const { racers, loadRacers } = useApp();
@@ -37,6 +38,9 @@ export const Home: React.FC = () => {
 
       {/* CTA Section */}
       <CallToActionSection onGetStarted={() => navigate('/racers')} />
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 };

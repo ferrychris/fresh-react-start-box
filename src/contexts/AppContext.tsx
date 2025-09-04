@@ -92,7 +92,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const { data: profiles, error } = await supabase
         .from('profiles')
         .select('id, name, email, profile_complete, avatar, banner_image, racer_profiles(*)')
-        .eq('user_type', 'racer');
+        .eq('user_type', 'racer')
+        // Order by most recently updated racer profile (fresh racers first)
+        .order('updated_at', { ascending: false, foreignTable: 'racer_profiles' })
+        .limit(24);
 
       if (error) throw error;
 
@@ -103,11 +106,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           getFanCountsForRacers(racerIds)
         ]);
 
-        const racersMapped = profiles.map((profile: any) => ({
-          id: profile.id,
-          name: profile.name,
-          // ... other fields mapping
-        }));
+        const racersMapped = profiles.map((profile: any) => {
+          const rp = Array.isArray(profile.racer_profiles)
+            ? profile.racer_profiles[0]
+            : profile.racer_profiles;
+          return {
+            id: profile.id,
+            name: rp?.username || profile.name || 'Racer',
+            class: rp?.racing_class || 'Racing',
+            location: rp?.team_name || '—',
+            bio: rp?.bio || '',
+            fanCount: fanCountsByRacer?.[profile.id] ?? 0,
+            bannerImage: profile.banner_image ?? null,
+            profilePicture: profile.avatar || rp?.profile_photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.name}`,
+            // expose raw for internal consumers if needed
+            _profile: profile,
+            _racerProfile: rp,
+          };
+        });
         setRacers(racersMapped);
       }
     } catch (error) {

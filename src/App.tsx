@@ -146,10 +146,12 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
     : loc.pathname === '/grandstand'
       ? 'pt-0 pb-20 md:pb-0'
       : 'pt-16 pb-20 md:pb-0';
+  // Add 20px (Tailwind mt-5) margin-top on the landing page only
+  const mainClasses = `${mainPadding} ${loc.pathname === '/' ? 'mt-5' : ''}`;
   return (
-    <main className={mainPadding}>
+    <main className={mainClasses}>
       <Routes>
-        <Route path="/" element={<Navigate to="/fan-dashboard" replace />} />
+        <Route path="/" element={<Home />} />
         <Route path="/feed" element={<Feed />} />
         <Route path="/racers" element={<Racers />} />
         <Route path="/tracks" element={<Tracks />} />

@@ -57,6 +57,16 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         
         if (session?.user) {
           fetchUserProfile(session.user.id);
+          // If user is already logged in and lands on auth pages, route to grandstand
+          try {
+            const path = window.location.pathname;
+            if (["/", "/login", "/signin"].includes(path)) {
+              window.location.href = "/grandstand";
+            }
+          } catch (e) {
+            // Best-effort redirect; ignore errors in non-browser environments
+            console.debug('Redirect to /grandstand skipped:', e);
+          }
         } else {
           setIsLoading(false);
         }
@@ -74,6 +84,13 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
         if (session?.user) {
           fetchUserProfile(session.user.id);
+          // Redirect to grandstand immediately after login
+          try {
+            window.location.href = "/grandstand";
+          } catch (e) {
+            // Best-effort redirect; ignore errors in non-browser environments
+            console.debug('Redirect to /grandstand skipped:', e);
+          }
         } else {
           setUser(null);
           setIsLoading(false);
@@ -138,6 +155,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     try {
       await supabase.auth.signOut();
       setUser(null);
+      // Redirect to home after logout
+      window.location.href = '/';
     } catch (error) {
       console.error('Error logging out:', error);
     }
