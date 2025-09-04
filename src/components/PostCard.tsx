@@ -113,9 +113,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const userType = (profile?.user_type || '').toLowerCase();
   const isRacer = userType === 'racer';
 
-  // Get display name
+  // Get display name - improved racer name fetching
   const emailUsername = profile?.email?.split('@')[0];
-  const displayName = profile?.name || emailUsername || (isRacer ? 'Racer' : 'User');
+  const racerName = post.racer_profiles?.username || post.racer_profiles?.profiles?.name;
+  const displayName = profile?.name || racerName || emailUsername || (isRacer ? 'Racer' : 'User');
 
   // Get avatar URL - check for avatar property
   const avatarUrl = profile?.avatar || '';
@@ -208,7 +209,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   }, [post.id]);
 
   const handleLike = async () => {
-    if (!user) { setShowAuthModal(true); return; }
+    if (!user) { 
+      setShowAuthModal(true); 
+      return; 
+    }
     if (likeBusy) return; // prevent rapid clicks
     setLikeBusy(true);
     
@@ -221,19 +225,35 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     
     try {
       if (wasLiked) {
-        await unlikePost(post.id, user.id);
+        const result = await unlikePost(post.id, user.id);
+        if (result.error) {
+          throw result.error;
+        }
       } else {
-        await likePost(post.id, user.id);
+        const result = await likePost(post.id, user.id);
+        if (result.error) {
+          throw result.error;
+        }
       }
 
+      // Call parent update callback
       onPostUpdate?.();
+      
+      // Show success feedback
+      if (wasLiked) {
+        console.log('Post unliked successfully');
+      } else {
+        console.log('Post liked successfully');
+      }
     } catch (error) {
       console.error('Error toggling like:', error);
       // Revert optimistic update on error
       setIsLiked(wasLiked);
       setLikesCount(prevCount);
-    }
-    finally {
+      
+      // Show error feedback
+      toast.error('Failed to update like. Please try again.');
+    } finally {
       setLikeBusy(false);
     }
   };

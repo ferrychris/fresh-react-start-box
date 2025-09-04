@@ -1228,27 +1228,68 @@ export const getPostLikers = async (postId: string, userId: string): Promise<{ d
 
 // Adds a like to a post for a user.
 export const likePost = async (postId: string, userId: string): Promise<{ error: any | null }> => {
-  const { error } = await supabase
-    .from('post_likes')
-    .insert({ post_id: postId, user_id: userId });
-  if (error) {
-    console.error('Error adding like:', error);
-    throw error;
+  try {
+    // First check if the like already exists to prevent duplicates
+    const { data: existingLike } = await supabase
+      .from('post_likes')
+      .select('id')
+      .eq('post_id', postId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existingLike) {
+      // Like already exists, no need to add again
+      return { error: null };
+    }
+
+    const { error } = await supabase
+      .from('post_likes')
+      .insert({ post_id: postId, user_id: userId });
+    
+    if (error) {
+      console.error('Error adding like:', error);
+      throw error;
+    }
+
+    // Increment the likes count on the post using database function
+    try {
+      await supabase.rpc('increment_post_likes', { post_id_param: postId });
+    } catch (rpcError) {
+      console.warn('Failed to increment like count via RPC:', rpcError);
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error('Error in likePost:', error);
+    return { error };
   }
-  return { error: null };
 };
 
 // Removes a like from a post for a user.
 export const unlikePost = async (postId: string, userId: string): Promise<{ error: any | null }> => {
-  const { error } = await supabase
-    .from('post_likes')
-    .delete()
-    .match({ post_id: postId, user_id: userId });
-  if (error) {
-    console.error('Error removing like:', error);
-    throw error;
+  try {
+    const { error } = await supabase
+      .from('post_likes')
+      .delete()
+      .match({ post_id: postId, user_id: userId });
+    
+    if (error) {
+      console.error('Error removing like:', error);
+      throw error;
+    }
+
+    // Decrement the likes count on the post using database function
+    try {
+      await supabase.rpc('decrement_post_likes', { post_id_param: postId });
+    } catch (rpcError) {
+      console.warn('Failed to decrement like count via RPC:', rpcError);
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error('Error in unlikePost:', error);
+    return { error };
   }
-  return { error: null };
 };
 
 export const updatePost = async (postId: string, content: string): Promise<{ data: { id: string; content: string } | null; error: any | null }> => {

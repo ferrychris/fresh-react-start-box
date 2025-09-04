@@ -29,7 +29,7 @@ export interface DatabasePost {
   media_urls?: string[];
   post_type?: 'text' | 'photo' | 'video' | 'gallery';
   likes_count: number;
-  comments_count: number;
+  comments_count?: number;
   user_id?: string;
   user_type?: 'racer' | 'fan' | 'track';
   fan_id?: string;
