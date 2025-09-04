@@ -60,7 +60,7 @@ interface Racer {
 
 interface ActivityItem {
   id: string;
-  type: 'tip' | 'badge' | 'subscription' | 'post' | 'comment';
+  type: 'tip' | 'badge' | 'subscription' | 'post' | 'comment' | 'welcome';
   timestamp: string;
   timeAgo: string;
   content: string;
@@ -82,7 +82,7 @@ interface RacerData {
     username: string | null;
     profile_photo_url: string | null;
     country: string | null;
-  } | null;
+  };
   last_tipped: string | null;
   total_tipped: number;
   subscription_tier: string | null;
@@ -90,7 +90,7 @@ interface RacerData {
 
 interface ActivityData {
   id: string;
-  activity_type: 'tip' | 'badge' | 'subscription' | 'post' | 'comment';
+  activity_type: 'tip' | 'badge' | 'subscription' | 'post' | 'comment' | 'welcome';
   created_at: string;
   content: string;
   racer_id?: string;

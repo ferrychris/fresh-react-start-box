@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Heart, MessageCircle, Share, MoreHorizontal, Play, Calendar, MapPin, Users, DollarSign, Crown } from 'lucide-react';
-import { getAllPublicPosts, tipPost } from '../../lib/supabase/posts';
+import { getPublicPostsPage, tipPost } from '../../lib/supabase/posts';
 
 interface Post {
   id: string;
@@ -30,17 +30,85 @@ interface GrandstandPostsProps {
 const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tipping, setTipping] = useState<Record<string, boolean>>({});
+  const [nextCursor, setNextCursor] = useState<{ created_at: string; id: string } | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Debounced loading function
+  const debouncedLoad = useCallback((fn: () => void, delay: number = 300) => {
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+    loadingTimeoutRef.current = setTimeout(fn, delay);
+  }, []);
+
+  // Load more posts
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore) return;
+    
+    setLoadingMore(true);
+    try {
+      const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ 
+        limit: 10, 
+        cursor: nextCursor 
+      });
+      
+      if (error) throw error;
+      
+      const mapped: Post[] = (rows || []).map((r: any): Post => {
+        const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+        const displayName = profile?.name || 'User';
+        const avatar = profile?.avatar || profile?.avatar_url || '';
+        const userType = (r.user_type || 'fan').toString().toUpperCase();
+        return {
+          id: r.id,
+          userId: r.user_id || r.racer_id || 'unknown',
+          userType: ['RACER','TRACK','SERIES','FAN'].includes(userType) ? userType : 'FAN',
+          userName: displayName,
+          userAvatar: avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
+          userVerified: false,
+          carNumber: undefined,
+          content: r.content || '',
+          mediaUrls: r.media_urls || [],
+          mediaType: Array.isArray(r.media_urls) && r.media_urls.length > 0 ? (r.post_type === 'video' ? 'video' : 'image') : undefined,
+          location: undefined,
+          eventDate: undefined,
+          likes: r.likes_count ?? 0,
+          comments: r.comments_count ?? 0,
+          shares: 0,
+          isLiked: false,
+          timestamp: r.created_at || new Date().toISOString(),
+          createdAt: r.created_at || new Date().toISOString(),
+        };
+      });
+      
+      setPosts(prevPosts => [...prevPosts, ...mapped]);
+      setNextCursor(cursor || null);
+      setHasMore(!!cursor && mapped.length > 0);
+    } catch (e: any) {
+      console.error('Failed to load more posts', e);
+      setError(e?.message || 'Failed to load posts');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextCursor, hasMore, loadingMore]);
+
+  // Initial load
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
       try {
         setLoading(true);
         setError(null);
-        const rows = await getAllPublicPosts();
+        const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 10 });
         if (!isMounted) return;
+        
+        if (error) throw error;
+        
         const mapped: Post[] = (rows || []).map((r: any): Post => {
           const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
           const displayName = profile?.name || 'User';
@@ -67,7 +135,10 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
             createdAt: r.created_at || new Date().toISOString(),
           };
         });
+        
         setPosts(mapped);
+        setNextCursor(cursor || null);
+        setHasMore(!!cursor);
       } catch (e: any) {
         console.error('Failed to load posts', e);
         if (!isMounted) return;
@@ -79,6 +150,26 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
     load();
     return () => { isMounted = false; };
   }, []);
+
+  // Infinite scroll with IntersectionObserver
+  useEffect(() => {
+    const element = sentinelRef.current;
+    if (!element || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          debouncedLoad(() => loadMore());
+        }
+      },
+      { rootMargin: '100px' }
+    );
+
+    observer.observe(element);
+    return () => {
+      if (element) observer.unobserve(element);
+    };
+  }, [hasMore, loadMore, debouncedLoad]);
 
   const handleLike = (postId: string) => {
     setPosts(posts.map(post => 
@@ -323,12 +414,25 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
           </div>
         )}
         
-        {/* Load More */}
-        {posts.length > 0 && (
-          <div className="text-center py-4">
-            <button className="px-6 py-3 bg-gray-800 text-white rounded-xl font-medium hover:bg-gray-700 transition-all duration-200">
-              Load More Posts
-            </button>
+        {/* Loading more posts */}
+        {loadingMore && (
+          <div className="text-center py-6">
+            <div className="inline-flex items-center space-x-2">
+              <div className="w-4 h-4 border-2 border-fedex-orange border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-gray-400 text-sm">Loading more posts...</span>
+            </div>
+          </div>
+        )}
+        
+        {/* Intersection observer sentinel */}
+        {hasMore && !loadingMore && posts.length > 0 && (
+          <div ref={sentinelRef} className="h-4" aria-hidden="true" />
+        )}
+        
+        {/* No more posts indicator */}
+        {!hasMore && posts.length > 0 && (
+          <div className="text-center py-6">
+            <p className="text-gray-500 text-sm">🏁 You've reached the end of the feed</p>
           </div>
         )}
       </div>
