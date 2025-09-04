@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Heart, MessageCircle, Share, MoreHorizontal, Play, Calendar, MapPin, Trophy, Users, DollarSign, Crown } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import CreatePost from '../components/fan-dashboard/posts/CreatePost';
-import { getFanPostsPage, tipPost } from '../lib/supabase/posts';
+import { getPublicPostsPage, tipPost } from '../lib/supabase/posts';
 import { PostCard, type Post as PostCardType } from '../components/PostCard';
 import { supabase } from '../lib/supabase';
 
@@ -204,9 +204,10 @@ export default function Grandstand() {
     let isMounted = true;
     const load = async () => {
       try {
+        console.time('grandstand:firstLoad');
         setLoading(true);
         setError(null);
-        const { data: rows, nextCursor: cursor, error } = await getFanPostsPage({ limit: 3 });
+        const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 3 });
         if (error) throw error;
         if (!isMounted) return;
 
@@ -226,12 +227,12 @@ export default function Grandstand() {
 
         setPosts(mapped);
         setNextCursor(cursor || null);
+        console.timeEnd('grandstand:firstLoad');
       } catch (e) {
-        console.error('[Grandstand] Failed to load posts', e);
-        if (!isMounted) return;
-        setError(e instanceof Error ? e.message : 'Failed to load posts');
+        console.error('[Grandstand] Initial load failed', e);
+        setError('Failed to load posts');
       } finally {
-        if (isMounted) setLoading(false);
+        setLoading(false);
       }
     };
     load();
@@ -274,9 +275,10 @@ export default function Grandstand() {
     if (isFetchingRef.current || now - lastFetchAtRef.current < 600) return;
     isFetchingRef.current = true;
     lastFetchAtRef.current = now;
+    console.time('grandstand:loadMore');
     setLoadingMore(true);
     try {
-      const { data: rows, nextCursor: cursor, error } = await getFanPostsPage({ limit: 5, cursor: nextCursor });
+      const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 5, cursor: nextCursor });
       if (error) throw error;
       const mapped: PostCardType[] = (rows || []).map((r: PostCardType) => {
         const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
@@ -285,11 +287,12 @@ export default function Grandstand() {
       console.debug('[Grandstand] loadMore fetched:', { count: mapped.length, hasNext: !!cursor });
       setPosts(prev => [...prev, ...mapped]);
       setNextCursor(cursor || null);
+      console.timeEnd('grandstand:loadMore');
     } catch (e) {
       console.error('[Grandstand] Failed to load more posts', e);
     } finally {
-      isFetchingRef.current = false;
       setLoadingMore(false);
+      isFetchingRef.current = false;
     }
   }, [nextCursor]);
 
