@@ -159,7 +159,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-slate-900 rounded-2xl border border-slate-800 w-full max-w-[22rem] sm:max-w-xl md:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-slate-900/95 backdrop-blur-sm rounded-xl border border-slate-700/50 shadow-2xl w-full max-w-[20rem] sm:max-w-md md:max-w-lg max-h-[85vh] overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white transition-colors duration-200 min-w-[44px] min-h-[44px] flex items-center justify-center z-10"
@@ -167,16 +167,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           <X className="w-5 h-5" />
         </button>
 
-        <div className="pt-2 pb-3 px-3 sm:pt-3 sm:pb-4 sm:px-4 lg:pt-4 lg:pb-6 lg:px-6">
+        <div className="p-3 sm:p-4 md:p-5">
           {/* Header */}
-          <div className="text-center mb-4 sm:mb-5 lg:mb-6">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 lg:w-12 lg:h-12 brand-gradient rounded-md flex items-center justify-center mx-auto mb-2 sm:mb-3">
-              <span className="text-white font-bold text-lg">🏁</span>
+          <div className="text-center mb-3 sm:mb-4">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 brand-gradient rounded-lg flex items-center justify-center mx-auto mb-2">
+              <span className="text-white font-bold text-sm sm:text-base">🏁</span>
             </div>
-            <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white racing-number">
+            <h2 className="text-sm sm:text-base md:text-lg font-bold text-white racing-number">
               {mode === 'login' ? 'Welcome Back' : 'Join OnlyRaceFans'}
             </h2>
-            <p className="text-slate-400 mt-1 text-[11px] sm:text-xs lg:text-sm">
+            <p className="text-slate-400 mt-1 text-[10px] sm:text-xs">
               {mode === 'login' 
                 ? 'Sign in to your account' 
                 : 'Start your racing journey today'
@@ -186,46 +186,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
           {/* Error Message */}
           {errorMsg && (
-            <div className="mb-3 lg:mb-4 bg-red-500/10 border border-red-500/30 text-red-200 text-xs rounded-lg p-2">
+            <div className="mb-2 sm:mb-3 bg-red-500/10 border border-red-500/30 text-red-200 text-[10px] sm:text-xs rounded-md p-1.5 sm:p-2">
               {errorMsg}
             </div>
           )}
 
           {/* User Type Selection - Registration Only */}
           {mode === 'register' && (
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-slate-300 mb-2">
+            <div className="mb-3">
+              <label className="block text-[10px] sm:text-xs font-medium text-slate-300 mb-1.5">
                 I want to join as:
               </label>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
-                {userTypes.map((type) => {
+              <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                {userTypes.slice(0, 2).map((type) => {
                   const Icon = type.icon;
-                  const isDisabled = !(type.value === 'RACER' || type.value === 'FAN');
                   const isSelected = userType === type.value;
                   return (
                     <button
                       key={type.value}
                       type="button"
-                      disabled={isDisabled}
-                      onClick={() => {
-                        if (!isDisabled) setUserType(type.value);
-                      }}
+                      onClick={() => setUserType(type.value)}
                       title={type.description}
-                      aria-label={`${type.label} — ${type.description}`}
-                      className={`relative p-1 rounded-xl border-2 transition-all duration-200 min-h-[40px] w-24 sm:w-28 lg:w-28 mx-auto ${
+                      className={`p-1.5 rounded-lg border transition-all duration-200 flex items-center justify-center gap-1 ${
                         isSelected
-                          ? 'border-orange-500 bg-orange-500/10'
-                          : isDisabled
-                            ? 'border-slate-800 opacity-60 cursor-not-allowed'
-                            : 'border-slate-700 hover:border-slate-600'
+                          ? 'border-orange-500 bg-orange-500/10 text-orange-400'
+                          : 'border-slate-700 hover:border-slate-600 text-slate-400'
                       }`}
                     >
-                      {isDisabled && (
-                        <span className="absolute top-0.5 right-1 text-[8px] sm:text-[9px] px-1 py-0.5 rounded bg-slate-700/80 text-slate-200 border border-slate-600">
-                          Coming Soon
-                        </span>
-                      )}
-                      <Icon className="w-4 h-4 sm:w-4 sm:h-4 lg:w-5 lg:h-5 text-orange-500 mx-auto" />
+                      <Icon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      <span className="text-[10px] sm:text-xs font-medium">{type.label}</span>
                     </button>
                   );
                 })}
@@ -234,20 +223,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-2 sm:space-y-3">
+          <form onSubmit={handleSubmit} className="space-y-2">
             {/* Basic Information */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 lg:gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10px] sm:text-xs font-medium text-slate-300 mb-1">
                   Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-slate-400 w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                  <Mail className="absolute left-2 top-1/2 transform -translate-y-1/2 text-slate-400 w-3 h-3" />
                   <input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full pl-7 sm:pl-8 pr-2 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] sm:text-xs min-h-[28px] sm:min-h-[32px]"
+                    className="w-full pl-7 pr-2 py-1.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 transition-all duration-200 text-xs min-h-[32px]"
                     placeholder="your@email.com"
                     required
                   />
@@ -259,12 +248,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-slate-400 w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                  <Lock className="absolute left-2 top-1/2 transform -translate-y-1/2 text-slate-400 w-3 h-3" />
                   <input
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full pl-7 sm:pl-8 pr-2 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-[11px] sm:text-xs min-h-[28px] sm:min-h-[32px]"
+                    className="w-full pl-7 pr-2 py-1.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 transition-all duration-200 text-xs min-h-[32px]"
                     placeholder="Password"
                     required
                   />

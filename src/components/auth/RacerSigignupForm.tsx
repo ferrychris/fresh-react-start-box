@@ -159,7 +159,7 @@ export const RacerSignupForm: React.FC<RacerSignupFormProps> = ({ onClose }) => 
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-1 sm:p-2">
-      <div className="bg-slate-900 rounded-xl border border-slate-800 w-full max-w-[20rem] sm:max-w-md md:max-w-lg max-h-[90vh] overflow-y-auto">
+      <div className="bg-slate-900/95 backdrop-blur-sm rounded-xl border border-slate-700/50 shadow-2xl w-full max-w-[18rem] sm:max-w-sm md:max-w-md max-h-[85vh] overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute top-2 right-2 p-1.5 text-slate-400 hover:text-white transition-colors duration-200 min-w-[36px] min-h-[36px] flex items-center justify-center z-10"
@@ -167,16 +167,16 @@ export const RacerSignupForm: React.FC<RacerSignupFormProps> = ({ onClose }) => 
           <X className="w-4 h-4" />
         </button>
 
-        <div className="p-2 sm:p-3 md:p-4">
+        <div className="p-2.5 sm:p-3 md:p-4">
           {/* Header */}
-          <div className="text-center mb-3 sm:mb-4">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 brand-gradient rounded-xl flex items-center justify-center mx-auto mb-2 sm:mb-3">
-              <Car className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+          <div className="text-center mb-2.5 sm:mb-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 brand-gradient rounded-lg flex items-center justify-center mx-auto mb-1.5">
+              <Car className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
             </div>
-            <h2 className="text-base sm:text-lg font-bold text-white racing-number">
+            <h2 className="text-sm sm:text-base font-bold text-white racing-number">
               {mode === 'login' ? 'Racer Login' : 'Racer Registration'}
             </h2>
-            <p className="text-slate-400 mt-1 text-xs sm:text-sm">
+            <p className="text-slate-400 mt-0.5 text-[10px] sm:text-xs">
               {mode === 'login' 
                 ? 'Sign in to your racer account' 
                 : 'Create your racer profile today'
@@ -186,39 +186,39 @@ export const RacerSignupForm: React.FC<RacerSignupFormProps> = ({ onClose }) => 
 
           {/* Error Message */}
           {errorMsg && (
-            <div className="mb-3 bg-red-500/10 border border-red-500/30 text-red-200 text-xs rounded-lg p-2">
+            <div className="mb-2 bg-red-500/10 border border-red-500/30 text-red-200 text-[10px] sm:text-xs rounded-md p-1.5">
               {errorMsg}
             </div>
           )}
 
           {/* Racer Registration Header */}
           {mode === 'register' && (
-            <div className="mb-3 sm:mb-4 bg-slate-800/50 rounded-lg p-2">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <Car className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-500" />
-                <h3 className="text-white font-medium text-xs">Racer Profile Setup</h3>
+            <div className="mb-2 bg-slate-800/30 rounded-lg p-1.5 border border-slate-700/50">
+              <div className="flex items-center justify-center gap-1 mb-0.5">
+                <Car className="w-3 h-3 text-orange-500" />
+                <h3 className="text-white font-medium text-[10px] sm:text-xs">Racer Profile Setup</h3>
               </div>
-              <p className="text-slate-400 text-[10px] text-center">
+              <p className="text-slate-400 text-[9px] text-center leading-tight">
                 Complete your profile to connect with fans and sponsors
               </p>
             </div>
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-2 sm:space-y-3">
+          <form onSubmit={handleSubmit} className="space-y-1.5 sm:space-y-2">
             {/* Basic Information */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2">
               <div>
-                <label className="block text-[10px] sm:text-xs font-medium text-slate-300 mb-1">
+                <label className="block text-[9px] sm:text-[10px] font-medium text-slate-300 mb-0.5">
                   Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-2 top-1/2 transform -translate-y-1/2 text-slate-400 w-3 h-3 sm:w-4 sm:h-4" />
+                  <Mail className="absolute left-2 top-1/2 transform -translate-y-1/2 text-slate-400 w-3 h-3" />
                   <input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full pl-7 sm:pl-8 pr-2 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-xs sm:text-sm min-h-[36px] sm:min-h-[40px]"
+                    className="w-full pl-6 pr-2 py-1.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 transition-all duration-200 text-[10px] sm:text-xs min-h-[30px]"
                     placeholder="your@email.com"
                     required
                   />
@@ -226,16 +226,16 @@ export const RacerSignupForm: React.FC<RacerSignupFormProps> = ({ onClose }) => 
               </div>
 
               <div>
-                <label className="block text-[10px] sm:text-xs font-medium text-slate-300 mb-1">
+                <label className="block text-[9px] sm:text-[10px] font-medium text-slate-300 mb-0.5">
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-2 top-1/2 transform -translate-y-1/2 text-slate-400 w-3 h-3 sm:w-4 sm:h-4" />
+                  <Lock className="absolute left-2 top-1/2 transform -translate-y-1/2 text-slate-400 w-3 h-3" />
                   <input
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full pl-7 sm:pl-8 pr-2 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-xs sm:text-sm min-h-[36px] sm:min-h-[40px]"
+                    className="w-full pl-6 pr-2 py-1.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 transition-all duration-200 text-[10px] sm:text-xs min-h-[30px]"
                     placeholder="Password"
                     required
                   />
