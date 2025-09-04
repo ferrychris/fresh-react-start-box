@@ -32,6 +32,11 @@ interface FanProfile {
   avatars?: string | null;
 }
 
+// Minimal PostgREST error shape for code inspection
+interface PostgrestErrorLike {
+  code?: string;
+}
+
 interface FanStats {
   support_points: number;
   total_tips: number;
@@ -104,6 +109,10 @@ const FanDashboard: React.FC = () => {
   const targetId = id || user?.id || null;
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [loadingProfile, setLoadingProfile] = useState<boolean>(true);
+  const [loadingStats, setLoadingStats] = useState<boolean>(true);
+  const [loadingFavorites, setLoadingFavorites] = useState<boolean>(true);
+  const [loadingActivity, setLoadingActivity] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState('overview');
   // If we have a route param id, we're on the read-only preview route
   const isPreviewRoute = Boolean(id);
@@ -147,243 +156,234 @@ const FanDashboard: React.FC = () => {
   const loadFanProfile = useCallback(async () => {
     try {
       setLoading(true);
+      setLoadingProfile(true);
+      setLoadingStats(true);
+      setLoadingFavorites(true);
+      setLoadingActivity(true);
       if (!targetId) {
         // No route id and no logged-in user; show empty state instead of hanging
         setFanProfile(null);
         setFavoriteRacers([]);
         setRecentActivity([]);
         setStats({ support_points: 0, total_tips: 0, active_subscriptions: 0, activity_streak: 0 });
+        setLoading(false);
+        setLoadingProfile(false);
+        setLoadingStats(false);
+        setLoadingFavorites(false);
+        setLoadingActivity(false);
         return;
       }
-      
-      // Load fan profile data
-      const { data: fanData, error: fanError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', targetId)
-        .maybeSingle();
-      
-      if (fanError) throw fanError;
-      
-      // Resolve banner image locally to avoid referencing state in dependencies
-      let resolvedBanner: string | null = null;
-      // Try to fetch banner_photo_url from racer_profiles if it exists
-      try {
-        const { data: racerData, error: racerError } = await supabase
-          .from('racer_profiles')
-          .select('banner_photo_url, car_photos')
-          .eq('id', targetId)
-          .maybeSingle();
-          
-        if (!racerError && racerData) {
-          // First try to use banner_photo_url if available
-          if (racerData.banner_photo_url && typeof racerData.banner_photo_url === 'string') {
-            resolvedBanner = racerData.banner_photo_url;
+      // Start all fetches in parallel; update sections independently as they resolve
+      // 1) Profile and banner
+      (async () => {
+        try {
+          const { data: fanData, error: fanError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', targetId)
+            .maybeSingle();
+          if (fanError) throw fanError;
+          if (fanData) {
+            setFanProfile({
+              ...fanData,
+              username: fanData.name || 'user',
+              avatar_url: fanData.avatar || fanData.avatars || '',
+              fan_type: fanData.user_type || 'Racing Fan',
+              points: 0,
+              streak_days: 0,
+              favorites_count: 0,
+              badges_count: 0
+            });
           }
-          // If no banner_photo_url, fall back to car_photos
-          else if (racerData.car_photos) {
-            const carPhotos = racerData.car_photos;
-            if (Array.isArray(carPhotos) && carPhotos.length > 0) {
-              const firstPhoto = carPhotos[0];
-              if (firstPhoto && typeof firstPhoto === 'object' && 'url' in firstPhoto && typeof firstPhoto.url === 'string') {
-                resolvedBanner = firstPhoto.url;
+          // Banner resolution (best-effort)
+          let resolvedBanner: string | null = null;
+          try {
+            const { data: racerData, error: racerError } = await supabase
+              .from('racer_profiles')
+              .select('banner_photo_url, car_photos')
+              .eq('id', targetId)
+              .maybeSingle();
+            if (!racerError && racerData) {
+              if (racerData.banner_photo_url && typeof racerData.banner_photo_url === 'string') {
+                resolvedBanner = racerData.banner_photo_url;
+              } else if (racerData.car_photos) {
+                const carPhotos = racerData.car_photos as Array<{ url?: string } | string>;
+                if (Array.isArray(carPhotos) && carPhotos.length > 0) {
+                  const firstPhoto = carPhotos[0];
+                  const url = typeof firstPhoto === 'string' ? firstPhoto : firstPhoto?.url;
+                  if (url && typeof url === 'string') resolvedBanner = url;
+                }
               }
             }
+          } catch (racerError: unknown) {
+            const errorMsg = racerError instanceof Error ? racerError.message : 'Unknown error';
+            console.log('Could not fetch racer profile or banner photo:', errorMsg);
           }
-        }
-      } catch (racerError: unknown) {
-        const errorMsg = racerError instanceof Error ? racerError.message : 'Unknown error';
-        console.log('Could not fetch racer profile or banner photo:', errorMsg);
-        // Continue execution - we'll use default banner
-      }
-      
-      // If no racer banner found, fall back to profile banner_image
-      if (!resolvedBanner && fanData?.banner_image && typeof fanData.banner_image === 'string') {
-        resolvedBanner = fanData.banner_image;
-      }
-      
-      if (resolvedBanner) {
-        setBannerImage(resolvedBanner);
-      }
-      
-      // Load fan stats with error handling for missing table
-      let statsData = null;
-      try {
-        const { data, error: statsError } = await supabase
-          .from('fan_stats')
-          .select('*')
-          .eq('fan_id', targetId)
-          .maybeSingle();
-        
-        if (!statsError || statsError.code === 'PGRST116') {
-          statsData = data;
-        }
-      } catch (statsError: unknown) {
-        const errorMsg = statsError instanceof Error ? statsError.message : 'Unknown error';
-        console.log('Fan stats table may not exist yet:', errorMsg);
-        // Continue execution - we'll use default values
-      }
-      
-      // Load favorite racers with error handling for missing table
-      let racersData = [];
-      try {
-        const { data, error: racersError } = await supabase
-          .from('fan_favorite_racers')
-          .select(`
-            racer_id,
-            racer_profiles!fan_favorite_racers_racer_id_fkey (username, profile_photo_url, country),
-            last_tipped,
-            total_tipped,
-            subscription_tier
-          `)
-          .eq('fan_id', targetId)
-          .order('total_tipped', { ascending: false })
-          .limit(5);
-        
-        if (!racersError) {
-          racersData = data || [];
-        }
-      } catch (racersError: unknown) {
-        const errorMsg = racersError instanceof Error ? racersError.message : 'Unknown error';
-        console.log('Fan favorite racers table may not exist yet:', errorMsg);
-        // Continue execution with empty array
-      }
-      
-      // Load recent activity with error handling for missing table
-      let activityData = [];
-      try {
-        const { data, error: activityError } = await supabase
-          .from('fan_activity')
-          .select('*')
-          .eq('fan_id', targetId)
-          .order('created_at', { ascending: false })
-          .limit(5);
-        
-        if (!activityError) {
-          activityData = data || [];
-        }
-      } catch (activityError: unknown) {
-        const errorMsg = activityError instanceof Error ? activityError.message : 'Unknown error';
-        console.log('Fan activity table may not exist yet:', errorMsg);
-        // Continue execution with empty array
-      }
-      
-      // Format the data
-      if (fanData) {
-        setFanProfile({
-          ...fanData,
-          username: fanData.name || 'user',
-          avatar_url: fanData.avatar || fanData.avatars || '',
-          fan_type: fanData.user_type || 'Racing Fan',
-          points: 0,
-          streak_days: 0,
-          favorites_count: 0,
-          badges_count: 0
-        });
-      }
-      
-      // Set default stats with more descriptive placeholders if statsData is null
-      setStats({
-        support_points: statsData?.support_points || 0,
-        total_tips: statsData?.total_tips || 0,
-        active_subscriptions: statsData?.active_subscriptions || 0,
-        activity_streak: statsData?.activity_streak || 0
-      });
-      
-      // Log a message if stats data is missing
-      if (!statsData) {
-        console.log('No stats data found or table missing, using default values');
-      }
-      
-      // Format favorite racers
-      if (racersData.length === 0) {
-        console.log('No favorite racers found or table missing, using placeholder data');
-        // Only use placeholder data if the user is viewing their own profile
-        if (user?.id === id) {
-          setFavoriteRacers([
-            {
-              id: 'placeholder-1',
-              name: 'Add Your First Favorite Racer',
-              avatarUrl: '/default-avatar.png',
-              flag: '/default-flag.png',
-              lastTipped: null,
-              totalTipped: 0,
-              subscription: 'None',
-              nextRace: {
-                track: 'Unknown',
-                date: 'Unknown'
-              }
-            }
-          ]);
-        } else {
-          setFavoriteRacers([]);
-        }
-      } else {
-        const formattedRacers = racersData.map((item: RacerData) => ({
-          id: item.racer_id,
-          name: item.racer_profiles?.username || 'Unknown Racer',
-          avatarUrl: item.racer_profiles?.profile_photo_url || '/default-avatar.png',
-          flag: item.racer_profiles?.country || '/default-flag.png',
-          lastTipped: item.last_tipped ? (new Date(item.last_tipped).toLocaleDateString() as string | null) : null,
-          totalTipped: item.total_tipped || 0,
-          subscription: item.subscription_tier || 'None',
-          nextRace: {
-            track: 'Unknown',
-            date: 'Unknown'
+          if (!resolvedBanner && fanData?.banner_image && typeof fanData.banner_image === 'string') {
+            resolvedBanner = fanData.banner_image;
           }
-        }));
-        setFavoriteRacers(formattedRacers);
-      }
-      
-      // Format activity
-      let formattedActivity = [];
-      if (activityData.length === 0) {
-        console.log('No activity found or table missing, using placeholder data');
-        // Only use placeholder data if the user is viewing their own profile
-        if (user?.id === targetId) {
-          formattedActivity = [
-            {
-              id: 'placeholder-1',
-              type: 'welcome',
-              timestamp: new Date().toISOString(),
-              timeAgo: 'just now',
-              content: '',
-              metadata: {
-                racerId: null,
-                racerName: null,
-                amount: null,
-                badgeName: 'Welcome to OnlyRaceFans',
-                postId: null,
-                postContent: null,
-                commentContent: null,
-                likes: null
-              }
-            }
-          ];
+          if (resolvedBanner) setBannerImage(resolvedBanner);
+        } catch (e) {
+          console.error('Error loading fan profile:', e);
+        } finally {
+          setLoadingProfile(false);
+          setLoading(false); // allow page render as soon as profile attempt finishes
         }
-      } else {
-        formattedActivity = activityData.map((item: ActivityData) => {
-          const timeAgo = getTimeAgo(new Date(item.created_at));
-          return {
-            id: item.id,
-            type: item.activity_type,
-            timestamp: item.created_at,
-            timeAgo,
-            content: item.content || '',
-            metadata: {
-              racerId: item.racer_id,
-              racerName: item.racer_name,
-              amount: item.amount,
-              badgeName: item.badge_name,
-              postId: item.post_id,
-              postContent: item.post_content,
-              commentContent: item.comment_content,
-              likes: item.likes
+      })();
+
+      // 2) Stats
+      (async () => {
+        try {
+          let statsData = null;
+          try {
+            const { data, error: statsError } = await supabase
+              .from('fan_stats')
+              .select('*')
+              .eq('fan_id', targetId)
+              .maybeSingle();
+            const errCode = (statsError as PostgrestErrorLike | null | undefined)?.code;
+            if (!statsError || errCode === 'PGRST116') {
+              statsData = data;
             }
-          };
-        });
-      }
-      setRecentActivity(formattedActivity);
+          } catch (statsError: unknown) {
+            const errorMsg = statsError instanceof Error ? statsError.message : 'Unknown error';
+            console.log('Fan stats table may not exist yet:', errorMsg);
+          }
+          setStats({
+            support_points: statsData?.support_points || 0,
+            total_tips: statsData?.total_tips || 0,
+            active_subscriptions: statsData?.active_subscriptions || 0,
+            activity_streak: statsData?.activity_streak || 0
+          });
+          if (!statsData) console.log('No stats data found or table missing, using default values');
+        } finally {
+          setLoadingStats(false);
+        }
+      })();
+
+      // 3) Favorites
+      (async () => {
+        try {
+          let racersData: RacerData[] = [];
+          try {
+            const { data, error: racersError } = await supabase
+              .from('fan_favorite_racers')
+              .select(`
+                racer_id,
+                racer_profiles!fan_favorite_racers_racer_id_fkey (username, profile_photo_url, country),
+                last_tipped,
+                total_tipped,
+                subscription_tier
+              `)
+              .eq('fan_id', targetId)
+              .order('total_tipped', { ascending: false })
+              .limit(5);
+            if (!racersError) racersData = data || [];
+          } catch (racersError: unknown) {
+            const errorMsg = racersError instanceof Error ? racersError.message : 'Unknown error';
+            console.log('Fan favorite racers table may not exist yet:', errorMsg);
+          }
+          if (racersData.length === 0) {
+            if (user?.id === targetId) {
+              setFavoriteRacers([
+                {
+                  id: 'placeholder-1',
+                  name: 'Add Your First Favorite Racer',
+                  avatarUrl: '/default-avatar.png',
+                  flag: '/default-flag.png',
+                  lastTipped: null,
+                  totalTipped: 0,
+                  subscription: 'None',
+                  nextRace: { track: 'Unknown', date: 'Unknown' }
+                }
+              ]);
+            } else {
+              setFavoriteRacers([]);
+            }
+          } else {
+            const formattedRacers = racersData.map((item: RacerData) => ({
+              id: item.racer_id,
+              name: item.racer_profiles?.username || 'Unknown Racer',
+              avatarUrl: item.racer_profiles?.profile_photo_url || '/default-avatar.png',
+              flag: item.racer_profiles?.country || '/default-flag.png',
+              lastTipped: item.last_tipped ? (new Date(item.last_tipped).toLocaleDateString() as string | null) : null,
+              totalTipped: item.total_tipped || 0,
+              subscription: item.subscription_tier || 'None',
+              nextRace: { track: 'Unknown', date: 'Unknown' }
+            }));
+            setFavoriteRacers(formattedRacers);
+          }
+        } finally {
+          setLoadingFavorites(false);
+        }
+      })();
+
+      // 4) Activity
+      (async () => {
+        try {
+          let activityData: ActivityData[] = [];
+          try {
+            const { data, error: activityError } = await supabase
+              .from('fan_activity')
+              .select('*')
+              .eq('fan_id', targetId)
+              .order('created_at', { ascending: false })
+              .limit(5);
+            if (!activityError) activityData = data || [];
+          } catch (activityError: unknown) {
+            const errorMsg = activityError instanceof Error ? activityError.message : 'Unknown error';
+            console.log('Fan activity table may not exist yet:', errorMsg);
+          }
+          let formattedActivity: ActivityItem[] = [];
+          if (activityData.length === 0) {
+            if (user?.id === targetId) {
+              formattedActivity = [
+                {
+                  id: 'placeholder-1',
+                  type: 'welcome',
+                  timestamp: new Date().toISOString(),
+                  timeAgo: 'just now',
+                  content: '',
+                  metadata: {
+                    racerId: null,
+                    racerName: null,
+                    amount: null,
+                    badgeName: 'Welcome to OnlyRaceFans',
+                    postId: null,
+                    postContent: null,
+                    commentContent: null,
+                    likes: null
+                  }
+                }
+              ];
+            }
+          } else {
+            formattedActivity = activityData.map((item: ActivityData) => {
+              const timeAgo = getTimeAgo(new Date(item.created_at));
+              return {
+                id: item.id,
+                type: item.activity_type,
+                timestamp: item.created_at,
+                timeAgo,
+                content: item.content || '',
+                metadata: {
+                  racerId: item.racer_id,
+                  racerName: item.racer_name,
+                  amount: item.amount,
+                  badgeName: item.badge_name,
+                  postId: item.post_id,
+                  postContent: item.post_content,
+                  commentContent: item.comment_content,
+                  likes: item.likes
+                }
+              };
+            });
+          }
+          setRecentActivity(formattedActivity);
+        } finally {
+          setLoadingActivity(false);
+        }
+      })();
     } catch (error) {
       console.error('Error loading fan profile:', error);
       // If we at least have the fan profile data, we can still render the page
@@ -472,7 +472,8 @@ const FanDashboard: React.FC = () => {
     { id: 'badges', label: 'Badges', count: fanProfile?.badges_count || 0 }
   ];
 
-  if (loading) {
+  // Only block the entire page if we haven't even attempted to load the profile yet
+  if (loading && loadingProfile) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
