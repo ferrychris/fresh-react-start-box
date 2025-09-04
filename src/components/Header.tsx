@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, Bell, User, Tv, Trophy, Home, Users, Settings, Flag, Menu, X, Sun, Moon, Trash2, Crown, Target, LayoutDashboard, MapPin, Compass, BarChart3, Calendar, DollarSign, MessageSquare, Heart, Clock, Gauge, Award, LogOut } from 'lucide-react';
+import { Search, Bell, User, Tv, Trophy, Home, Users, Settings, Flag, Menu, X, Sun, Moon, Trash2, Crown, Target, LayoutDashboard, MapPin, Compass, BarChart3, Calendar, DollarSign, MessageSquare, Heart, Clock, Gauge, Award, LogOut, Megaphone, Layers, Handshake } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { AuthModal } from './auth/AuthModal';
@@ -500,18 +500,24 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
                   const { path, label, icon: Icon } = item;
                   // Extract view type from path (remove leading slash)
                   const viewType = path.substring(1) as ViewType;
+                  // Disable the Discover button
+                  const isDisabled = label === 'Discover';
                   
                   return (
                     <div
                       key={path}
-                      onClick={() => onViewChange(viewType)}
-                      className={`relative flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
+                      onClick={isDisabled ? undefined : () => onViewChange(viewType)}
+                      className={`relative flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        isDisabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'
+                      } ${
                         isActive(path)
                           ? 'bg-gradient-to-r from-fedex-orange to-fedex-orange-dark text-white shadow-lg shadow-fedex-orange/25'
                           : theme === 'dark'
                             ? 'text-gray-300 hover:text-white hover:bg-gray-800/50 hover:shadow-md'
                             : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100/80 hover:shadow-md'
                       }`}
+                      aria-disabled={isDisabled}
+                      title={isDisabled ? 'Disabled' : undefined}
                     >
                       <Icon className="h-4 w-4" />
                       <span>{label}</span>
@@ -872,7 +878,94 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
         )}
       </header>
 
-      {/* Mobile Bottom Navigation */}
+      {/* Mobile Bottom Navigation for logged-in users */}
+      {user && (
+        <nav
+          className={`fixed bottom-0 inset-x-0 z-50 md:hidden border-t backdrop-blur-xl ${
+            theme === 'dark'
+              ? 'bg-black/90 border-gray-800/50'
+              : 'bg-white/90 border-gray-200/50'
+          }`}
+          aria-label="Mobile bottom navigation"
+        >
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="grid grid-cols-5 py-2 gap-1">
+              <button
+                className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+                  location.pathname.startsWith('/grandstand')
+                    ? 'text-fedex-orange'
+                    : theme === 'dark'
+                      ? 'text-gray-300'
+                      : 'text-gray-700'
+                }`}
+                onClick={() => navigate('/grandstand')}
+              >
+                <Megaphone className="h-5 w-5" />
+                <span className="text-[10px] mt-0.5">Grandstand</span>
+              </button>
+
+              <button
+                className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+                  location.pathname.startsWith('/racers')
+                    ? 'text-fedex-orange'
+                    : theme === 'dark'
+                      ? 'text-gray-300'
+                      : 'text-gray-700'
+                }`}
+                onClick={() => navigate('/racers')}
+              >
+                <Search className="h-5 w-5" />
+                <span className="text-[10px] mt-0.5">Racers</span>
+              </button>
+
+              <button
+                className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+                  location.pathname.startsWith('/super-fans')
+                    ? 'text-fedex-orange'
+                    : theme === 'dark'
+                      ? 'text-gray-300'
+                      : 'text-gray-700'
+                }`}
+                onClick={() => navigate('/super-fans')}
+              >
+                <Trophy className="h-5 w-5" />
+                <span className="text-[10px] mt-0.5">Super Fans</span>
+              </button>
+
+              <button
+                className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+                  location.pathname.startsWith('/series')
+                    ? 'text-fedex-orange'
+                    : theme === 'dark'
+                      ? 'text-gray-300'
+                      : 'text-gray-700'
+                }`}
+                onClick={() => navigate('/series')}
+              >
+                <Layers className="h-5 w-5" />
+                <span className="text-[10px] mt-0.5">Series</span>
+              </button>
+
+              <button
+                className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+                  location.pathname.startsWith('/sponsorships')
+                    ? 'text-fedex-orange'
+                    : theme === 'dark'
+                      ? 'text-gray-300'
+                      : 'text-gray-700'
+                }`}
+                onClick={() => navigate('/sponsorships')}
+              >
+                <Handshake className="h-5 w-5" />
+                <span className="text-[10px] mt-0.5">Sponsors</span>
+              </button>
+            </div>
+          </div>
+        </nav>
+      )}
+
+      {/* Mobile Bottom Navigation for logged-out users */}
+      {!user && (
       <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl border-t safe-area-inset-bottom transition-all duration-300 ${
         theme === 'dark' ? 'bg-gray-900/98 border-gray-800/50 shadow-lg' : 'bg-white/98 border-gray-200/50 shadow-lg'
       }`}>
@@ -1044,6 +1137,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
           )}
         </div>
       </nav>
+      )}
       
       {/* Token store removed */}
 
