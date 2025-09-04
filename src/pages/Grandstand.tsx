@@ -71,6 +71,16 @@ export default function Grandstand() {
   const [nextCursor, setNextCursor] = useState<{ created_at: string; id: string } | null>(null);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const mountIdRef = useRef<string>(Math.random().toString(36).slice(2));
+
+  // Log component mount/unmount
+  useEffect(() => {
+    const mid = mountIdRef.current;
+    console.debug('[Grandstand] Mount:', { mountId: mid });
+    return () => {
+      console.debug('[Grandstand] Unmount:', { mountId: mid });
+    };
+  }, []);
 
   // Dynamically load teams (racers) the user is a fan of
   const [fanTeams, setFanTeams] = useState<Array<{ id: string; name: string; avatar: string; since?: string }>>([]);
@@ -107,7 +117,8 @@ export default function Grandstand() {
           .eq('fan_id', user.id)
           .order('became_fan_at', { ascending: false });
         if (error) throw error;
-        const rows = (data ?? []) as FanConnectionRow[];
+        const rows = ((data ?? []) as unknown) as FanConnectionRow[];
+        console.debug('[Grandstand] Loaded fan teams:', { count: rows.length });
         const teams = rows
           .map((row) => {
             const rp = row.racer_profiles;
@@ -123,7 +134,7 @@ export default function Grandstand() {
           .filter((t) => Boolean(t.id));
         if (isMounted) setFanTeams(teams);
       } catch (e: unknown) {
-        console.error('Failed to load teams', e);
+        console.error('[Grandstand] Failed to load teams', e);
         const msg = e instanceof Error ? e.message : 'Failed to load teams';
         if (isMounted) setTeamsError(msg);
       } finally {
@@ -175,9 +186,10 @@ export default function Grandstand() {
           setFeaturedRacers(racers);
           // limit to first 5 teams for suggestions
           setFeaturedTeams(Array.from(teamMap.values()).slice(0, 5));
+          console.debug('[Grandstand] Suggestions loaded:', { racers: racers.length, teams: teamMap.size });
         }
       } catch (e: unknown) {
-        console.error('Failed to load suggestions', e);
+        console.error('[Grandstand] Failed to load suggestions', e);
         const msg = e instanceof Error ? e.message : 'Failed to load suggestions';
         if (isMounted) setSuggestionsError(msg);
       } finally {
@@ -210,12 +222,12 @@ export default function Grandstand() {
           } as PostCardType; // Use type assertion to bypass TypeScript errors
         });
         
-        console.log('Mapped posts:', mapped);
+        console.debug('[Grandstand] Initial posts loaded:', { count: mapped.length, nextCursor: !!cursor });
 
         setPosts(mapped);
         setNextCursor(cursor || null);
       } catch (e) {
-        console.error('Failed to load posts', e);
+        console.error('[Grandstand] Failed to load posts', e);
         if (!isMounted) return;
         setError(e instanceof Error ? e.message : 'Failed to load posts');
       } finally {
@@ -241,16 +253,27 @@ export default function Grandstand() {
           setPosts((prev) => prev.filter((p) => p.id !== deletedId));
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.debug('[Grandstand] Realtime subscription status:', status);
+        return null;
+      });
 
     return () => {
+      console.debug('[Grandstand] Realtime subscription cleanup');
       supabase.removeChannel(channel);
     };
   }, []);
 
   // Load more posts (5 at a time) using nextCursor
+  const isFetchingRef = useRef(false);
+  const lastFetchAtRef = useRef(0);
   const loadMore = useCallback(async () => {
-    if (!nextCursor || loadingMore) return;
+    if (!nextCursor) return;
+    // Prevent rapid-fire calls within 600ms and concurrent fetches
+    const now = Date.now();
+    if (isFetchingRef.current || now - lastFetchAtRef.current < 600) return;
+    isFetchingRef.current = true;
+    lastFetchAtRef.current = now;
     setLoadingMore(true);
     try {
       const { data: rows, nextCursor: cursor, error } = await getFanPostsPage({ limit: 5, cursor: nextCursor });
@@ -259,31 +282,38 @@ export default function Grandstand() {
         const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
         return { ...r, profiles: profile } as PostCardType;
       });
+      console.debug('[Grandstand] loadMore fetched:', { count: mapped.length, hasNext: !!cursor });
       setPosts(prev => [...prev, ...mapped]);
       setNextCursor(cursor || null);
     } catch (e) {
-      console.error('Failed to load more posts', e);
+      console.error('[Grandstand] Failed to load more posts', e);
     } finally {
+      isFetchingRef.current = false;
       setLoadingMore(false);
     }
-  }, [nextCursor, loadingMore]);
+  }, [nextCursor]);
 
   // Infinite scroll with IntersectionObserver
   useEffect(() => {
-    if (!sentinelRef.current) return;
+    const el = sentinelRef.current;
+    if (!el) return;
     if (!nextCursor) return; // nothing more to load
 
-    const el = sentinelRef.current;
     const observer = new IntersectionObserver((entries) => {
       for (const entry of entries) {
         if (entry.isIntersecting) {
+          console.debug('[Grandstand] Sentinel intersecting -> loadMore');
           loadMore();
         }
       }
     }, { root: null, rootMargin: '200px', threshold: 0 });
 
     observer.observe(el);
-    return () => observer.unobserve(el);
+    return () => {
+      try { observer.unobserve(el); } catch (err) { /* ignore unobserve errors */ }
+      console.debug('[Grandstand] IntersectionObserver disconnected');
+      observer.disconnect();
+    };
   }, [nextCursor, loadMore]);
 
   const handlePostUpdate = () => {

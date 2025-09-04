@@ -40,18 +40,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const checkSession = async () => {
     try {
-      // Safety: avoid indefinite hang if auth.getUser never resolves
-      const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> => {
-        return new Promise((resolve, reject) => {
-          const t = setTimeout(() => reject(new Error('auth_timeout')), ms);
-          p.then((v) => { clearTimeout(t); resolve(v); })
-           .catch((e) => { clearTimeout(t); reject(e); });
-        });
-      };
-
-      const { data: { user: authUser } } = await withTimeout(supabase.auth.getUser() as any, 5000);
-      if (authUser) {
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).maybeSingle();
+      // Step 1: quick local check (no network)
+      const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+      if (sessionErr) {
+        console.debug('[AppContext] getSession error (non-fatal):', sessionErr.message);
+      }
+      if (session?.user) {
+        const uid = session.user.id;
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', uid)
+          .maybeSingle();
         if (profile) {
           const userData: User = {
             id: profile.id,
@@ -60,22 +60,57 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             type: profile.user_type,
             user_type: profile.user_type,
             profilePicture: profile.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.name}`,
-            profileComplete: profile.profile_complete
+            profileComplete: profile.profile_complete,
           };
           setUser(userData);
-        } else {
-          setUser(null); // Or handle as needed
+          return; // done
         }
-      } else {
+        // If no profile, treat as signed-out for now
+        setUser(null);
+        return;
+      }
+
+      // Step 2: fallback to getUser with a longer, quieter timeout (network may refresh session)
+      const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> => {
+        return new Promise((resolve, reject) => {
+          const t = setTimeout(() => reject(new Error('auth_timeout')), ms);
+          p.then((v) => { clearTimeout(t); resolve(v); })
+           .catch((e) => { clearTimeout(t); reject(e); });
+        });
+      };
+      try {
+        const res = await withTimeout(supabase.auth.getUser() as Promise<{ data: { user: { id: string } | null } }>, 10000);
+        const authUser = res?.data?.user;
+        if (authUser) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authUser.id)
+            .maybeSingle();
+          if (profile) {
+            const userData: User = {
+              id: profile.id,
+              name: profile.name,
+              email: profile.email,
+              type: profile.user_type,
+              user_type: profile.user_type,
+              profilePicture: profile.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.name}`,
+              profileComplete: profile.profile_complete,
+            };
+            setUser(userData);
+            return;
+          }
+        }
+        setUser(null);
+      } catch (err) {
+        if ((err as Error)?.message === 'auth_timeout') {
+          // Downgrade to debug: tests may run without session; avoid noisy warnings
+          console.debug('[AppContext] getUser timed out; continuing without session');
+        } else {
+          console.error('Error checking session via getUser:', err);
+        }
         setUser(null);
       }
-    } catch (error) {
-      if ((error as Error)?.message === 'auth_timeout') {
-        console.warn('Auth getUser timed out; proceeding without session');
-      } else {
-        console.error('Error checking session:', error);
-      }
-      setUser(null);
     } finally {
       setSessionChecked(true);
     }

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
+import type { AuthChangeEvent, Session as AuthSession } from '@supabase/supabase-js';
 
 export interface User {
   id: string;
@@ -56,22 +57,14 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         }
         
         if (session?.user) {
+          console.debug('[UserContext] Active session found on mount for user:', session.user.id);
           fetchUserProfile(session.user.id);
-          // If user is already logged in and lands on auth pages, route to grandstand
-          try {
-            const path = window.location.pathname;
-            if (["/", "/login", "/signin"].includes(path)) {
-              window.location.href = "/grandstand";
-            }
-          } catch (e) {
-            // Best-effort redirect; ignore errors in non-browser environments
-            console.debug('Redirect to /grandstand skipped:', e);
-          }
         } else {
           setIsLoading(false);
         }
-      } catch (error: any) {
-        console.warn('Session check error:', error.message);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn('Session check error:', message);
         setUser(null);
         setIsLoading(false);
       }
@@ -81,16 +74,10 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
     // Listen for auth changes
     try {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: AuthSession | null) => {
+        console.debug('[UserContext] Auth state change:', { event, hasUser: !!session?.user });
         if (session?.user) {
           fetchUserProfile(session.user.id);
-          // Redirect to grandstand immediately after login
-          try {
-            window.location.href = "/grandstand";
-          } catch (e) {
-            // Best-effort redirect; ignore errors in non-browser environments
-            console.debug('Redirect to /grandstand skipped:', e);
-          }
         } else {
           setUser(null);
           setIsLoading(false);

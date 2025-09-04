@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Search, Bell, User, Tv, Trophy, Home, Users, Settings, Flag, Menu, X, Sun, Moon, Trash2, Crown, Video, Target, LayoutDashboard, MapPin, Compass, BarChart3, Calendar, DollarSign, MessageSquare, Heart, Clock, Gauge, Award, LogOut } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Search, Bell, User, Tv, Trophy, Home, Users, Settings, Flag, Menu, X, Sun, Moon, Trash2, Crown, Target, LayoutDashboard, MapPin, Compass, BarChart3, Calendar, DollarSign, MessageSquare, Heart, Clock, Gauge, Award, LogOut } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { AuthModal } from './auth/AuthModal';
 
-// Placeholder components for NotificationBell and GoLiveModal
+// Placeholder component for NotificationBell
 const NotificationBell: React.FC = () => {
   const { theme } = useTheme();
   return (
@@ -23,30 +23,7 @@ const NotificationBell: React.FC = () => {
   );
 };
 
-const GoLiveModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const { theme } = useTheme();
-  if (!isOpen) return null;
-  
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative max-w-md w-full rounded-2xl shadow-2xl transition-all duration-300 ${
-        theme === 'dark' ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'
-      }`}>
-        <div className="p-6">
-          <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Go Live</h3>
-          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>This feature is coming soon.</p>
-          <button
-            onClick={onClose}
-            className="mt-4 px-4 py-2 bg-gradient-to-r from-fedex-orange to-fedex-orange-dark rounded-xl text-white font-medium"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
+// GoLiveModal removed
 
 // Define ViewType for navigation
 export type ViewType = 
@@ -97,13 +74,13 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
   const { user, logout } = useUser();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   // Removed unused state
-  const [showGoLiveModal, setShowGoLiveModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
@@ -574,18 +551,9 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
               
               {user ? (
                 <>
-                  {/* Use NotificationBell component */}
-                  <NotificationBell />
+                  {/* Notification bell removed per request */}
                   
-                  {/* Go Live button */}
-                  <button
-                    onClick={() => setShowGoLiveModal(true)}
-                    className="relative p-2.5 rounded-xl transition-all duration-200 group bg-red-600 hover:bg-red-700 shadow-lg hover:shadow-xl"
-                    title="Go Live"
-                  >
-                    <Video className="h-5 w-5 text-white group-hover:scale-110 transition-transform duration-200" />
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full animate-pulse"></div>
-                  </button>
+                  {/* Go Live button removed */}
                   
                   {/* Coin/Token purchase removed */}
                   
@@ -601,19 +569,14 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
                           }`}>{user.user_type}</span>
                         </div>
                       </div>
-                      <div className="hidden lg:block">
-                        <p className={`text-sm font-medium ${
-                          theme === 'dark' ? 'text-white' : 'text-gray-900'
-                        }`}>{user.name}</p>
-                        <p className={`text-xs ${
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                        }`}>{user.email || 'Member since 2023'}</p>
-                      </div>
+                      {/* Removed name and email from top bar per request */}
                     </div>
                     <button
-                      onClick={() => setShowProfileMenu((s) => !s)}
+                      onClick={() => {
+                        navigate('/grandstand', { replace: false });
+                      }}
                       className="relative group profile-menu-trigger"
-                      title={user.name}
+                      title="Profile menu"
                     >
                       <div className={`p-1 rounded-full transition-all duration-200 group-hover:scale-110 ${
                         theme === 'dark' ? 'bg-gradient-to-r from-fedex-orange to-fedex-purple' : 'bg-gradient-to-r from-fedex-orange to-fedex-purple'
@@ -625,7 +588,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
                         />
                       </div>
                     </button>
-                    <span className={`${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'} text-sm font-medium hidden sm:inline md:hidden`}>{user.name}</span>
+                    {/* Removed inline name display next to avatar per request */}
                     {showProfileMenu && (
                       <div className={`absolute right-0 top-full mt-2 w-64 rounded-xl shadow-lg overflow-hidden z-20 border ${
                         theme === 'dark' ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'
@@ -677,23 +640,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
                           </div>
                         </div>
                         
-                        {/* Menu Options */}
-                        <div
-                          onClick={() => {
-                            setShowProfileMenu(false);
-                            onViewChange(
-                              user.user_type === 'RACER' ? 'dashboard' :
-                              user.user_type === 'FAN' ? 'fan-dashboard' :
-                              user.user_type === 'TRACK' ? 'track-dashboard' :
-                              user.user_type === 'SERIES' ? 'series-dashboard' :
-                              'admin'
-                            );
-                          }}
-                          className={`flex items-center space-x-3 px-4 py-3 text-sm font-medium transition-colors hover:bg-gray-100/10 cursor-pointer`}
-                        >
-                          <LayoutDashboard className="h-4 w-4" />
-                          <span>Dashboard</span>
-                        </div>
+                        {/* Menu Options: Dashboard removed per request */}
                         
                         <div
                           onClick={() => {
@@ -881,23 +828,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
                       </div>
                     </div>
                     
-                    <div
-                      onClick={() => {
-                        onViewChange(
-                          user.user_type === 'RACER' ? 'dashboard' : 
-                          user.user_type === 'FAN' ? 'fan-dashboard' : 
-                          user.user_type === 'TRACK' ? 'track-dashboard' : 
-                          user.user_type === 'SERIES' ? 'series-dashboard' : 'dashboard'
-                        );
-                        setShowProfileMenu(false);
-                      }}
-                      className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer ${
-                        theme === 'dark' ? 'text-gray-300 hover:text-white hover:bg-gray-800/80 hover:shadow-md' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100/80 hover:shadow-md'
-                      }`}
-                    >
-                      <Settings className="h-5 w-5" />
-                      <span>Dashboard</span>
-                    </div>
+                    {/* Mobile Dashboard menu item removed per request */}
                     
                     <div
                       onClick={() => {
@@ -972,20 +903,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
                 )}
               </div>
 
-              {/* Middle actions */}
-              {/* Racers only: Go Live */}
-              {user.user_type === 'RACER' && (
-                <button
-                  onClick={() => setShowGoLiveModal(true)}
-                  className={`flex flex-col items-center space-y-1 px-2 py-2 rounded-xl transition-all duration-300 min-w-0 relative group ${
-                    theme === 'dark' ? 'text-gray-400 hover:text-white hover:bg-gray-800/60 hover:scale-105' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/60 hover:scale-105'
-                  }`}
-                  aria-label="Go Live"
-                >
-                  <Video className="h-5 w-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110" />
-                  <span className="text-xs font-medium leading-tight">Go Live</span>
-                </button>
-              )}
+              {/* Middle actions removed */}
 
               {/* Fans: Live, Racers, Tracks */}
               {user.user_type === 'FAN' && (
@@ -1048,7 +966,9 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
 
               {/* Profile (right) */}
               <div
-                onClick={() => setShowProfileMenu(true)}
+                onClick={() => {
+                  navigate('/grandstand', { replace: false });
+                }}
                 className={`flex flex-col items-center space-y-1 px-2 py-2 rounded-xl transition-all duration-300 min-w-0 relative group cursor-pointer ${
                   showProfileMenu
                     ? 'text-fedex-orange bg-fedex-orange/20 scale-105 shadow-lg' 
@@ -1232,8 +1152,6 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
         </div>
       )}
       
-      {/* Go Live Modal */}
-      <GoLiveModal isOpen={showGoLiveModal} onClose={() => setShowGoLiveModal(false)} />
       {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
     </>
   );

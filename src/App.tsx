@@ -37,7 +37,7 @@ import { FounderLetter } from './pages/FounderLetter';
 import { Home } from './pages/Home';
 import { ComingSoon } from './pages/ComingSoon';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { UserProvider } from './contexts/UserContext';
+import { UserProvider, useUser } from './contexts/UserContext';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import SettingsProfile from './pages/SettingsProfile';
@@ -79,7 +79,7 @@ const AppFooterMinimal: React.FC = () => {
 
 // Render the appropriate header based on auth state and route
 const HeaderGate: React.FC = () => {
-  const { user } = useApp();
+  const { user } = useUser();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -117,18 +117,23 @@ const HeaderGate: React.FC = () => {
     }
   };
 
-  // Show main header only on home page or when not logged in
-  if (location.pathname === '/' || !user) {
+  // Show main header only on home page
+  if (location.pathname === '/') {
     return (
       <Header 
-        currentView={location.pathname === '/' ? 'landing' : 'discover'}
+        currentView={'landing'}
         onViewChange={onViewChange}
       />
     );
   }
 
   // Show Fanheader for logged-in users on all other pages
-  return <Fanheader />;
+  if (user) {
+    return <Fanheader />;
+  }
+
+  // No header on non-home routes when unauthenticated
+  return null;
 };
 
 // Wrapper to pass URL param to RacerProfile
@@ -141,6 +146,7 @@ const RacerProfileRoute: React.FC = () => {
 const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
   = ({ user }) => {
   const loc = useLocation();
+  const { user: authUser } = useUser();
   const mainPadding = loc.pathname === '/'
     ? 'pt-0 pb-0'
     : loc.pathname === '/grandstand'
@@ -166,13 +172,13 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
         <Route
           path="/dashboard"
           element={
-            user?.user_type === 'racer' ? (
+            authUser?.user_type === 'racer' ? (
               <Dashboard />
-            ) : user?.user_type === 'fan' ? (
+            ) : authUser?.user_type === 'fan' ? (
               <FanDashboard />
-            ) : user?.user_type === 'track' ? (
+            ) : authUser?.user_type === 'track' ? (
               <TrackDashboard />
-            ) : user?.user_type === 'series' ? (
+            ) : authUser?.user_type === 'series' ? (
               <SeriesDashboard />
             ) : (
               <Navigate to="/" />
@@ -186,17 +192,17 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
         {/* Fan preview route (auth protected) */}
         <Route
           path="/fan/:id"
-          element={user ? <FanProfileNew /> : <Navigate to="/" replace />}
+          element={authUser ? <FanProfileNew /> : <Navigate to="/" replace />}
         />
         {/* Redirect old fan profile/settings routes to settings profile */}
         <Route path="/fan/profile" element={<Navigate to="/settings/profile" replace />} />
         <Route path="/fan/settings" element={<Navigate to="/settings/profile" replace />} />
         {/** Removed dynamic fan route to simplify navigation */}
         <Route path="/track-dashboard" element={
-          user?.user_type === 'track' ? <TrackDashboard /> : <Navigate to="/" />
+          authUser?.user_type === 'track' ? <TrackDashboard /> : <Navigate to="/" />
         } />
         <Route path="/series-dashboard" element={
-          user?.user_type === 'series' ? <SeriesDashboard /> : <Navigate to="/" />
+          authUser?.user_type === 'series' ? <SeriesDashboard /> : <Navigate to="/" />
         } />
         <Route path="/series/:id" element={<SeriesProfile />} />
         <Route path="/sponsorships" element={<SponsorshipMarketplace />} />
@@ -216,7 +222,10 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
         <Route path="/coming-soon" element={<ComingSoon />} />
         <Route path="/settings/profile" element={<SettingsProfile />} />
         <Route path="/test-posts" element={<TestRunner />} />
-        <Route path="/grandstand" element={<Grandstand />} />
+        <Route
+          path="/grandstand"
+          element={authUser ? <Grandstand /> : <Navigate to="/" replace />}
+        />
       </Routes>
     </main>
   );

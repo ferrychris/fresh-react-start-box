@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Mail, Lock, User, Car, Trophy, MapPin, Phone, Home } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -7,6 +8,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [userType, setUserType] = useState<'FAN' | 'RACER' | 'TRACK' | 'SERIES'>('RACER');
   const [isLoading, setIsLoading] = useState(false);
@@ -98,7 +100,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         await login(email, password);
         console.log('✅ Login successful, closing modal');
         onClose();
-        // Navigation will be handled by App.tsx useEffect
+        // Redirect to grandstand after login
+        navigate('/grandstand', { replace: true });
       } else {
         console.log('📝 Attempting registration for:', { email: formData.email, role: userType });
         await register({
