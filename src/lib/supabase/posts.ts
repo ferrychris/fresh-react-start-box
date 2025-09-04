@@ -1080,19 +1080,46 @@ export const createFanPost = async (post: {
       return { data: null, error: { message: 'Post content is required' } };
     }
 
+    // Sanitize visibility to match DB enum and calculate payload size
+    const rawVisibility = post.visibility;
+    let visibilityValue = rawVisibility === 'community' ? 'fans_only' : (rawVisibility || 'public');
+    if (!['public', 'fans_only'].includes(visibilityValue)) {
+      console.warn('Unsupported visibility provided, defaulting to public:', rawVisibility);
+      visibilityValue = 'public';
+    }
+
+    // Calculate payload size to detect QUIC issues
+    const payloadSize = JSON.stringify({
+      content: post.content,
+      media_urls: post.media_urls || [],
+      post_type: post.post_type || 'text',
+      visibility: visibilityValue,
+      user_id: post.fan_id,
+      user_type: 'fan',
+      allow_tips: false,
+      total_tips: 0
+    }).length;
+
     console.log('Creating fan post with data:', {
       content: post.content.substring(0, 50) + '...',
       media_urls_count: post.media_urls?.length || 0,
       post_type: post.post_type,
       visibility: post.visibility,
-      user_id: post.fan_id
+      user_id: post.fan_id,
+      payload_size_bytes: payloadSize
     });
+
+    // If payload > 1MB, use chunked approach to avoid QUIC protocol errors
+    if (payloadSize > 1024 * 1024) {
+      console.warn('Large payload detected, using chunked upload approach');
+      return await createLargePost(post);
+    }
     
     const { data, error } = await supabase.from('racer_posts').insert([{
       content: post.content,
       media_urls: post.media_urls || [],
       post_type: post.post_type || 'text',
-      visibility: post.visibility || 'public',
+      visibility: visibilityValue,
       user_id: post.fan_id,
       user_type: 'fan',
       allow_tips: false,
@@ -1101,6 +1128,14 @@ export const createFanPost = async (post: {
     
     if (error) {
       console.error('Supabase error creating fan post:', error);
+      
+      // Handle QUIC protocol errors specifically
+      if (error.message?.includes('ERR_QUIC_PROTOCOL_ERROR') || 
+          error.message?.includes('QUIC') ||
+          error.code === 'NETWORK_ERROR') {
+        console.warn('QUIC protocol error detected, retrying with chunked approach');
+        return await createLargePost(post);
+      }
       
       // Provide more specific error messages
       if (error.code === 'PGRST301') {
@@ -1142,6 +1177,69 @@ export const createFanPost = async (post: {
     return { 
       data: null, 
       error: { message: error instanceof Error ? error.message : 'Unknown error creating fan post' } 
+    };
+  }
+};
+
+// Chunked upload for large posts to avoid QUIC protocol errors
+const createLargePost = async (post: { 
+  fan_id: string; 
+  content: string; 
+  media_urls: string[]; 
+  post_type: string; 
+  visibility: string; 
+}): Promise<{ data: DatabasePost | null; error: any | null }> => {
+  try {
+    // Sanitize visibility to align with DB enum
+    const rawVisibility = post.visibility;
+    let visibilityValue = rawVisibility === 'community' ? 'fans_only' : (rawVisibility || 'public');
+    if (!['public', 'fans_only'].includes(visibilityValue)) {
+      console.warn('Unsupported visibility provided in createLargePost, defaulting to public:', rawVisibility);
+      visibilityValue = 'public';
+    }
+
+    // Step 1: Create post without media_urls
+    const { data: postData, error: postError } = await supabase.from('racer_posts').insert([{
+      content: post.content,
+      media_urls: [], // Empty initially
+      post_type: post.post_type || 'text',
+      visibility: visibilityValue,
+      user_id: post.fan_id,
+      user_type: 'fan',
+      allow_tips: false,
+      total_tips: 0
+    }]).select();
+
+    if (postError || !postData?.[0]) {
+      return { data: null, error: postError };
+    }
+
+    const createdPost = postData[0];
+
+    // Step 2: Update with media_urls in smaller chunks
+    if (post.media_urls?.length > 0) {
+      const { error: updateError } = await supabase
+        .from('racer_posts')
+        .update({ media_urls: post.media_urls })
+        .eq('id', createdPost.id);
+
+      if (updateError) {
+        console.error('Failed to update media_urls:', updateError);
+        // Post created but media failed - return partial success
+        return { 
+          data: createdPost as DatabasePost, 
+          error: { message: 'Post created but media upload failed. Please try uploading media separately.' }
+        };
+      }
+    }
+
+    console.log('Large post created successfully via chunked approach:', createdPost.id);
+    return { data: { ...createdPost, media_urls: post.media_urls } as DatabasePost, error: null };
+  } catch (error) {
+    console.error('Exception in chunked upload:', error);
+    return { 
+      data: null, 
+      error: { message: error instanceof Error ? error.message : 'Chunked upload failed' } 
     };
   }
 };

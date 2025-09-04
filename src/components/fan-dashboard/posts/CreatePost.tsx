@@ -25,7 +25,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [mediaType, setMediaType] = useState<'photo' | 'video' | null>(null);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
-  const [visibility, setVisibility] = useState<'public' | 'community'>('public');
+  const [visibility, setVisibility] = useState<'public' | 'fans_only'>('public');
   const [location, setLocation] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -250,7 +250,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
                 <div className="flex items-center space-x-1 mt-0.5">
                   <button
                     type="button"
-                    onClick={() => setVisibility('public')}
+                    onClick={() => setVisibility((v) => (v === 'public' ? 'fans_only' : 'public'))}
                     className="flex items-center space-x-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700"
                   >
                     {visibility === 'public' ? (

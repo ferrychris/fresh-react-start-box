@@ -100,7 +100,7 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
       const path = looksLikeStoragePath ? u : (userIdForPath ? `${userIdForPath}/posts/images/${u}` : u);
 
       // Choose resolver by post type or path hint
-      const resolver = isFanPost || /^postimage\//i.test(path) ? getFanPostPublicUrl : getPostPublicUrl;
+      const resolver = isFanPost || /^(postimage|new_post)\//i.test(path) ? getFanPostPublicUrl : getPostPublicUrl;
       return resolver(path) || path;
     })
     .filter(Boolean);
@@ -156,7 +156,7 @@ export interface PostCreationPayload {
   content: string;
   mediaFiles: File[];
   mediaType: 'photo' | 'video' | null;
-  visibility: 'public' | 'community';
+  visibility: 'public' | 'fans_only';
   location?: string;
   eventDate?: string;
 }

@@ -1,7 +1,7 @@
 import { supabase } from './client';
 
 const BUCKET_NAME = 'racer-photos';
-const FAN_POST_BUCKET = 'postimage';
+const FAN_POST_BUCKET = 'new_post';
 
 // Generic file upload with retry logic
 export const uploadFile = async (bucket: string, path: string, file: File) => {
@@ -221,7 +221,7 @@ export const saveImageToAvatarsTable = async (
   url: string,
   type: 'avatar' | 'banner',
   originalName?: string
-): Promise<{ error: any | null }> => {
+): Promise<{ error: unknown | null }> => {
   try {
     const { error } = await supabase.from('avatars').insert({
       user_id: userId,
@@ -231,7 +231,8 @@ export const saveImageToAvatarsTable = async (
     });
     return { error };
   } catch (err) {
-    return { error: err };
+    // Return unknown to avoid leaking any type
+    return { error: err as unknown };
   }
 };
 

@@ -7,7 +7,7 @@ interface FanPostData {
   content: string;
   media_urls: string[];
   post_type: 'text' | 'photo' | 'video' | 'gallery';
-  visibility: 'public' | 'community';
+  visibility: 'public' | 'fans_only';
 }
 
 // Make functions available globally for console testing

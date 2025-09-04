@@ -13,7 +13,8 @@ import {
   FileVideo,
   Images
 } from 'lucide-react';
-import { createRacerPost, createFanPost, uploadImage, uploadVideo, getPublicUrl } from '../lib/supabase';
+import { createRacerPost, createFanPost, uploadImage, uploadVideo } from '../lib/supabase';
+import { getPostPublicUrl } from '../lib/supabase/storage';
 import { useApp } from '../contexts/AppContext';
 
 interface PostCreatorProps {
@@ -40,7 +41,11 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ racerId, onPostCreated
     return () => {
       mediaUrls.forEach((url) => {
         if (typeof url === 'string' && url.startsWith('blob:')) {
-          try { URL.revokeObjectURL(url); } catch {}
+          try {
+            URL.revokeObjectURL(url);
+          } catch {
+            /* safely ignore revoke errors for already-revoked or invalid blobs */
+          }
         }
       });
     };
@@ -172,7 +177,7 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ racerId, onPostCreated
           throw new Error(`Failed to upload ${file.name}`);
         }
 
-        const publicUrl = getPublicUrl('postimage', result.path);
+        const publicUrl = getPostPublicUrl(result.path);
         if (!publicUrl) {
           throw new Error(`Failed to get public URL for ${file.name}`);
         }
@@ -202,7 +207,7 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ racerId, onPostCreated
           content: content.trim(),
           media_urls: uploadedUrls,
           post_type: postType,
-          visibility: visibility === 'fans_only' ? 'community' : 'public'
+          visibility
         });
       } else if (isTrack) {
         await createRacerPost({

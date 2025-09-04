@@ -35,7 +35,7 @@ export const SupabaseImageUpload = ({
       case 'car':
         return 'car-photos';
       case 'post':
-        return 'postimage';
+        return 'new_post';
       case 'logo':
         return 'avatars';
       default:
@@ -69,7 +69,10 @@ export const SupabaseImageUpload = ({
       const bucket = getBucketName(type);
       const fileExt = file.name.split('.').pop();
       const fileName = `${userId}_${type}_${Date.now()}.${fileExt}`;
-      const filePath = fileName;
+      // For 'post' uploads, use a user-scoped storage path to satisfy RLS policies
+      const filePath = type === 'post'
+        ? `${userId}/posts/images/${fileName}`
+        : fileName;
 
       console.log(`Uploading to bucket: ${bucket}, path: ${filePath}`);
 
@@ -81,7 +84,8 @@ export const SupabaseImageUpload = ({
           .from(bucket)
           .upload(filePath, file, {
             cacheControl: '3600',
-            upsert: true
+            upsert: true,
+            contentType: file.type || 'application/octet-stream',
           });
 
         if (!uploadResult.error) break;
