@@ -322,10 +322,10 @@ export default function Grandstand() {
     };
   }, []);
 
-  // Load more posts (default 3 at a time) using nextCursor
+  // Load more posts (default 10 at a time) using nextCursor
   const isFetchingRef = useRef(false);
   const lastFetchAtRef = useRef(0);
-  const loadMore = useCallback(async (limit: number = 3, opts?: { silent?: boolean }) => {
+  const loadMore = useCallback(async (limit: number = 10, opts?: { silent?: boolean }) => {
     if (!nextCursor) return;
     // Prevent rapid-fire calls within 600ms and concurrent fetches
     const now = Date.now();
@@ -353,7 +353,7 @@ export default function Grandstand() {
     }
   }, [nextCursor]);
 
-  // Timed batching: fetch 3 posts every 2 seconds while more pages exist
+  // Timed batching: fetch 10 posts every 2 seconds while more pages exist
   useEffect(() => {
     if (!nextCursor) return; // nothing to prefetch
     let intervalId: number | null = null;
@@ -362,7 +362,7 @@ export default function Grandstand() {
       if (!nextCursor) return; // nothing to fetch
       setBgLoading(true);
       try {
-        await loadMore(3, { silent: true });
+        await loadMore(10, { silent: true });
       } finally {
         setBgLoading(false);
       }
@@ -569,7 +569,7 @@ export default function Grandstand() {
             {nextCursor && (
               <div className="flex justify-center py-4">
                 <button
-                  onClick={() => loadMore(3)}
+                  onClick={() => loadMore(10)}
                   disabled={loadingMore}
                   className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 disabled:opacity-60"
                 >
