@@ -60,7 +60,7 @@ const Fanheader = () => {
   return (
     <>
     <header
-      className={`sticky top-0 z-50 pt-3 pb-3 px-6 backdrop-blur-xl border-b shadow-lg transition-all duration-300 ${
+      className={`md:sticky md:top-0 md:z-50 pt-3 pb-3 px-6 backdrop-blur-xl border-b shadow-lg transition-all duration-300 ${
         theme === 'dark'
           ? 'bg-black/95 border-gray-800/50 shadow-black/20'
           : 'bg-white/95 border-gray-200/50 shadow-gray-200/20'
@@ -315,7 +315,7 @@ const Fanheader = () => {
 
     {/* Mobile Bottom Navigation - shows on all authenticated pages */}
     <nav
-      className={`fixed bottom-0 inset-x-0 z-50 md:hidden border-t backdrop-blur-xl ${
+      className={`md:hidden border-t backdrop-blur-xl ${
         theme === 'dark' ? 'bg-black/90 border-gray-800/50' : 'bg-white/90 border-gray-200/50'
       }`}
       aria-label="Mobile bottom navigation"
