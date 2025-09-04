@@ -1,5 +1,6 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Heart, 
@@ -56,6 +57,7 @@ interface PostCardProps {
 
 export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpdate, onPostDeleted, onPostUpdated }) => {
   const { user } = useUser();
+  const navigate = useNavigate();
   const [post, setPost] = useState(initialPost);
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(post.likes_count || 0);
@@ -138,6 +140,24 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const isValidUUID = (value: string | undefined | null): value is string => {
     if (!value) return false;
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  };
+
+  // Navigate to author's profile (racer -> /racer/:id, fan -> /fan/:id)
+  const goToAuthorProfile = () => {
+    try {
+      if (isRacer && post.racer_profiles?.id) {
+        navigate(`/racer/${post.racer_profiles.id}`);
+        return;
+      }
+      // Fallback to fan profile using the profile.id if present, else post.user_id
+      const profileId = (Array.isArray(post.profiles) ? post.profiles[0]?.id : post.profiles?.id) || post.user_id;
+      if (profileId) {
+        navigate(`/fan/${profileId}`);
+        return;
+      }
+    } catch (e) {
+      console.warn('Failed to navigate to author profile', e);
+    }
   };
 
   useEffect(() => {
@@ -523,13 +543,21 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
             <img
               src={avatarUrl || dicebearUrl}
               alt={displayName}
-              className="w-12 h-12 rounded-full object-cover"
+              className="w-12 h-12 rounded-full object-cover cursor-pointer"
+              onClick={goToAuthorProfile}
             />
             <div>
               <div className="flex items-center space-x-2">
                 <h4 className="font-semibold flex items-center gap-2">
                   {/* Display name first */}
-                  <span>{displayName}</span>
+                  <button
+                    type="button"
+                    onClick={goToAuthorProfile}
+                    className="text-left hover:underline focus:underline focus:outline-none"
+                    aria-label={`View ${displayName}'s profile`}
+                  >
+                    {displayName}
+                  </button>
 
                   {/* Then user type chip */}
                   {isRacer ? (

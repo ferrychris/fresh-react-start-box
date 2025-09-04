@@ -3,7 +3,7 @@ import { useUser } from '@/contexts/UserContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useApp } from '@/contexts/AppContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronDown, Bell, Search, Trophy, Layers, Handshake, Megaphone, Upload, Plus } from 'lucide-react';
+import { ChevronDown, Bell, Search, Trophy, Layers, Handshake, Megaphone, Upload } from 'lucide-react';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -315,25 +315,11 @@ const Fanheader = () => {
 
     {/* Mobile Bottom Navigation - shows on all authenticated pages */}
     <nav
-      className={`fixed bottom-0 inset-x-0 z-50 md:hidden border-t backdrop-blur-xl relative ${
+      className={`fixed bottom-0 inset-x-0 z-50 md:hidden border-t backdrop-blur-xl ${
         theme === 'dark' ? 'bg-black/90 border-gray-800/50' : 'bg-white/90 border-gray-200/50'
       }`}
       aria-label="Mobile bottom navigation"
     >
-      {/* Floating center action button for creating a post */}
-      <div className="absolute -top-6 left-1/2 -translate-x-1/2">
-        <button
-          aria-label="Create post"
-          onClick={() => setShowCreatePost(true)}
-          className={`h-14 w-14 rounded-full shadow-xl flex items-center justify-center ring-4 ${
-            theme === 'dark'
-              ? 'bg-fedex-orange text-white ring-black/60'
-              : 'bg-fedex-orange text-white ring-white/60'
-          }`}
-        >
-          <Plus className="h-7 w-7" />
-        </button>
-      </div>
       <div className="max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-5 py-2 gap-1">
           <button

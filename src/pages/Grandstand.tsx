@@ -78,6 +78,7 @@ export default function Grandstand() {
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const mountIdRef = useRef<string>(Math.random().toString(36).slice(2));
+  const [bgLoading, setBgLoading] = useState<boolean>(false);
 
   // Log component mount/unmount
   useEffect(() => {
@@ -321,10 +322,10 @@ export default function Grandstand() {
     };
   }, []);
 
-  // Load more posts (5 at a time) using nextCursor
+  // Load more posts (default 3 at a time) using nextCursor
   const isFetchingRef = useRef(false);
   const lastFetchAtRef = useRef(0);
-  const loadMore = useCallback(async () => {
+  const loadMore = useCallback(async (limit: number = 3, opts?: { silent?: boolean }) => {
     if (!nextCursor) return;
     // Prevent rapid-fire calls within 600ms and concurrent fetches
     const now = Date.now();
@@ -332,9 +333,9 @@ export default function Grandstand() {
     isFetchingRef.current = true;
     lastFetchAtRef.current = now;
     console.time('grandstand:loadMore');
-    setLoadingMore(true);
+    if (!opts?.silent) setLoadingMore(true);
     try {
-      const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 5, cursor: nextCursor });
+      const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit, cursor: nextCursor });
       if (error) throw error;
       const mapped: PostCardType[] = (rows || []).map((r: PostCardType) => {
         const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
@@ -347,10 +348,30 @@ export default function Grandstand() {
     } catch (e) {
       console.error('[Grandstand] Failed to load more posts', e);
     } finally {
-      setLoadingMore(false);
+      if (!opts?.silent) setLoadingMore(false);
       isFetchingRef.current = false;
     }
   }, [nextCursor]);
+
+  // Timed batching: fetch 3 posts every 2 seconds while more pages exist
+  useEffect(() => {
+    if (!nextCursor) return; // nothing to prefetch
+    let intervalId: number | null = null;
+    const tick = async () => {
+      if (document.hidden) return; // pause when tab not visible
+      if (!nextCursor) return; // nothing to fetch
+      setBgLoading(true);
+      try {
+        await loadMore(3, { silent: true });
+      } finally {
+        setBgLoading(false);
+      }
+    };
+    intervalId = window.setInterval(tick, 2000);
+    return () => {
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [nextCursor, loadMore]);
 
   // Infinite scroll with IntersectionObserver
   useEffect(() => {
@@ -526,12 +547,29 @@ export default function Grandstand() {
                 onPostDeleted={() => handlePostDeleted(post.id)}
               />
             ))}
+            {/* Tiny skeletons during background timed loads */}
+            {bgLoading && (
+              <div className="space-y-4" aria-hidden="true">
+                {[0,1,2].map((i) => (
+                  <div key={i} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 animate-pulse">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-full bg-slate-800" />
+                      <div className="flex-1">
+                        <div className="w-32 h-3 bg-slate-800 rounded" />
+                        <div className="w-20 h-2 bg-slate-800 rounded mt-2" />
+                      </div>
+                    </div>
+                    <div className="w-full h-24 bg-slate-800 rounded-lg" />
+                  </div>
+                ))}
+              </div>
+            )}
             {/* Load more controls */}
             <div ref={sentinelRef} />
             {nextCursor && (
               <div className="flex justify-center py-4">
                 <button
-                  onClick={loadMore}
+                  onClick={() => loadMore(3)}
                   disabled={loadingMore}
                   className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 disabled:opacity-60"
                 >
