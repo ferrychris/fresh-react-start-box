@@ -243,7 +243,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
               <div className="w-9 h-7 lg:w-11 lg:h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-pink-500 via-pink-400 to-orange-500 shadow-md group-hover:scale-110 transition-transform duration-300">
                 <span className="text-white font-bold text-lg">🏁</span>
               </div>
-              <div className="hidden sm:block">
+              <div className="block">
                 <h1 className={`text-lg lg:text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} racing-number`}>
                   OnlyRace<span className="text-orange-500">Fans</span>
                 </h1>
