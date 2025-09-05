@@ -16,9 +16,9 @@ export const getNetworkDiagnostics = (): NetworkDiagnostics => {
   };
 
   // Check if QUIC is enabled (Chrome-specific)
-  if (typeof window !== 'undefined' && (window as any).chrome) {
+  if (typeof window !== 'undefined' && window.chrome) {
     try {
-      const loadTimes = ((window as any).chrome as any).loadTimes?.();
+      const loadTimes = (window.chrome as any).loadTimes?.();
       if (loadTimes?.connectionInfo) {
         if (loadTimes.connectionInfo.includes('quic')) {
           diagnostics.protocol = 'quic';
