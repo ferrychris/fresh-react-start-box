@@ -519,13 +519,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                 </button>
               </div>
             ) : (
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-2 bg-orange-500 text-white rounded-[20px] font-medium hover:bg-orange-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm min-h-[36px] sm:min-h-[40px]"
-              >
-                {isLoading ? 'Loading...' : 'Sign In'}
-              </button>
+              <div className="space-y-3">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-2 bg-orange-500 text-white rounded-[20px] font-medium hover:bg-orange-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm min-h-[36px] sm:min-h-[40px]"
+                >
+                  {isLoading ? 'Loading...' : 'Sign In'}
+                </button>
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => { setMode('register'); setErrorMsg(null); }}
+                    className="text-slate-400 hover:text-white transition-colors duration-200 text-[10px] sm:text-xs px-2 py-1 rounded-[20px]"
+                  >
+                    Don't have an account? Sign up
+                  </button>
+                </div>
+              </div>
             )}
           </form>
 

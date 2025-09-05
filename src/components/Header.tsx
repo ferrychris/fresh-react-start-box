@@ -219,7 +219,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
     | { path: string; label: string; icon: React.ElementType; type?: 'link' }
     | { type: 'search'; label: string; icon: React.ElementType }
   > = [
-    { path: '/feed', label: 'Discover', icon: Compass, type: 'link' },
+    { path: '/feed', label: 'Grandstand', icon: Compass, type: 'link' },
     { path: '/racers', label: 'Racers', icon: Users, type: 'link' },
     { type: 'search', label: 'Search', icon: Search },
     { path: '/tracks', label: 'Tracks', icon: Flag, type: 'link' },
@@ -1097,10 +1097,10 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
                       ? 'text-gray-400 hover:text-white hover:bg-gray-800/60 hover:scale-105'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/60 hover:scale-105'
                 }`}
-                aria-label="Discover"
+                aria-label="Grandstand"
               >
                 <Compass className="h-5 w-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110" />
-                <span className="text-xs font-medium leading-tight">Discover</span>
+                <span className="text-xs font-medium leading-tight">Grandstand</span>
                 {isActive('/feed') && (
                   <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-fedex-orange rounded-full animate-pulse"></div>
                 )}
