@@ -11,7 +11,7 @@ import { Racers } from './pages/Racers';
 import { Tracks } from './pages/Tracks';
 import { HowItWorks } from './pages/HowItWorks';
 import { TrackProfile } from './pages/TrackProfile';
-import RacerProfile from './components/racer-dashboard/RacerProfile';
+import RacerProfile from './pages/RacerProfile';
 import { SeriesProfile } from './pages/SeriesProfile';
 import { Series } from './pages/Series';
 import { SuperFans } from './pages/SuperFans';
@@ -139,7 +139,7 @@ const HeaderGate: React.FC = () => {
 // Wrapper to pass URL param to RacerProfile
 const RacerProfileRoute: React.FC = () => {
   const { id } = useParams();
-  return <RacerProfile racerId={(id as string) ?? ''} />;
+  return <RacerProfile racerId={id as string} />;
 };
 
 // Main content area with conditional padding based on route
@@ -174,7 +174,7 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
           element={
             authUser?.user_type === 'racer' ? (
               // <Dashboard />
-              <RacerProfile/>
+              <RacerProfile />
             ) : authUser?.user_type === 'fan' ? (
               <FanDashboard />
             ) : authUser?.user_type === 'track' ? (

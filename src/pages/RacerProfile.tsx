@@ -1,13 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-
-// Define the user type to fix TypeScript errors
-interface User {
-  id: string;
-  name?: string;
-  role?: string;
-}
+import { useUser } from '../contexts/UserContext';
 
 // Import our new modular components
 import { ProfileHeader } from '../components/racer-dashboard/components/ProfileHeader';
@@ -18,30 +11,35 @@ import { UpcomingRaces } from '../components/racer-dashboard/components/Upcoming
 import { ContentManagement } from '../components/racer-dashboard/components/ContentManagement';
 import { MonetizationPanel } from '../components/racer-dashboard/components/MonetizationPanel';
 
-const RacerProfile: React.FC = () => {
+interface RacerProfileProps {
+  racerId?: string;
+}
+
+const RacerProfile: React.FC<RacerProfileProps> = ({ racerId }) => {
   const { id } = useParams<{ id: string }>();
-  // Fix TypeScript error by properly typing the auth context
-  const auth = useAuth();
-  const user = auth?.user as User | undefined;
+  const { user } = useUser();
   const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'content' | 'monetization'>('overview');
   
-  // Determine the user ID to display - either from URL params or current user
-  const userId = id || user?.id || 'current-user';
+  // Determine the user ID to display - either from props, URL params, or current user
+  const userId = racerId || id || user?.id || 'current-user';
   
-  // Validate that this is a racer profile
-  if (user && user.role !== 'RACER') {
+  // Validate that this is a racer profile - allow viewing other racers but restrict actions to racers
+  const isOwnProfile = user?.id === userId;
+  const isRacer = user?.user_type === 'racer';
+  
+  if (isOwnProfile && user && user.user_type !== 'racer') {
     return (
-      <div className="min-h-screen bg-slate-950 p-6 flex items-center justify-center">
+      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">Access Denied</h2>
-          <p className="text-slate-400">You need to be logged in as a Racer to view this dashboard.</p>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Access Denied</h2>
+          <p className="text-muted-foreground">You need to be logged in as a Racer to view this dashboard.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-background">
       {/* Header with profile info */}
       <ProfileHeader userId={userId} />
       
@@ -71,9 +69,9 @@ const RacerProfile: React.FC = () => {
           )}
           
           {activeTab === 'activity' && (
-            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-              <h3 className="text-xl font-bold text-white mb-4">Activity Feed</h3>
-              <p className="text-slate-400">Detailed activity tracking coming soon.</p>
+            <div className="bg-card rounded-2xl p-6 border border-border">
+              <h3 className="text-xl font-bold text-foreground mb-4">Activity Feed</h3>
+              <p className="text-muted-foreground">Detailed activity tracking coming soon.</p>
             </div>
           )}
           

@@ -58,20 +58,20 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
           return;
         }
         
-        // Fetch racer specific data
+        // Fetch racer specific data (if available)
         const { data: racerData, error: racerError } = await supabase
           .from('racer_profiles')
           .select('car_number, racing_class, team')
-          .eq('user_id', resolvedUserId)
+          .eq('id', resolvedUserId)
           .single();
           
         if (racerError && racerError.code !== 'PGRST116') {
           console.error('Error fetching racer profile:', racerError);
         }
         
-        // Fetch follower count
+        // Fetch follower count from fan_connections
         const { count: followerCount, error: followerError } = await supabase
-          .from('fan_follows')
+          .from('fan_connections')
           .select('id', { count: 'exact', head: true })
           .eq('racer_id', resolvedUserId);
           
@@ -79,11 +79,11 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
           console.error('Error fetching follower count:', followerError);
         }
         
-        // Fetch streak days (activity streak)
+        // Fetch streak days from fan_streaks  
         const { data: streakData, error: streakError } = await supabase
-          .from('user_activity_streaks')
-          .select('streak_days')
-          .eq('user_id', resolvedUserId)
+          .from('fan_streaks')
+          .select('current_streak')
+          .eq('fan_id', resolvedUserId)
           .single();
           
         if (streakError && streakError.code !== 'PGRST116') {
@@ -101,7 +101,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
           racing_class: racerData?.racing_class || '',
           team: racerData?.team || '',
           followers_count: followerCount || 0,
-          streak_days: streakData?.streak_days || 0
+          streak_days: streakData?.current_streak || 0
         });
       } catch (error) {
         console.error('Error fetching profile data:', error);
