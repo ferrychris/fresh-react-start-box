@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase } from '../integrations/supabase/client';
+import { useAuth } from '../context/AuthContext';
+
+// Define the user type to fix TypeScript errors
+interface User {
+  id: string;
+  name?: string;
+  role?: string;
+}
 
 // Import our new modular components
 import { ProfileHeader } from '../components/racer-dashboard/components/ProfileHeader';
@@ -11,79 +18,30 @@ import { UpcomingRaces } from '../components/racer-dashboard/components/Upcoming
 import { ContentManagement } from '../components/racer-dashboard/components/ContentManagement';
 import { MonetizationPanel } from '../components/racer-dashboard/components/MonetizationPanel';
 
-interface Profile {
-  id: string;
-  name: string;
-  user_type: string;
-}
-
 const RacerProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Fix TypeScript error by properly typing the auth context
+  const auth = useAuth();
+  const user = auth?.user as User | undefined;
   const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'content' | 'monetization'>('overview');
   
-  useEffect(() => {
-    const getCurrentUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setCurrentUser(user);
-    };
-    getCurrentUser();
-  }, []);
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      const targetUserId = id || currentUser?.id;
-      if (!targetUserId) return;
-
-      const { data: profileData, error } = await supabase
-        .from('profiles')
-        .select('id, name, user_type')
-        .eq('id', targetUserId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching profile:', error);
-      } else {
-        setProfile(profileData);
-      }
-      setLoading(false);
-    };
-
-    if (currentUser || id) {
-      fetchProfile();
-    }
-  }, [currentUser, id]);
-  
   // Determine the user ID to display - either from URL params or current user
-  const userId = id || currentUser?.id || 'current-user';
+  const userId = id || user?.id || 'current-user';
   
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading profile...</p>
-        </div>
-      </div>
-    );
-  }
-
   // Validate that this is a racer profile
-  if (profile && profile.user_type !== 'racer') {
+  if (user && user.role !== 'RACER') {
     return (
-      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-950 p-6 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-foreground mb-2">Access Denied</h2>
-          <p className="text-muted-foreground">This profile is not a racer profile.</p>
+          <h2 className="text-2xl font-bold text-white mb-2">Access Denied</h2>
+          <p className="text-slate-400">You need to be logged in as a Racer to view this dashboard.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-slate-950">
       {/* Header with profile info */}
       <ProfileHeader userId={userId} />
       
@@ -113,9 +71,9 @@ const RacerProfile: React.FC = () => {
           )}
           
           {activeTab === 'activity' && (
-            <div className="bg-card rounded-2xl p-6 border border-border">
-              <h3 className="text-xl font-bold text-foreground mb-4">Activity Feed</h3>
-              <p className="text-muted-foreground">Detailed activity tracking coming soon.</p>
+            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
+              <h3 className="text-xl font-bold text-white mb-4">Activity Feed</h3>
+              <p className="text-slate-400">Detailed activity tracking coming soon.</p>
             </div>
           )}
           

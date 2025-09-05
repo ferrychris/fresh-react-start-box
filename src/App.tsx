@@ -11,7 +11,7 @@ import { Racers } from './pages/Racers';
 import { Tracks } from './pages/Tracks';
 import { HowItWorks } from './pages/HowItWorks';
 import { TrackProfile } from './pages/TrackProfile';
-import RacerProfile from './pages/RacerProfile';
+import RacerProfile from './components/racer-dashboard/RacerProfile';
 import { SeriesProfile } from './pages/SeriesProfile';
 import { Series } from './pages/Series';
 import { SuperFans } from './pages/SuperFans';
@@ -138,8 +138,8 @@ const HeaderGate: React.FC = () => {
 
 // Wrapper to pass URL param to RacerProfile
 const RacerProfileRoute: React.FC = () => {
-  // The RacerProfile component now handles URL params internally
-  return <RacerProfile />;
+  const { id } = useParams();
+  return <RacerProfile racerId={(id as string) ?? ''} />;
 };
 
 // Main content area with conditional padding based on route
