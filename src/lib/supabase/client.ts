@@ -11,6 +11,19 @@ if (supabaseUrl && supabaseAnonKey) {
 } else {
   console.warn('Supabase URL or Anon Key is not defined. Using mock client.');
 
+  // Simple in-memory auth state for mocks
+  let mockUser: any = null;
+  let mockSession: any = null;
+
+  const makeSession = (user: any) => ({
+    access_token: 'mock_access_token',
+    token_type: 'bearer',
+    user,
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    refresh_token: 'mock_refresh_token'
+  });
+
   const mockSupabase = {
     from: (table: string) => ({
       select: async (query = '*') => {
@@ -35,7 +48,7 @@ if (supabaseUrl && supabaseAnonKey) {
     }),
     storage: {
       from: (bucket: string) => ({
-        upload: async (path: string, file: File) => {
+        upload: async (path: string, _file: File) => {
           console.log(`Mock upload to ${bucket}/${path}`);
           return { data: { path: `mock/${path}` }, error: null };
         },
@@ -49,13 +62,41 @@ if (supabaseUrl && supabaseAnonKey) {
       }),
     },
     auth: {
-      getUser: async () => ({ data: { user: null }, error: null }),
-      getSession: async () => ({ data: { session: null }, error: null }),
-      refreshSession: async () => ({ data: { session: null }, error: null }),
-      onAuthStateChange: (_cb: any) => ({
-        data: { subscription: { unsubscribe: () => {} } },
-        error: null,
-      }),
+      async signInWithPassword({ email, password }: { email: string; password: string }) {
+        console.log('[mock] signInWithPassword', email);
+        // Accept any email/password in mock; optionally gate on known test accounts
+        mockUser = {
+          id: 'mock-user-id',
+          email,
+          user_metadata: { name: email.split('@')[0], user_type: 'fan' },
+        };
+        mockSession = makeSession(mockUser);
+        return { data: { user: mockUser, session: mockSession }, error: null };
+      },
+      async signUp({ email, password, options }: { email: string; password: string; options?: any }) {
+        console.log('[mock] signUp', email, options);
+        mockUser = {
+          id: 'mock-new-user-id',
+          email,
+          user_metadata: options?.data || {},
+        };
+        mockSession = makeSession(mockUser);
+        return { data: { user: mockUser, session: mockSession }, error: null };
+      },
+      async signOut() {
+        mockUser = null;
+        mockSession = null;
+        return { error: null };
+      },
+      getUser: async () => ({ data: { user: mockUser }, error: null }),
+      getSession: async () => ({ data: { session: mockSession }, error: null }),
+      refreshSession: async () => ({ data: { session: mockSession }, error: null }),
+      onAuthStateChange: (cb: any) => {
+        const unsub = () => {};
+        // Immediately notify with current session in mock
+        try { cb('SIGNED_IN', { session: mockSession }); } catch {}
+        return { data: { subscription: { unsubscribe: unsub } }, error: null };
+      },
     },
   };
 

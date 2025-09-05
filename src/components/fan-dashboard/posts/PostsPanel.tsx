@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Heart, MessageCircle, Share2, MoreHorizontal, Calendar, MapPin, Users, DollarSign, RefreshCw } from 'lucide-react';
 import { useUser } from '../../../contexts/UserContext';
 import toast from 'react-hot-toast';
@@ -7,6 +7,16 @@ import { supabase } from '../../../lib/supabase/client';
 import { getFanPostsPage } from '../../../lib/supabase/posts';
 import { Post, PostCreationPayload, DatabasePost, transformDbPostToUIPost } from './types';
 import LazyImage from '../../LazyImage';
+
+// Cache for storing posts data
+const postsCache = new Map<string, {
+  data: Post[];
+  nextCursor: { created_at: string; id: string } | null;
+  timestamp: number;
+}>();
+
+// Cache expiration time in milliseconds (5 minutes)
+const CACHE_EXPIRATION = 5 * 60 * 1000;
 
 // Post interface is now imported from types.ts
 
@@ -81,13 +91,40 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
     }
   }, [user]);
 
-  // Load first page - fetch all public posts with better error handling
+  // Load first page - fetch all public posts with better error handling and caching
   const loadInitial = useCallback(async () => {
     try {
       setIsLoading(true);
       console.log('Loading initial posts...');
       
-      const { data, nextCursor, error } = await getFanPostsPage({ limit: 5, cursor: null });
+      // Check cache first
+      const cacheKey = 'initial-posts';
+      const cachedData = postsCache.get(cacheKey);
+      const now = Date.now();
+      
+      // Use cache if it exists and hasn't expired
+      if (cachedData && (now - cachedData.timestamp) < CACHE_EXPIRATION) {
+        console.log('Using cached posts data');
+        setList(cachedData.data);
+        setCursor(cachedData.nextCursor);
+        setHasMore(!!cachedData.nextCursor);
+        
+        // Still check likes status as it might have changed
+        if (user) {
+          await updateLikeStatus(cachedData.data);
+        }
+        
+        // Prefetch next page in background
+        prefetchNext(cachedData.nextCursor);
+        return;
+      }
+      
+      // Cache miss - fetch from API
+      const { data, nextCursor, error } = await getFanPostsPage({ 
+        limit: 5, 
+        cursor: null,
+        cacheKey
+      });
       
       if (error) {
         console.error('Error loading posts:', error);
@@ -119,9 +156,17 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
       const transformed = (data as unknown as DatabasePost[]).map(transformDbPostToUIPost);
       console.log(`Loaded ${transformed.length} posts successfully`);
       
+      // Update state
       setList(transformed);
       setCursor(nextCursor);
       setHasMore(!!nextCursor);
+      
+      // Update cache
+      postsCache.set(cacheKey, {
+        data: transformed,
+        nextCursor,
+        timestamp: now
+      });
       
       // Check which posts are liked by the current user
       if (user) {
@@ -199,34 +244,98 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
     ];
   };
 
-  // Load next page
+  // Load next page with caching and performance improvements
   const loadMore = useCallback(async () => {
     if (!hasMore || isLoadingMore) return;
     try {
       setIsLoadingMore(true);
+      
+      // Generate cache key for this page
+      const pageCacheKey = cursor ? `posts-${cursor.created_at}-${cursor.id}` : 'posts-initial';
+      const cachedPage = postsCache.get(pageCacheKey);
+      const now = Date.now();
+      
+      // Use prefetched data if available (highest priority)
       if (prefetch) {
         const transformed = (prefetch.data as unknown as DatabasePost[]).map(transformDbPostToUIPost);
+        
+        // Update state
         setList(prev => [...prev, ...transformed]);
         setCursor(prefetch.nextCursor);
         setHasMore(!!prefetch.nextCursor);
+        
+        // Update cache
+        postsCache.set(pageCacheKey, {
+          data: transformed,
+          nextCursor: prefetch.nextCursor,
+          timestamp: now
+        });
+        
         // Chain next prefetch
         await prefetchNext(prefetch.nextCursor);
         setPrefetch(null);
-      } else {
-        const { data, nextCursor, error } = await getFanPostsPage({ limit: 5, cursor });
+        
+        // Check which posts are liked by the current user
+        if (user) {
+          await updateLikeStatus(transformed);
+        }
+      } 
+      // Use cache if available and not expired
+      else if (cachedPage && (now - cachedPage.timestamp) < CACHE_EXPIRATION) {
+        console.log('Using cached page data for pagination');
+        
+        // Update state with cached data
+        setList(prev => [...prev, ...cachedPage.data]);
+        setCursor(cachedPage.nextCursor);
+        setHasMore(!!cachedPage.nextCursor);
+        
+        // Still prefetch next page
+        await prefetchNext(cachedPage.nextCursor);
+        
+        // Check which posts are liked by the current user
+        if (user) {
+          await updateLikeStatus(cachedPage.data);
+        }
+      } 
+      // Fetch from API if no cache or prefetch available
+      else {
+        const { data, nextCursor, error } = await getFanPostsPage({ 
+          limit: 5, 
+          cursor,
+          cacheKey: pageCacheKey
+        });
+        
         if (error) throw error;
+        
         const transformed = (data as unknown as DatabasePost[]).map(transformDbPostToUIPost);
+        
+        // Update state
         setList(prev => [...prev, ...transformed]);
         setCursor(nextCursor);
         setHasMore(!!nextCursor);
+        
+        // Update cache
+        postsCache.set(pageCacheKey, {
+          data: transformed,
+          nextCursor,
+          timestamp: now
+        });
+        
+        // Prefetch next page
         await prefetchNext(nextCursor);
+        
+        // Check which posts are liked by the current user
+        if (user) {
+          await updateLikeStatus(transformed);
+        }
       }
     } catch (e) {
       console.error('Error loading more posts:', e);
+      toast.error('Failed to load more posts');
     } finally {
       setIsLoadingMore(false);
     }
-  }, [cursor, hasMore, isLoadingMore, prefetch, prefetchNext]);
+  }, [cursor, hasMore, isLoadingMore, prefetch, prefetchNext, user, updateLikeStatus]);
 
   // Setup IntersectionObserver
   useEffect(() => {
@@ -253,10 +362,17 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
     }
   }, [posts, loadInitial]);
 
-  // Realtime: remove posts from UI list when they are deleted elsewhere
+  // Enhanced Realtime: handle post updates, deletions, and new posts
   useEffect(() => {
+    // Skip if no user is logged in
+    if (!user) return;
+    
+    console.log('Setting up realtime subscriptions for posts');
+    
+    // Create a channel for all post-related events
     const channel = supabase
       .channel('racer-posts-realtime')
+      // Handle post deletions
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'racer_posts' },
@@ -265,15 +381,87 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
           const deletedRaw = oldRow?.id;
           const deletedId = deletedRaw != null ? String(deletedRaw) : undefined;
           if (!deletedId) return;
+          
+          console.log('Realtime: Post deleted', deletedId);
           setList((prev) => prev.filter((p) => p.id !== deletedId));
+          
+          // Also remove from cache if present
+          for (const [key, value] of postsCache.entries()) {
+            if (value.data.some(post => post.id === deletedId)) {
+              const updatedCache = {
+                ...value,
+                data: value.data.filter(post => post.id !== deletedId)
+              };
+              postsCache.set(key, updatedCache);
+            }
+          }
+        }
+      )
+      // Handle post updates
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'racer_posts' },
+        (payload) => {
+          const updatedPost = payload.new as DatabasePost;
+          if (!updatedPost?.id) return;
+          
+          console.log('Realtime: Post updated', updatedPost.id);
+          
+          // Transform the updated post
+          const transformedPost = transformDbPostToUIPost(updatedPost as unknown as DatabasePost);
+          
+          // Update the post in the current list
+          setList(prev => prev.map(post => 
+            post.id === transformedPost.id ? { ...post, ...transformedPost } : post
+          ));
+          
+          // Update in cache if present
+          for (const [key, value] of postsCache.entries()) {
+            if (value.data.some(post => post.id === transformedPost.id)) {
+              const updatedCache = {
+                ...value,
+                data: value.data.map(post => 
+                  post.id === transformedPost.id ? { ...post, ...transformedPost } : post
+                )
+              };
+              postsCache.set(key, updatedCache);
+            }
+          }
+        }
+      )
+      // Handle new posts
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'racer_posts' },
+        (payload) => {
+          const newPost = payload.new as DatabasePost;
+          if (!newPost?.id) return;
+          
+          // Only add to feed if it's a public post
+          if (newPost.visibility !== 'public') return;
+          
+          console.log('Realtime: New post created', newPost.id);
+          
+          // Transform the new post
+          const transformedPost = transformDbPostToUIPost(newPost as unknown as DatabasePost);
+          
+          // Add the new post to the top of the list
+          setList(prev => [transformedPost, ...prev]);
+          
+          // Invalidate cache since order has changed
+          postsCache.clear();
+          
+          // Show a toast notification
+          toast.success('New post available!');
         }
       )
       .subscribe();
 
     return () => {
+      console.log('Cleaning up realtime subscriptions');
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user]);
 
   const handleCreate = (post: Post) => {
     if (onCreatePost) {
@@ -547,41 +735,60 @@ const PostsPanel: React.FC<PostsPanelProps> = ({ posts, onCreatePost, showCompos
                 </div>
               </div>
 
-              {/* Media - Full Width Facebook Style */}
+              {/* Media - Full Width Facebook Style with Enhanced Lazy Loading */}
               {post.mediaUrls && post.mediaUrls.length > 0 && (
                 <div className="relative">
                   {post.mediaType === 'video' ? (
-                    <video 
-                      src={post.mediaUrls[0]} 
-                      controls 
-                      className="w-full max-h-[280px] object-cover" 
-                      poster={post.mediaUrls[0] + '?poster=true'}
-                    />
+                    <div className="w-full max-h-[280px] bg-slate-800 relative">
+                      {/* Use preload="metadata" to limit initial bandwidth usage */}
+                      <video 
+                        src={post.mediaUrls[0]} 
+                        controls 
+                        className="w-full max-h-[280px] object-cover" 
+                        poster={post.mediaUrls[0] + '?poster=true'}
+                        preload="metadata"
+                        onLoadStart={(e) => {
+                          // Limit initial bandwidth usage by seeking to a small time
+                          const video = e.target as HTMLVideoElement;
+                          if (video.duration) {
+                            video.currentTime = Math.min(0.1, video.duration / 10);
+                          }
+                        }}
+                      />
+                    </div>
                   ) : post.mediaUrls.length === 1 ? (
                     <LazyImage
                       src={post.mediaUrls[0]}
                       alt="Post media"
                       className="w-full max-h-[280px] object-cover"
+                      placeholder={<div className="w-full h-[280px] bg-slate-800 animate-pulse"></div>}
+                      threshold={0.1} // Start loading when 10% visible
                     />
                   ) : (
                     <div className={`grid ${post.mediaUrls.length === 2 ? 'grid-cols-2' : 'grid-cols-2'} gap-0.5`}>
-                      {post.mediaUrls.slice(0, 4).map((url, index) => (
-                        <div 
-                          key={index} 
-                          className={`relative ${post.mediaUrls.length === 3 && index === 2 ? 'col-span-2' : ''}`}
-                        >
-                          <LazyImage
-                            src={url}
-                            alt={`Post media ${index + 1}`}
-                            className="w-full h-[140px] object-cover"
-                          />
-                          {index === 3 && post.mediaUrls.length > 4 && (
-                            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                              <span className="text-white text-lg font-semibold">+{post.mediaUrls.length - 4}</span>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                      {post.mediaUrls.slice(0, 4).map((url, index) => {
+                        // Use IntersectionObserver via LazyImage component
+                        return (
+                          <div 
+                            key={index} 
+                            className={`relative ${post.mediaUrls.length === 3 && index === 2 ? 'col-span-2' : ''}`}
+                          >
+                            <LazyImage
+                              src={url}
+                              alt={`Post media ${index + 1}`}
+                              className="w-full h-[140px] object-cover"
+                              placeholder={<div className="w-full h-[140px] bg-slate-800 animate-pulse"></div>}
+                              threshold={0.1} // Start loading when 10% visible
+                              quality="medium" // Lower quality for grid images
+                            />
+                            {index === 3 && post.mediaUrls.length > 4 && (
+                              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                                <span className="text-white text-lg font-semibold">+{post.mediaUrls.length - 4}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

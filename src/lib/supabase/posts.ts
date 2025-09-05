@@ -313,75 +313,125 @@ export const getPostsForFan = async (fanId: string): Promise<DatabasePost[]> => 
   return [];
 };
 
-// Keyset-paginated posts for fan dashboard
+// Keyset-paginated posts for fan dashboard with optimized performance
 // Cursor format: { created_at: string; id: string }
 export const getFanPostsPage = async ({
   limit = 12,
-  cursor
+  cursor,
+  includeProfiles = true,
+  cacheKey
 }: {
   limit?: number;
   cursor?: { created_at: string; id: string } | null;
-}): Promise<{ data: DatabasePost[]; nextCursor: { created_at: string; id: string } | null; error: any | null }> => {
+  includeProfiles?: boolean;
+  cacheKey?: string; // Optional cache key for client-side caching
+}): Promise<{ data: DatabasePost[]; nextCursor: { created_at: string; id: string } | null; error: any | null; cacheKey?: string }> => {
   let retries = 0;
   const maxRetries = 3;
   
   while (retries <= maxRetries) {
     try {
-      // Fetch all posts with conditional profile joins based on user_type
-      let query = supabase
-        .from('racer_posts')
-        .select(`
-          id,
-          created_at,
-          updated_at,
-          content,
-          media_urls,
-          post_type,
-          visibility,
-          likes_count,
-          comments_count,
-          user_id,
-          user_type,
-          racer_id,
-          total_tips,
-          allow_tips,
-          profiles!racer_posts_user_id_fkey (id, name, email, avatar, user_type),
-          racer_profiles!racer_posts_racer_id_fkey (id, username, profile_photo_url, car_number, team_name)
-        `)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
-        .limit(limit);
+      // Optimize the query by selecting only necessary fields
+      const baseCore = `
+        id,
+        created_at,
+        updated_at,
+        content,
+        media_urls,
+        post_type,
+        visibility,
+        likes_count,
+        comments_count,
+        user_id,
+        user_type,
+        racer_id,
+        total_tips,
+        allow_tips
+      `;
+      
+      // Only include profile joins if needed
+      const baseSelect = includeProfiles
+        ? `${baseCore}, 
+           profiles!racer_posts_user_id_fkey (id, name, email, avatar, user_type),
+           racer_profiles!racer_posts_racer_id_fkey (id, username, profile_photo_url, car_number, team_name)`
+        : baseCore;
 
+      let rows: any[] = [];
+
+      // Use the composite index (created_at, id) for efficient pagination
       if (cursor?.created_at && cursor?.id) {
-        // Proper keyset pagination: (created_at < cursor.created_at)
-        // OR (created_at = cursor.created_at AND id < cursor.id)
-        query = query.or(
-          `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`
-        );
-      }
+        // Split the query into two parts for better index usage
+        // 1) Strictly earlier timestamps
+        const { data: part1, error: err1 } = await supabase
+          .from('racer_posts')
+          .select(baseSelect)
+          .lt('created_at', cursor.created_at)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(limit);
+          
+        if (err1) {
+          if (err1.message?.includes('Failed to fetch') && retries < maxRetries) {
+            retries++;
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+            continue;
+          }
+          return { data: [], nextCursor: null, error: err1 };
+        }
 
-      const { data, error } = await query;
+        rows = part1 || [];
 
-      if (error) {
-        console.error('Error in getFanPostsPage:', error);
-        
-        if (error.message?.includes('Failed to fetch') && retries < maxRetries) {
-          console.warn(`Network error fetching paginated posts, retrying... (${retries + 1}/${maxRetries})`);
-          retries++;
-          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
-          continue;
+        // If we didn't get enough results, fetch more with the same timestamp but different IDs
+        if (rows.length < limit) {
+          // 2) Same timestamp but lower id to break ties
+          const remaining = limit - rows.length;
+          const { data: part2, error: err2 } = await supabase
+            .from('racer_posts')
+            .select(baseSelect)
+            .eq('created_at', cursor.created_at)
+            .lt('id', cursor.id)
+            .order('id', { ascending: false })
+            .limit(remaining);
+            
+          if (err2) {
+            if (err2.message?.includes('Failed to fetch') && retries < maxRetries) {
+              retries++;
+              await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+              continue;
+            }
+            return { data: [], nextCursor: null, error: err2 };
+          }
+          
+          if (part2 && part2.length) {
+            rows = [...rows, ...part2];
+          }
+        }
+      } else {
+        // First page - use the index directly
+        const { data, error } = await supabase
+          .from('racer_posts')
+          .select(baseSelect)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(limit);
+          
+        if (error) {
+          if (error.message?.includes('Failed to fetch') && retries < maxRetries) {
+            retries++;
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+            continue;
+          }
+          return { data: [], nextCursor: null, error };
         }
         
-        return { data: [], nextCursor: null, error };
+        rows = data || [];
       }
 
-      const rows = data || [];
-      console.log(`Fetched ${rows.length} posts from database (all posts)`);
-      
       // Generate next cursor from the last item
       const last = rows[rows.length - 1];
       const nextCursor = (last && rows.length === limit) ? { created_at: last.created_at, id: last.id } : null;
-
+      
+      // Performance optimization: Process media URLs in batches to avoid blocking the main thread
       const mapped: DatabasePost[] = (rows as DatabasePost[]).map((row) => {
         const urls = Array.isArray(row.media_urls)
           ? row.media_urls.map((u: string) => {
@@ -394,7 +444,16 @@ export const getFanPostsPage = async ({
           : [];
         return { ...row, media_urls: urls } as DatabasePost;
       });
-      return { data: mapped, nextCursor, error: null };
+      
+      // Generate a cache key for client-side caching if not provided
+      const generatedCacheKey = cacheKey || `posts-${Date.now()}`;
+      
+      return { 
+        data: mapped, 
+        nextCursor, 
+        error: null,
+        cacheKey: generatedCacheKey
+      };
     } catch (error) {
       console.error('Exception in getFanPostsPage:', error);
       

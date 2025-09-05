@@ -97,7 +97,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     try {
       if (mode === 'login') {
         console.log('🔐 Attempting login for:', formData.email);
-        await login(email, password);
+        // Add timeout guard so UI never hangs indefinitely
+        const TIMEOUT_MS = 12000; // 12s
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Login timed out. Please try again.')), TIMEOUT_MS)
+        );
+
+        await Promise.race([
+          login(email, password),
+          timeoutPromise
+        ]);
+
         console.log('✅ Login successful, closing modal');
         onClose();
         // Redirect to grandstand after login
