@@ -112,6 +112,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   // Normalize profiles access
   const profile = Array.isArray(post.profiles) ? post.profiles[0] : post.profiles;
 
+  // Local author state to allow late backfill for FAN posts (when profiles are omitted on initial fetch)
+  const [authorName, setAuthorName] = useState<string | null>(null);
+  const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
+
   // Determine user type
   const userType = (profile?.user_type || '').toLowerCase();
   const isRacer = userType === 'racer';
@@ -119,10 +123,49 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   // Get display name - improved racer name fetching
   const emailUsername = profile?.email?.split('@')[0];
   const racerName = post.racer_profiles?.username || post.racer_profiles?.profiles?.name;
-  const displayName = profile?.name || racerName || emailUsername || (isRacer ? 'Racer' : 'User');
+  const displayName = authorName || profile?.name || racerName || emailUsername || (isRacer ? 'Racer' : 'User');
 
   // Get avatar URL - check for avatar property
-  const avatarUrl = profile?.avatar || '';
+  const avatarUrl = authorAvatar || profile?.avatar || post.racer_profiles?.profile_photo_url || '';
+
+  // Fetch author profile for FAN posts (or when profile is missing) without blocking initial paint
+  useEffect(() => {
+    const needsAuthorBackfill = !profile && (!post.racer_profiles || post.user_type?.toLowerCase() === 'fan');
+    const targetUserId = (Array.isArray(post.profiles) ? post.profiles?.[0]?.id : post.profiles?.id) || post.user_id;
+    if (!needsAuthorBackfill || !targetUserId) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const cached = userCacheRef.current.get(targetUserId);
+        if (cached) {
+          if (!cancelled) {
+            setAuthorName(cached.name);
+            setAuthorAvatar(cached.avatar);
+          }
+          return;
+        }
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('name, avatar')
+          .eq('id', targetUserId)
+          .maybeSingle();
+        if (!error && data) {
+          const nm = data.name || 'User';
+          const av = data.avatar || '';
+          userCacheRef.current.set(targetUserId, { name: nm, avatar: av });
+          if (!cancelled) {
+            setAuthorName(nm);
+            setAuthorAvatar(av);
+          }
+        }
+      } catch (e) {
+        // non-fatal
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [post.user_id, post.profiles, post.racer_profiles, post.user_type, profile]);
 
   // Check if current user is the post owner
   const isOwner = user?.id === post.user_id;

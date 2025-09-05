@@ -167,3 +167,64 @@ Tips/Payments are handled via `src/lib/supabase/payments`:
 - Add pagination for comments by replacing the placeholder `setComments([])` with a real fetch using `limit/offset`.
 - Harden media type detection by storing MIME types alongside URLs.
 - Enforce RLS in Supabase to restrict who can edit/delete posts, and who can view `Fans Only` posts.
+
+
+## Feed performance and correctness improvements
+
+This project includes several backend and frontend optimizations to make the Grandstand/feed load fast and render progressively.
+
+### Database indexes (applied via Supabase MCP)
+
+Added on project “only race fans aug 1st” to speed up public feed and profile lookups:
+
+- `public.racer_posts (created_at desc, id desc) where visibility = 'public'`  → `idx_racer_posts_public_created_id_desc`
+- `public.racer_posts (visibility, created_at desc, id desc)`  → `idx_racer_posts_visibility_created_id_desc`
+- `public.racer_posts (user_id)`  → `idx_racer_posts_user_id`
+
+Validate usage with:
+
+```sql
+explain analyze
+select id, created_at
+from public.racer_posts
+where visibility = 'public'
+order by created_at desc, id desc
+limit 12;
+```
+
+### Streaming-style first paint (no blocking joins)
+
+- `src/lib/supabase/posts.ts#getPublicPostsPage` now accepts `includeProfiles?: boolean`.
+  - We call it with `includeProfiles = false` on first load to avoid joining `profiles`.
+  - We still select minimal racer data: `racer_profiles (id, username, profile_photo_url)` so racer name/avatar render immediately.
+- `src/pages/Grandstand.tsx` paints minimal posts first, ends `grandstand:firstLoad` timing, then asynchronously backfills author `profiles` in one batched query and merges into state.
+
+### Fan author backfill on PostCard
+
+- `src/components/PostCard.tsx` fetches `profiles.name` and `profiles.avatar` after initial paint if the post author is a fan (or when profiles weren’t joined), using an in-component cache to avoid repeated requests.
+- Name order of precedence: `authorName → profiles.name → racer_profiles.username → emailUsername → fallback`.
+- Avatar order of precedence: `authorAvatar → profiles.avatar → racer_profiles.profile_photo_url → initials (Dicebear)`.
+
+### React Query caching
+
+- Provider added in `src/main.tsx` via `QueryClientProvider` using `src/lib/queryClient.ts`.
+- Default options:
+  - `staleTime: 60_000` (1 min fresh)
+  - `gcTime: 5 * 60_000`
+  - `refetchOnWindowFocus: false`
+- Install instructions:
+
+```bash
+npm install @tanstack/react-query
+```
+
+You can wrap feed fetchers with `useInfiniteQuery` to cache page 1 between navigations and prefetch next pages.
+
+### Visibility alignment
+
+- Frontend and backend use `visibility in ('public','fans_only')`. Invalid values are sanitized to `'public'` on write.
+
+### Media handling guidance
+
+- Keep feed payload small by using thumbnails in lists and lazy-load full-size media in post detail.
+- Prefer Supabase Storage transformation URLs or pre-generated sizes.

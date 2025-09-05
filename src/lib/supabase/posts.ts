@@ -442,7 +442,8 @@ export const getPublicPostsPage = async ({
           user_type,
           racer_id,
           total_tips,
-          allow_tips
+          allow_tips,
+          racer_profiles!racer_posts_racer_id_fkey (id, username, profile_photo_url)
         `;
       const baseSelect = includeProfiles
         ? `${baseCore}, profiles!racer_posts_user_id_fkey (id, name, avatar, user_type)`
