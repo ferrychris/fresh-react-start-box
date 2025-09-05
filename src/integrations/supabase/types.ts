@@ -55,6 +55,39 @@ export type Database = {
           },
         ]
       }
+      badge_definitions: {
+        Row: {
+          created_at: string | null
+          criteria: Json
+          description: string
+          icon_emoji: string
+          id: string
+          is_active: boolean | null
+          name: string
+          rarity: string
+        }
+        Insert: {
+          created_at?: string | null
+          criteria: Json
+          description: string
+          icon_emoji: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          rarity: string
+        }
+        Update: {
+          created_at?: string | null
+          criteria?: Json
+          description?: string
+          icon_emoji?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          rarity?: string
+        }
+        Relationships: []
+      }
       fan_activity: {
         Row: {
           activity_type: string
@@ -113,6 +146,38 @@ export type Database = {
             columns: ["racer_id"]
             isOneToOne: false
             referencedRelation: "racer_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fan_badges: {
+        Row: {
+          badge_id: string
+          earned_at: string | null
+          fan_id: string
+          id: string
+          progress_data: Json | null
+        }
+        Insert: {
+          badge_id: string
+          earned_at?: string | null
+          fan_id: string
+          id?: string
+          progress_data?: Json | null
+        }
+        Update: {
+          badge_id?: string
+          earned_at?: string | null
+          fan_id?: string
+          id?: string
+          progress_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fan_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badge_definitions"
             referencedColumns: ["id"]
           },
         ]
@@ -212,6 +277,33 @@ export type Database = {
           },
         ]
       }
+      fan_favorites: {
+        Row: {
+          created_at: string | null
+          fan_id: string
+          favorite_level: number | null
+          id: string
+          target_id: string
+          target_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          fan_id: string
+          favorite_level?: number | null
+          id?: string
+          target_id: string
+          target_type: string
+        }
+        Update: {
+          created_at?: string | null
+          fan_id?: string
+          favorite_level?: number | null
+          id?: string
+          target_id?: string
+          target_type?: string
+        }
+        Relationships: []
+      }
       fan_metrics: {
         Row: {
           active_subscriptions_count: number
@@ -243,6 +335,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      fan_point_transactions: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          fan_id: string
+          id: string
+          points_change: number
+          reference_id: string | null
+          transaction_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          fan_id: string
+          id?: string
+          points_change: number
+          reference_id?: string | null
+          transaction_type: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          fan_id?: string
+          id?: string
+          points_change?: number
+          reference_id?: string | null
+          transaction_type?: string
+        }
+        Relationships: []
+      }
+      fan_points: {
+        Row: {
+          created_at: string | null
+          current_points: number
+          fan_id: string
+          id: string
+          total_earned: number
+          total_spent: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_points?: number
+          fan_id: string
+          id?: string
+          total_earned?: number
+          total_spent?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          current_points?: number
+          fan_id?: string
+          id?: string
+          total_earned?: number
+          total_spent?: number
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       fan_profiles: {
         Row: {
@@ -317,6 +469,39 @@ export type Database = {
           id?: string
           support_points?: number | null
           total_tips?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      fan_streaks: {
+        Row: {
+          created_at: string | null
+          current_streak: number
+          fan_id: string
+          id: string
+          last_activity_date: string | null
+          longest_streak: number
+          streak_freeze_count: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_streak?: number
+          fan_id: string
+          id?: string
+          last_activity_date?: string | null
+          longest_streak?: number
+          streak_freeze_count?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          current_streak?: number
+          fan_id?: string
+          id?: string
+          last_activity_date?: string | null
+          longest_streak?: number
+          streak_freeze_count?: number
           updated_at?: string | null
         }
         Relationships: []
@@ -1880,12 +2065,26 @@ export type Database = {
       }
     }
     Functions: {
+      award_points: {
+        Args: {
+          p_description?: string
+          p_fan_id: string
+          p_points: number
+          p_reference_id?: string
+          p_transaction_type: string
+        }
+        Returns: undefined
+      }
       calculate_revenue_split: {
         Args: { total_cents: number }
         Returns: {
           platform_amount: number
           racer_amount: number
         }[]
+      }
+      check_and_award_badges: {
+        Args: { p_fan_id: string }
+        Returns: undefined
       }
       check_track_follow: {
         Args: { p_track_id: string; p_user_id: string }
@@ -1998,6 +2197,10 @@ export type Database = {
       toggle_track_follow: {
         Args: { p_track_id: string; p_user_id: string }
         Returns: Json
+      }
+      update_activity_streak: {
+        Args: { p_fan_id: string }
+        Returns: undefined
       }
       update_racer_earnings: {
         Args: {

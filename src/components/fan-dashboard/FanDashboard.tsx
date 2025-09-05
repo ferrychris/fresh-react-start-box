@@ -282,9 +282,9 @@ const FanDashboard: React.FC = () => {
               racersData = data.filter(item => item.racer_profiles).map(item => ({
                 ...item,
                 racer_profiles: {
-                  username: item.racer_profiles?.username || 'Unknown',
-                  profile_photo_url: item.racer_profiles?.profile_photo_url || '/default-avatar.png',
-                  country: item.racer_profiles?.country || 'Unknown'
+                  username: item.racer_profiles?.[0]?.username || 'Unknown',
+                  profile_photo_url: item.racer_profiles?.[0]?.profile_photo_url || '/default-avatar.png',
+                  country: item.racer_profiles?.[0]?.country || 'Unknown'
                 }
               }));
             }
@@ -312,9 +312,9 @@ const FanDashboard: React.FC = () => {
           } else {
             const formattedRacers = racersData.map((item: RacerData) => ({
               id: item.racer_id,
-              name: item.racer_profiles?.username || 'Unknown Racer',
-              avatarUrl: item.racer_profiles?.profile_photo_url || '/default-avatar.png',
-              flag: item.racer_profiles?.country || '/default-flag.png',
+              name: item.racer_profiles.username || 'Unknown Racer',
+              avatarUrl: item.racer_profiles.profile_photo_url || '/default-avatar.png',
+              flag: item.racer_profiles.country || '/default-flag.png',
               lastTipped: item.last_tipped ? (new Date(item.last_tipped).toLocaleDateString() as string | null) : null,
               totalTipped: item.total_tipped || 0,
               subscription: item.subscription_tier || 'None',
