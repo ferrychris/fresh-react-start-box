@@ -7,6 +7,7 @@ import { getNetworkDiagnostics } from '@/lib/network-diagnostics';
 import { PostCard, type Post as PostCardType } from '../components/PostCard';
 import { supabase } from '../lib/supabase';
 import { getJSONCookie, setJSONCookie } from '@/lib/cookies';
+import { SuggestionsPanel } from '../components/SuggestionsPanel';
 
 // Define proper types for the CreatePost component's return value
 interface NewPostData {
@@ -694,50 +695,7 @@ export default function Grandstand() {
                 )}
               </div>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold text-slate-300">Suggestions</h3>
-                  {suggestionsLoading && (
-                    <span className="text-[11px] text-slate-500">Loading…</span>
-                  )}
-                </div>
-                {suggestionsError && (
-                  <div className="mt-2 text-xs text-red-400">{suggestionsError}</div>
-                )}
-                {/* Featured Teams */}
-                {featuredTeams.length > 0 && (
-                  <div className="mt-3">
-                    <div className="text-[11px] uppercase tracking-wide text-slate-400 mb-2">Featured Teams</div>
-                    <ul className="space-y-2">
-                      {featuredTeams.map((t) => (
-                        <li key={t.name} className="flex items-center">
-                          <img src={t.avatar} alt={t.name} className="w-7 h-7 rounded object-cover ring-1 ring-slate-700" />
-                          <div className="ml-2 text-sm text-slate-200 truncate">{t.name}</div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {/* Featured Racers */}
-                {featuredRacers.length > 0 && (
-                  <div className="mt-4">
-                    <div className="text-[11px] uppercase tracking-wide text-slate-400 mb-2">Featured Racers</div>
-                    <ul className="space-y-2">
-                      {featuredRacers.slice(0, 3).map((r) => (
-                        <li key={r.id} className="flex items-center">
-                          <img src={r.avatar} alt={r.name} className="w-7 h-7 rounded object-cover ring-1 ring-slate-700" />
-                          <div className="ml-2">
-                            <div className="text-sm text-slate-200 leading-tight">{r.name}</div>
-                            <div className="text-[11px] text-slate-500">
-                              {r.team ? `${r.team}` : r.cls || 'Racing'}{r.car ? ` • #${r.car}` : ''}
-                            </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
+              <SuggestionsPanel />
             </div>
           </aside>
         </div>

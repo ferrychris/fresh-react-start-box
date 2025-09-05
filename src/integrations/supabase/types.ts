@@ -1321,6 +1321,104 @@ export type Database = {
           },
         ]
       }
+      team_followers: {
+        Row: {
+          created_at: string | null
+          followed_at: string | null
+          id: string
+          is_active: boolean | null
+          team_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          followed_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          team_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          followed_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          team_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_followers_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          banner_url: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string | null
+          description: string | null
+          featured_racers: string[] | null
+          follower_count: number | null
+          founded_year: number | null
+          headquarters: string | null
+          id: string
+          is_active: boolean | null
+          logo_url: string | null
+          racing_classes: string[] | null
+          social_links: Json | null
+          team_name: string
+          updated_at: string | null
+          website: string | null
+        }
+        Insert: {
+          banner_url?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          description?: string | null
+          featured_racers?: string[] | null
+          follower_count?: number | null
+          founded_year?: number | null
+          headquarters?: string | null
+          id?: string
+          is_active?: boolean | null
+          logo_url?: string | null
+          racing_classes?: string[] | null
+          social_links?: Json | null
+          team_name: string
+          updated_at?: string | null
+          website?: string | null
+        }
+        Update: {
+          banner_url?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          description?: string | null
+          featured_racers?: string[] | null
+          follower_count?: number | null
+          founded_year?: number | null
+          headquarters?: string | null
+          id?: string
+          is_active?: boolean | null
+          logo_url?: string | null
+          racing_classes?: string[] | null
+          social_links?: Json | null
+          team_name?: string
+          updated_at?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
       token_purchases: {
         Row: {
           created_at: string | null
@@ -1835,6 +1933,10 @@ export type Database = {
           total_fans: number
         }[]
       }
+      get_team_follower_count: {
+        Args: { team_uuid: string }
+        Returns: number
+      }
       get_track_donation_stats: {
         Args: { track_uuid: string }
         Returns: {
@@ -1888,6 +1990,10 @@ export type Database = {
       sync_comment_counts: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      toggle_team_follow: {
+        Args: { p_team_id: string; p_user_id: string }
+        Returns: Json
       }
       toggle_track_follow: {
         Args: { p_track_id: string; p_user_id: string }
