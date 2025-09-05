@@ -92,6 +92,19 @@ const Fanheader = () => {
   
   if (!user) return null;
   
+  // Normalize profile user_type for routing
+  const profileUserType = (user?.user_type || '').toLowerCase();
+  const profileRoute =
+    profileUserType === 'racer'
+      ? '/dashboard'
+      : profileUserType === 'fan'
+        ? '/fan-dashboard'
+        : profileUserType === 'track'
+          ? '/track-dashboard'
+          : profileUserType === 'series'
+            ? '/series-dashboard'
+            : '/dashboard';
+
   return (
     <>
     <header
@@ -301,7 +314,7 @@ const Fanheader = () => {
           {/* User dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger 
-              className="flex items-center space-x-2 focus:outline-none"
+              className="flex items-center space-x-2 focus:outline-none cursor-pointer"
               aria-label="User menu"
             >
               {user.avatar && (
@@ -320,19 +333,32 @@ const Fanheader = () => {
               className={`w-48 mt-2 border ${theme === 'dark' ? 'bg-gray-900 border-gray-800 text-gray-200' : 'bg-white border-gray-200 text-gray-800'}`}
               align="end"
             >
+              {profileUserType === 'racer' && (
+                <DropdownMenuItem asChild>
+                  <Link to="/dashboard" className="w-full cursor-pointer">
+                    Creator Studio
+                  </Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem asChild>
-                <Link to="/fan-dashboard" className="w-full">
+                <Link
+                  to={profileRoute}
+                  className="w-full cursor-pointer"
+                >
                   Profile
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/fan-dashboard" className="w-full">
+                <Link
+                  to={profileRoute}
+                  className="w-full cursor-pointer"
+                >
                   Settings
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={logout}
-                className="text-red-600 focus:text-red-600"
+                className="text-red-600 focus:text-red-600 cursor-pointer"
               >
                 Logout
               </DropdownMenuItem>

@@ -331,6 +331,38 @@ export const getFanPostsPage = async ({
   
   while (retries <= maxRetries) {
     try {
+      // 1) Prefer RPC: fetch_public_feed (server-side keyset pagination, visibility='public')
+      try {
+        const { data: rpcRows, error: rpcErr } = await supabase.rpc('fetch_public_feed', {
+          p_limit: limit,
+          p_cursor_created_at: cursor?.created_at ?? null,
+          p_cursor_id: cursor?.id ?? null
+        });
+
+        if (!rpcErr && Array.isArray(rpcRows)) {
+          const rows = rpcRows as any[];
+          const last = rows[rows.length - 1];
+          const nextCursor = (last && rows.length === limit)
+            ? { created_at: last.created_at as string, id: String(last.id) }
+            : null;
+
+          const mapped: DatabasePost[] = (rows as DatabasePost[]).map((row) => {
+            const arr = Array.isArray((row as any).media_urls)
+              ? (row as any).media_urls as string[]
+              : (typeof (row as any).media_urls === 'string'
+                  ? (() => { try { return JSON.parse((row as any).media_urls) } catch { return [] } })()
+                  : []);
+            return { ...(row as any), media_urls: arr } as DatabasePost;
+          });
+
+          const generatedCacheKey = cacheKey || `posts-${Date.now()}`;
+          return { data: mapped, nextCursor, error: null, cacheKey: generatedCacheKey };
+        }
+      } catch (rpcEx) {
+        // Fall through to legacy select path below
+      }
+
+      // 2) Fallback: legacy select path (kept for backward compatibility)
       // Optimize the query by selecting only necessary fields
       const baseCore = `
         id,

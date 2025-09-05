@@ -66,7 +66,7 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
   };
 
   // Normalize media_urls: can be array or JSON string; convert storage paths to public URLs
-  let rawMedia = post.media_urls as unknown;
+  const rawMedia = post.media_urls as unknown;
   let mediaArray: string[] = [];
   try {
     if (Array.isArray(rawMedia)) {
@@ -75,7 +75,9 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
       const parsed = JSON.parse(rawMedia);
       if (Array.isArray(parsed)) mediaArray = parsed as string[];
     }
-  } catch {}
+  } catch (e) {
+    // ignore malformed media payload; treat as empty
+  }
 
   const userIdForPath = post.user_id || post.racer_id || post.fan_id || '';
   const isFanPost = (post.user_type || '').toLowerCase() === 'fan';
@@ -115,11 +117,16 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
     ? (videoExtensions.test(orderedMedia[0]) ? 'video' : 'image')
     : undefined;
 
-  // Get profile info
+  // Get profile info (prefer RPC author snapshot if present)
+  type RpcAuthorFields = Partial<{ author_name: string; author_avatar_url: string; author_user_type: string }>;
+  const rpc = post as unknown as RpcAuthorFields;
+  const rpcAuthorName = rpc.author_name;
+  const rpcAuthorAvatar = rpc.author_avatar_url;
+  const rpcAuthorUserType = rpc.author_user_type;
   const profile = post.profiles;
   
   // Normalize avatar: support http(s), storage paths, or raw base64
-  const rawAvatar = profile?.avatar || '';
+  const rawAvatar = rpcAuthorAvatar ?? profile?.avatar ?? '';
   const userAvatar = (() => {
     if (!rawAvatar) return '';
     if (/^https?:\/\//i.test(rawAvatar)) return rawAvatar;
@@ -135,10 +142,10 @@ export const transformDbPostToUIPost = (post: DatabasePost): Post => {
   return {
     id: post.id,
     userId: post.user_id || post.racer_id || post.fan_id || '',
-    userName: profile?.name || 'Unknown User',
+    userName: rpcAuthorName || profile?.name || 'Unknown User',
     userAvatar,
-    userType: (post.user_type?.toUpperCase() as 'RACER' | 'FAN' | 'TRACK' | 'SERIES') || 'FAN',
-    userVerified: post.user_type === 'racer',
+    userType: ((rpcAuthorUserType || post.user_type || 'fan').toUpperCase() as 'RACER' | 'FAN' | 'TRACK' | 'SERIES'),
+    userVerified: (rpcAuthorUserType || post.user_type) === 'racer',
     content: post.content,
     mediaUrls: orderedMedia,
     mediaType,

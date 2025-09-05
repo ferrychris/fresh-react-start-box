@@ -11,14 +11,14 @@ import { Racers } from './pages/Racers';
 import { Tracks } from './pages/Tracks';
 import { HowItWorks } from './pages/HowItWorks';
 import { TrackProfile } from './pages/TrackProfile';
-import RacerProfile from './pages/RacerProfile';
+import RacerProfile from './components/racer-dashboard/RacerProfile';
 import { SeriesProfile } from './pages/SeriesProfile';
 import { Series } from './pages/Series';
 import { SuperFans } from './pages/SuperFans';
 import { SponsorshipMarketplace } from './pages/SponsorshipMarketplace';
 import { SponsorshipPackages } from './pages/SponsorshipPackages';
 import { FAQ } from './pages/FAQ';
-import { Dashboard } from './pages/Dashboard';
+import { Dashboard } from './components/racer-dashboard/Dashboard';
 import FanDashboard from './components/fan-dashboard/FanDashboard';
 import { TrackDashboard } from './pages/TrackDashboard';
 import { Admin } from './pages/Admin';
@@ -173,7 +173,8 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
           path="/dashboard"
           element={
             authUser?.user_type === 'racer' ? (
-              <Dashboard />
+              // <Dashboard />
+              <RacerProfile/>
             ) : authUser?.user_type === 'fan' ? (
               <FanDashboard />
             ) : authUser?.user_type === 'track' ? (

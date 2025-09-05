@@ -262,7 +262,7 @@ export default function Grandstand() {
         if (!hadCache) setLoading(true);
         setError(null);
         // First load: omit profile join to reduce query cost, then backfill profiles in a separate batched query
-        const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 15, includeProfiles: false });
+        const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 5, includeProfiles: false });
         if (error) throw error;
         if (!isMounted) return;
 
@@ -345,7 +345,7 @@ export default function Grandstand() {
   // Load more posts with optimized batching (default 12 at a time)
   const isFetchingRef = useRef(false);
   const lastFetchAtRef = useRef(0);
-  const loadMore = useCallback(async (limit: number = 12, opts?: { silent?: boolean }) => {
+  const loadMore = useCallback(async (limit: number = 5, opts?: { silent?: boolean }) => {
     if (!nextCursor) return;
     // Reduce debounce time for faster response (300ms instead of 600ms)
     const now = Date.now();
@@ -380,17 +380,19 @@ export default function Grandstand() {
 
     // Adjust interval based on network conditions - more aggressive timing
     const { effectiveType } = getNetworkDiagnostics();
-    const intervalMs = effectiveType === '4g' ? 1000 : effectiveType === '3g' ? 1500 : 2500;
+    // Less aggressive: avoid server timeouts and overlapping loads
+    const intervalMs = effectiveType === '4g' ? 2500 : effectiveType === '3g' ? 4000 : 6000;
 
     const tick = async () => {
       if (document.hidden) return; // pause when tab not visible
       if (!nextCursor) return; // nothing to fetch
-      // Avoid background prefetch if user is already explicitly loading more
+      // Avoid background prefetch if user is already explicitly loading more or a fetch is in progress
       if (loadingMore) return;
+      if (isFetchingRef.current) return;
       setBgLoading(true);
       try {
-        // Load moderate batches in background (15 posts instead of 10)
-        await loadMore(15, { silent: true });
+        // Load small batches in background to keep latency low
+        await loadMore(5, { silent: true });
       } finally {
         setBgLoading(false);
       }
@@ -411,8 +413,8 @@ export default function Grandstand() {
       for (const entry of entries) {
         if (entry.isIntersecting) {
           console.debug('[Grandstand] Sentinel intersecting -> loadMore');
-          // Load moderate batch when user scrolls near bottom
-          loadMore(15);
+          // Load small batch when user scrolls near bottom
+          loadMore(5);
         }
       }
     }, { 
@@ -630,7 +632,7 @@ export default function Grandstand() {
             {nextCursor && (
               <div className="flex justify-center py-4">
                 <button
-                  onClick={() => loadMore(15)}
+                  onClick={() => loadMore(5)}
                   disabled={loadingMore}
                   className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 disabled:opacity-60"
                 >
