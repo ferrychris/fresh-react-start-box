@@ -3,6 +3,7 @@ import { Heart, MessageCircle, Share, MoreHorizontal, Play, Calendar, MapPin, Tr
 import { useUser } from '../contexts/UserContext';
 import CreatePost from '../components/fan-dashboard/posts/CreatePost';
 import { getPublicPostsPage, tipPost } from '../lib/supabase/posts';
+import { getNetworkDiagnostics } from '@/lib/network-diagnostics';
 import { PostCard, type Post as PostCardType } from '../components/PostCard';
 import { supabase } from '../lib/supabase';
 import { getJSONCookie, setJSONCookie } from '@/lib/cookies';
@@ -87,7 +88,7 @@ export default function Grandstand() {
     return () => {
       console.debug('[Grandstand] Unmount:', { mountId: mid });
     };
-  }, []);
+  }, [POSTS_CACHE_TTL_MS]);
 
   // Dynamically load teams (racers) the user is a fan of
   const [fanTeams, setFanTeams] = useState<Array<{ id: string; name: string; avatar: string; since?: string }>>([]);
@@ -259,32 +260,50 @@ export default function Grandstand() {
         const hadCache = prefillFromCache();
         if (!hadCache) setLoading(true);
         setError(null);
-        const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 10 });
+        // First load: omit profile join to reduce query cost, then backfill profiles in a separate batched query
+        const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 15, includeProfiles: false });
         if (error) throw error;
         if (!isMounted) return;
 
-        // Type assertion to avoid TypeScript errors with database structure
-        const mapped: PostCardType[] = (rows || []).map((r: PostCardType) => {
-          // Normalize profiles and racer_profiles
-          const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
-          
-          // Create a properly typed object
-          return {
-            ...r,
-            profiles: profile
-          } as PostCardType; // Use type assertion to bypass TypeScript errors
-        });
-        
-        console.debug('[Grandstand] Initial posts loaded:', { count: mapped.length, nextCursor: !!cursor });
+        // Map posts minimally first (no profiles) for fastest paint
+        const minimal: PostCardType[] = (rows || []).map((r) => ({ ...r } as PostCardType));
+        console.debug('[Grandstand] Initial posts loaded (minimal):', { count: minimal.length, nextCursor: !!cursor });
 
-        setPosts(mapped);
+        setPosts(minimal);
         setNextCursor(cursor || null);
         // Update cache
         try {
-          localStorage.setItem(POSTS_CACHE_KEY, JSON.stringify({ data: mapped, ts: Date.now() }));
+          localStorage.setItem(POSTS_CACHE_KEY, JSON.stringify({ data: minimal, ts: Date.now() }));
           localStorage.setItem(POSTS_CURSOR_CACHE_KEY, JSON.stringify(cursor || null));
         } catch {/* quota or serialization issues */}
         console.timeEnd('grandstand:firstLoad');
+
+        // Kick off profile backfill asynchronously (does not block first paint)
+        (async () => {
+          const profilesMap: Record<string, { id: string; name: string; avatar?: string; user_type?: string }> = {};
+          try {
+            const ids = Array.from(new Set((rows || []).map((r: any) => r.user_id).filter((v: any) => typeof v === 'string' && v.length)));
+            if (ids.length) {
+              const { data: profs, error: profErr } = await supabase
+                .from('profiles')
+                .select('id, name, avatar, user_type')
+                .in('id', ids);
+              if (!profErr && Array.isArray(profs)) {
+                for (const p of profs) {
+                  profilesMap[p.id] = { id: p.id, name: p.name, avatar: p.avatar, user_type: p.user_type };
+                }
+                // Merge profiles into existing posts
+                setPosts((prev) => prev.map((p) => {
+                  const prof = profilesMap[(p as any).user_id];
+                  if (!prof) return p;
+                  return { ...p, profiles: { id: prof.id, name: prof.name, avatar: prof.avatar, user_type: prof.user_type } } as PostCardType;
+                }));
+              }
+            }
+          } catch (e) {
+            console.warn('[Grandstand] Profile backfill failed (continuing without profiles)', e);
+          }
+        })();
       } catch (e) {
         console.error('[Grandstand] Initial load failed', e);
         setError('Failed to load posts');
@@ -294,7 +313,7 @@ export default function Grandstand() {
     };
     load();
     return () => { isMounted = false; };
-  }, []);
+  }, [POSTS_CACHE_TTL_MS]);
 
   // Realtime: remove posts from UI when they are deleted elsewhere
   useEffect(() => {
@@ -322,14 +341,14 @@ export default function Grandstand() {
     };
   }, []);
 
-  // Load more posts (default 10 at a time) using nextCursor
+  // Load more posts with optimized batching (default 12 at a time)
   const isFetchingRef = useRef(false);
   const lastFetchAtRef = useRef(0);
-  const loadMore = useCallback(async (limit: number = 10, opts?: { silent?: boolean }) => {
+  const loadMore = useCallback(async (limit: number = 12, opts?: { silent?: boolean }) => {
     if (!nextCursor) return;
-    // Prevent rapid-fire calls within 600ms and concurrent fetches
+    // Reduce debounce time for faster response (300ms instead of 600ms)
     const now = Date.now();
-    if (isFetchingRef.current || now - lastFetchAtRef.current < 600) return;
+    if (isFetchingRef.current || now - lastFetchAtRef.current < 300) return;
     isFetchingRef.current = true;
     lastFetchAtRef.current = now;
     console.time('grandstand:loadMore');
@@ -353,27 +372,35 @@ export default function Grandstand() {
     }
   }, [nextCursor]);
 
-  // Timed batching: fetch 10 posts every 2 seconds while more pages exist
+  // Aggressive background prefetching: fetch larger batches more frequently
   useEffect(() => {
     if (!nextCursor) return; // nothing to prefetch
     let intervalId: number | null = null;
+
+    // Adjust interval based on network conditions - more aggressive timing
+    const { effectiveType } = getNetworkDiagnostics();
+    const intervalMs = effectiveType === '4g' ? 1000 : effectiveType === '3g' ? 1500 : 2500;
+
     const tick = async () => {
       if (document.hidden) return; // pause when tab not visible
       if (!nextCursor) return; // nothing to fetch
+      // Avoid background prefetch if user is already explicitly loading more
+      if (loadingMore) return;
       setBgLoading(true);
       try {
-        await loadMore(10, { silent: true });
+        // Load moderate batches in background (15 posts instead of 10)
+        await loadMore(15, { silent: true });
       } finally {
         setBgLoading(false);
       }
     };
-    intervalId = window.setInterval(tick, 2000);
+    intervalId = window.setInterval(tick, intervalMs);
     return () => {
       if (intervalId) window.clearInterval(intervalId);
     };
-  }, [nextCursor, loadMore]);
+  }, [nextCursor, loadMore, loadingMore]);
 
-  // Infinite scroll with IntersectionObserver
+  // Aggressive infinite scroll with much earlier trigger
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -383,10 +410,15 @@ export default function Grandstand() {
       for (const entry of entries) {
         if (entry.isIntersecting) {
           console.debug('[Grandstand] Sentinel intersecting -> loadMore');
-          loadMore();
+          // Load moderate batch when user scrolls near bottom
+          loadMore(15);
         }
       }
-    }, { root: null, rootMargin: '200px', threshold: 0 });
+    }, { 
+      root: null, 
+      rootMargin: '800px', // Trigger much earlier - 800px before reaching sentinel
+      threshold: 0 
+    });
 
     observer.observe(el);
     return () => {
@@ -597,7 +629,7 @@ export default function Grandstand() {
             {nextCursor && (
               <div className="flex justify-center py-4">
                 <button
-                  onClick={() => loadMore(10)}
+                  onClick={() => loadMore(15)}
                   disabled={loadingMore}
                   className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 disabled:opacity-60"
                 >

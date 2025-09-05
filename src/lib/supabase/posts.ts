@@ -316,7 +316,7 @@ export const getPostsForFan = async (fanId: string): Promise<DatabasePost[]> => 
 // Keyset-paginated posts for fan dashboard
 // Cursor format: { created_at: string; id: string }
 export const getFanPostsPage = async ({
-  limit = 10,
+  limit = 12,
   cursor
 }: {
   limit?: number;
@@ -414,20 +414,21 @@ export const getFanPostsPage = async ({
 
 // Optimized: public feed with minimal join and reduced columns
 export const getPublicPostsPage = async ({
-  limit = 10,
-  cursor
+  limit = 12,
+  cursor,
+  includeProfiles = true
 }: {
   limit?: number;
   cursor?: { created_at: string; id: string } | null;
+  includeProfiles?: boolean;
 }): Promise<{ data: DatabasePost[]; nextCursor: { created_at: string; id: string } | null; error: any | null }> => {
   let retries = 0;
   const maxRetries = 3;
 
   while (retries <= maxRetries) {
     try {
-      let query = supabase
-        .from('racer_posts')
-        .select(`
+      // Build the base selector once
+      const baseCore = `
           id,
           created_at,
           updated_at,
@@ -441,32 +442,79 @@ export const getPublicPostsPage = async ({
           user_type,
           racer_id,
           total_tips,
-          allow_tips,
-          profiles!racer_posts_user_id_fkey (id, name, avatar, user_type)
-        `)
-        .eq('visibility', 'public')
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
-        .limit(limit);
+          allow_tips
+        `;
+      const baseSelect = includeProfiles
+        ? `${baseCore}, profiles!racer_posts_user_id_fkey (id, name, avatar, user_type)`
+        : baseCore;
+
+      let rows: any[] = [];
 
       if (cursor?.created_at && cursor?.id) {
-        // Keyset pagination with OR fallback for equal timestamps
-        query = query.or(
-          `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`
-        );
-      }
-
-      const { data, error } = await query;
-      if (error) {
-        if (error.message?.includes('Failed to fetch') && retries < maxRetries) {
-          retries++;
-          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
-          continue;
+        // Avoid OR which can defeat index usage; do two sequential keyset queries.
+        // 1) Strictly earlier timestamps
+        const { data: part1, error: err1 } = await supabase
+          .from('racer_posts')
+          .select(baseSelect)
+          .eq('visibility', 'public')
+          .lt('created_at', cursor.created_at)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(limit);
+        if (err1) {
+          if (err1.message?.includes('Failed to fetch') && retries < maxRetries) {
+            retries++;
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+            continue;
+          }
+          return { data: [], nextCursor: null, error: err1 };
         }
-        return { data: [], nextCursor: null, error };
+
+        rows = part1 || [];
+
+        if (rows.length < limit) {
+          // 2) Same timestamp but lower id to break ties
+          const remaining = limit - rows.length;
+          const { data: part2, error: err2 } = await supabase
+            .from('racer_posts')
+            .select(baseSelect)
+            .eq('visibility', 'public')
+            .eq('created_at', cursor.created_at)
+            .lt('id', cursor.id)
+            .order('id', { ascending: false })
+            .limit(remaining);
+          if (err2) {
+            if (err2.message?.includes('Failed to fetch') && retries < maxRetries) {
+              retries++;
+              await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+              continue;
+            }
+            return { data: [], nextCursor: null, error: err2 };
+          }
+          if (part2 && part2.length) {
+            rows = [...rows, ...part2];
+          }
+        }
+      } else {
+        // First page
+        const { data, error } = await supabase
+          .from('racer_posts')
+          .select(baseSelect)
+          .eq('visibility', 'public')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(limit);
+        if (error) {
+          if (error.message?.includes('Failed to fetch') && retries < maxRetries) {
+            retries++;
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+            continue;
+          }
+          return { data: [], nextCursor: null, error };
+        }
+        rows = data || [];
       }
 
-      const rows = data || [];
       const last = rows[rows.length - 1];
       const nextCursor = (last && rows.length === limit) ? { created_at: last.created_at, id: last.id } : null;
 

@@ -37,9 +37,10 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
   const [hasMore, setHasMore] = useState(true);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const prefetchOnceRef = useRef<boolean>(false);
 
   // Debounced loading function
-  const debouncedLoad = useCallback((fn: () => void, delay: number = 300) => {
+  const debouncedLoad = useCallback((fn: () => void, delay: number = 150) => {
     if (loadingTimeoutRef.current) {
       clearTimeout(loadingTimeoutRef.current);
     }
@@ -53,7 +54,7 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
     setLoadingMore(true);
     try {
       const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ 
-        limit: 10, 
+        limit: 5, 
         cursor: nextCursor 
       });
       
@@ -104,7 +105,7 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
       try {
         setLoading(true);
         setError(null);
-        const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 10 });
+        const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 5 });
         if (!isMounted) return;
         
         if (error) throw error;
@@ -151,6 +152,21 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
     return () => { isMounted = false; };
   }, []);
 
+  // Proactive prefetch: after initial load, fetch the next batch once (if available)
+  useEffect(() => {
+    if (loading) return;
+    if (!hasMore) return;
+    if (prefetchOnceRef.current) return;
+    prefetchOnceRef.current = true;
+    // slight delay to allow initial content to paint
+    const id = setTimeout(() => {
+      if (!loadingMore) {
+        loadMore();
+      }
+    }, 250);
+    return () => clearTimeout(id);
+  }, [loading, hasMore, loadingMore, loadMore]);
+
   // Infinite scroll with IntersectionObserver
   useEffect(() => {
     const element = sentinelRef.current;
@@ -162,7 +178,7 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
           debouncedLoad(() => loadMore());
         }
       },
-      { rootMargin: '100px' }
+      { rootMargin: '600px' }
     );
 
     observer.observe(element);
