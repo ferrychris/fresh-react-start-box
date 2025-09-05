@@ -49,7 +49,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
         // Fetch basic profile data
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('id, name, username, avatar, bio')
+          .select('id, name, email, avatar, user_type')
           .eq('id', resolvedUserId)
           .single();
           
@@ -58,20 +58,12 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
           return;
         }
         
-        // Fetch racer specific data
-        const { data: racerData, error: racerError } = await supabase
-          .from('racer_profiles')
-          .select('car_number, racing_class, team')
-          .eq('user_id', resolvedUserId)
-          .single();
-          
-        if (racerError && racerError.code !== 'PGRST116') {
-          console.error('Error fetching racer profile:', racerError);
-        }
+        // Create a username from email if not available
+        const username = profileData.email?.split('@')[0] || 'racer';
         
-        // Fetch follower count
+        // Fetch follower count from fan_connections
         const { count: followerCount, error: followerError } = await supabase
-          .from('fan_follows')
+          .from('fan_connections')
           .select('id', { count: 'exact', head: true })
           .eq('racer_id', resolvedUserId);
           
@@ -79,29 +71,40 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
           console.error('Error fetching follower count:', followerError);
         }
         
-        // Fetch streak days (activity streak)
+        // Fetch streak days from fan_streaks (if they exist)
         const { data: streakData, error: streakError } = await supabase
-          .from('user_activity_streaks')
-          .select('streak_days')
-          .eq('user_id', resolvedUserId)
-          .single();
+          .from('fan_streaks')
+          .select('current_streak')
+          .eq('fan_id', resolvedUserId)
+          .maybeSingle();
           
         if (streakError && streakError.code !== 'PGRST116') {
           console.error('Error fetching streak data:', streakError);
+        }
+
+        // Fetch profile views for this user
+        const { data: viewData, error: viewError } = await supabase
+          .from('profile_views')
+          .select('view_count')
+          .eq('profile_id', resolvedUserId)
+          .maybeSingle();
+
+        if (viewError && viewError.code !== 'PGRST116') {
+          console.error('Error fetching view data:', viewError);
         }
         
         // Combine all data
         setProfileData({
           id: profileData.id,
           name: profileData.name || 'Racer',
-          username: profileData.username || 'racer',
+          username: username,
           avatar: profileData.avatar || '',
-          bio: profileData.bio || '',
-          car_number: racerData?.car_number || '00',
-          racing_class: racerData?.racing_class || '',
-          team: racerData?.team || '',
+          bio: `${profileData.user_type} profile`,
+          car_number: '00', // Default car number
+          racing_class: 'Open Class', // Default racing class
+          team: 'Independent', // Default team
           followers_count: followerCount || 0,
-          streak_days: streakData?.streak_days || 0
+          streak_days: streakData?.current_streak || 0
         });
       } catch (error) {
         console.error('Error fetching profile data:', error);
@@ -128,35 +131,35 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
   };
 
   return (
-    <div className="bg-slate-900 border-b border-slate-800 p-6">
+    <div className="bg-card border-b border-border p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center space-x-4 mb-6">
           {loading ? (
-            <div className="w-16 h-16 rounded-2xl bg-slate-800 animate-pulse"></div>
+            <div className="w-16 h-16 rounded-2xl bg-muted animate-pulse"></div>
           ) : (
             <img
               src={displayUser.avatar || 'https://placehold.co/128x128?text=Racer'}
               alt={displayUser.name}
-              className="w-16 h-16 rounded-2xl object-cover ring-4 ring-blue-500"
+              className="w-16 h-16 rounded-2xl object-cover ring-4 ring-primary"
             />
           )}
           <div className="flex-1">
             <div className="flex items-center">
               {loading ? (
-                <div className="h-8 w-32 bg-slate-800 rounded animate-pulse"></div>
+                <div className="h-8 w-32 bg-muted rounded animate-pulse"></div>
               ) : (
                 <>
-                  <h1 className="text-3xl font-bold text-white racing-number">{displayUser.name}</h1>
-                  <span className="ml-2 px-3 py-1 bg-blue-500 text-white text-sm font-bold rounded-full">#{displayUser.car_number}</span>
+                  <h1 className="text-3xl font-bold text-foreground">{displayUser.name}</h1>
+                  <span className="ml-2 px-3 py-1 bg-primary text-primary-foreground text-sm font-bold rounded-full">#{displayUser.car_number}</span>
                 </>
               )}
             </div>
             {loading ? (
-              <div className="h-4 w-48 bg-slate-800 rounded animate-pulse mt-2"></div>
+              <div className="h-4 w-48 bg-muted rounded animate-pulse mt-2"></div>
             ) : (
               <>
-                <p className="text-slate-400">@{displayUser.username} • Racer Dashboard</p>
-                {displayUser.bio && <p className="text-slate-300 mt-1">{displayUser.bio}</p>}
+                <p className="text-muted-foreground">@{displayUser.username} • Racer Dashboard</p>
+                {displayUser.bio && <p className="text-foreground mt-1">{displayUser.bio}</p>}
               </>
             )}
           </div>
@@ -164,22 +167,22 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
             <div className="flex items-center space-x-6">
               <div className="text-center">
                 {loading ? (
-                  <div className="h-6 w-12 bg-slate-800 rounded animate-pulse mx-auto mb-1"></div>
+                  <div className="h-6 w-12 bg-muted rounded animate-pulse mx-auto mb-1"></div>
                 ) : (
-                  <div className="text-2xl font-bold text-blue-500 racing-number">{displayUser.followers_count.toLocaleString()}</div>
+                  <div className="text-2xl font-bold text-primary">{displayUser.followers_count.toLocaleString()}</div>
                 )}
-                <div className="text-xs text-slate-400">Followers</div>
+                <div className="text-xs text-muted-foreground">Followers</div>
               </div>
               <div className="text-center">
                 {loading ? (
-                  <div className="h-6 w-12 bg-slate-800 rounded animate-pulse mx-auto mb-1"></div>
+                  <div className="h-6 w-12 bg-muted rounded animate-pulse mx-auto mb-1"></div>
                 ) : (
-                  <div className="text-2xl font-bold text-blue-400 racing-number flex items-center">
+                  <div className="text-2xl font-bold text-primary flex items-center">
                     <Flame className="w-6 h-6 mr-1" />
                     {displayUser.streak_days}
                   </div>
                 )}
-                <div className="text-xs text-slate-400">Day Streak</div>
+                <div className="text-xs text-muted-foreground">Day Streak</div>
               </div>
             </div>
           </div>
