@@ -60,7 +60,7 @@ interface Racer {
 
 interface ActivityItem {
   id: string;
-  type: 'tip' | 'badge' | 'subscription' | 'post' | 'comment' | 'welcome';
+  type: 'tip' | 'badge' | 'subscription' | 'post' | 'comment';
   timestamp: string;
   timeAgo: string;
   content: string;
@@ -79,9 +79,9 @@ interface ActivityItem {
 interface RacerData {
   racer_id: string;
   racer_profiles: {
-    username: string | null;
-    profile_photo_url: string | null;
-    country: string | null;
+    username: string;
+    profile_photo_url: string;
+    country: string;
   };
   last_tipped: string | null;
   total_tipped: number;
@@ -90,7 +90,7 @@ interface RacerData {
 
 interface ActivityData {
   id: string;
-  activity_type: 'tip' | 'badge' | 'subscription' | 'post' | 'comment' | 'welcome';
+  activity_type: 'tip' | 'badge' | 'subscription' | 'post' | 'comment';
   created_at: string;
   content: string;
   racer_id?: string;
@@ -278,7 +278,16 @@ const FanDashboard: React.FC = () => {
               .eq('fan_id', targetId)
               .order('total_tipped', { ascending: false })
               .limit(5);
-            if (!racersError) racersData = data || [];
+            if (!racersError && data) {
+              racersData = data.filter(item => item.racer_profiles).map(item => ({
+                ...item,
+                racer_profiles: {
+                  username: item.racer_profiles?.username || 'Unknown',
+                  profile_photo_url: item.racer_profiles?.profile_photo_url || '/default-avatar.png',
+                  country: item.racer_profiles?.country || 'Unknown'
+                }
+              }));
+            }
           } catch (racersError: unknown) {
             const errorMsg = racersError instanceof Error ? racersError.message : 'Unknown error';
             console.log('Fan favorite racers table may not exist yet:', errorMsg);
