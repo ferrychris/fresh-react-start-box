@@ -138,8 +138,8 @@ const HeaderGate: React.FC = () => {
 
 // Wrapper to pass URL param to RacerProfile
 const RacerProfileRoute: React.FC = () => {
-  const { id } = useParams();
-  return <RacerProfile racerId={id as string} />;
+  // The RacerProfile component now handles URL params internally
+  return <RacerProfile />;
 };
 
 // Main content area with conditional padding based on route
@@ -174,7 +174,7 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
           element={
             authUser?.user_type === 'racer' ? (
               // <Dashboard />
-              <RacerProfile />
+              <RacerProfile/>
             ) : authUser?.user_type === 'fan' ? (
               <FanDashboard />
             ) : authUser?.user_type === 'track' ? (

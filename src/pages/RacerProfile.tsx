@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useUser } from '../contexts/UserContext';
+import { supabase } from '../integrations/supabase/client';
 
 // Import our new modular components
 import { ProfileHeader } from '../components/racer-dashboard/components/ProfileHeader';
@@ -11,28 +11,72 @@ import { UpcomingRaces } from '../components/racer-dashboard/components/Upcoming
 import { ContentManagement } from '../components/racer-dashboard/components/ContentManagement';
 import { MonetizationPanel } from '../components/racer-dashboard/components/MonetizationPanel';
 
-interface RacerProfileProps {
-  racerId?: string;
+interface Profile {
+  id: string;
+  name: string;
+  user_type: string;
 }
 
-const RacerProfile: React.FC<RacerProfileProps> = ({ racerId }) => {
+const RacerProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { user } = useUser();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'content' | 'monetization'>('overview');
   
-  // Determine the user ID to display - either from props, URL params, or current user
-  const userId = racerId || id || user?.id || 'current-user';
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUser(user);
+    };
+    getCurrentUser();
+  }, []);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const targetUserId = id || currentUser?.id;
+      if (!targetUserId) return;
+
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('id, name, user_type')
+        .eq('id', targetUserId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+      } else {
+        setProfile(profileData);
+      }
+      setLoading(false);
+    };
+
+    if (currentUser || id) {
+      fetchProfile();
+    }
+  }, [currentUser, id]);
   
-  // Validate that this is a racer profile - allow viewing other racers but restrict actions to racers
-  const isOwnProfile = user?.id === userId;
-  const isRacer = user?.user_type === 'racer';
+  // Determine the user ID to display - either from URL params or current user
+  const userId = id || currentUser?.id || 'current-user';
   
-  if (isOwnProfile && user && user.user_type !== 'racer') {
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Validate that this is a racer profile
+  if (profile && profile.user_type !== 'racer') {
     return (
       <div className="min-h-screen bg-background p-6 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-foreground mb-2">Access Denied</h2>
-          <p className="text-muted-foreground">You need to be logged in as a Racer to view this dashboard.</p>
+          <p className="text-muted-foreground">This profile is not a racer profile.</p>
         </div>
       </div>
     );
