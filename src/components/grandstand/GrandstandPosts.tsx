@@ -47,45 +47,48 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
     loadingTimeoutRef.current = setTimeout(fn, delay);
   }, []);
 
-  // Load more posts
+  // Optimized data transformation
+  const transformPost = useCallback((r: any): Post => {
+    const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+    const displayName = profile?.name || 'User';
+    const avatar = profile?.avatar || profile?.avatar_url || '';
+    const userType = (r.user_type || 'fan').toString().toUpperCase();
+    return {
+      id: r.id,
+      userId: r.user_id || r.racer_id || 'unknown',
+      userType: ['RACER','TRACK','SERIES','FAN'].includes(userType) ? userType as Post['userType'] : 'FAN',
+      userName: displayName,
+      userAvatar: avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
+      userVerified: false,
+      carNumber: undefined,
+      content: r.content || '',
+      mediaUrls: r.media_urls || [],
+      mediaType: Array.isArray(r.media_urls) && r.media_urls.length > 0 ? (r.post_type === 'video' ? 'video' : 'image') : undefined,
+      location: undefined,
+      eventDate: undefined,
+      likes: r.likes_count ?? 0,
+      comments: r.comments_count ?? 0,
+      shares: 0,
+      isLiked: false,
+      timestamp: r.created_at || new Date().toISOString(),
+      createdAt: r.created_at || new Date().toISOString(),
+    };
+  }, []);
+
+  // Load more posts with optimized batching
   const loadMore = useCallback(async () => {
     if (!hasMore || loadingMore) return;
     
     setLoadingMore(true);
     try {
       const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ 
-        limit: 5, 
+        limit: 8, // Increased batch size for better performance
         cursor: nextCursor 
       });
       
       if (error) throw error;
       
-      const mapped: Post[] = (rows || []).map((r: any): Post => {
-        const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
-        const displayName = profile?.name || 'User';
-        const avatar = profile?.avatar || profile?.avatar_url || '';
-        const userType = (r.user_type || 'fan').toString().toUpperCase();
-        return {
-          id: r.id,
-          userId: r.user_id || r.racer_id || 'unknown',
-          userType: ['RACER','TRACK','SERIES','FAN'].includes(userType) ? userType : 'FAN',
-          userName: displayName,
-          userAvatar: avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
-          userVerified: false,
-          carNumber: undefined,
-          content: r.content || '',
-          mediaUrls: r.media_urls || [],
-          mediaType: Array.isArray(r.media_urls) && r.media_urls.length > 0 ? (r.post_type === 'video' ? 'video' : 'image') : undefined,
-          location: undefined,
-          eventDate: undefined,
-          likes: r.likes_count ?? 0,
-          comments: r.comments_count ?? 0,
-          shares: 0,
-          isLiked: false,
-          timestamp: r.created_at || new Date().toISOString(),
-          createdAt: r.created_at || new Date().toISOString(),
-        };
-      });
+      const mapped = (rows || []).map(transformPost);
       
       setPosts(prevPosts => [...prevPosts, ...mapped]);
       setNextCursor(cursor || null);
@@ -96,46 +99,21 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
     } finally {
       setLoadingMore(false);
     }
-  }, [nextCursor, hasMore, loadingMore]);
+  }, [nextCursor, hasMore, loadingMore, transformPost]);
 
-  // Initial load
+  // Optimized initial load with faster first paint
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
       try {
         setLoading(true);
         setError(null);
-        const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 5 });
+        const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 8 });
         if (!isMounted) return;
         
         if (error) throw error;
         
-        const mapped: Post[] = (rows || []).map((r: any): Post => {
-          const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
-          const displayName = profile?.name || 'User';
-          const avatar = profile?.avatar || profile?.avatar_url || '';
-          const userType = (r.user_type || 'fan').toString().toUpperCase();
-          return {
-            id: r.id,
-            userId: r.user_id || r.racer_id || 'unknown',
-            userType: ['RACER','TRACK','SERIES','FAN'].includes(userType) ? userType : 'FAN',
-            userName: displayName,
-            userAvatar: avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
-            userVerified: false,
-            carNumber: undefined,
-            content: r.content || '',
-            mediaUrls: r.media_urls || [],
-            mediaType: Array.isArray(r.media_urls) && r.media_urls.length > 0 ? (r.post_type === 'video' ? 'video' : 'image') : undefined,
-            location: undefined,
-            eventDate: undefined,
-            likes: r.likes_count ?? 0,
-            comments: r.comments_count ?? 0,
-            shares: 0,
-            isLiked: false,
-            timestamp: r.created_at || new Date().toISOString(),
-            createdAt: r.created_at || new Date().toISOString(),
-          };
-        });
+        const mapped = (rows || []).map(transformPost);
         
         setPosts(mapped);
         setNextCursor(cursor || null);
@@ -150,20 +128,20 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
     };
     load();
     return () => { isMounted = false; };
-  }, []);
+  }, [transformPost]);
 
-  // Proactive prefetch: after initial load, fetch the next batch once (if available)
+  // Aggressive prefetch for better UX
   useEffect(() => {
     if (loading) return;
     if (!hasMore) return;
     if (prefetchOnceRef.current) return;
     prefetchOnceRef.current = true;
-    // slight delay to allow initial content to paint
+    // Reduced delay for faster loading
     const id = setTimeout(() => {
       if (!loadingMore) {
         loadMore();
       }
-    }, 250);
+    }, 100);
     return () => clearTimeout(id);
   }, [loading, hasMore, loadingMore, loadMore]);
 

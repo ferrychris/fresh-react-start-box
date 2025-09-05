@@ -427,26 +427,22 @@ export const getPublicPostsPage = async ({
 
   while (retries <= maxRetries) {
     try {
-      // Build the base selector once
+      // Optimized selector for faster queries
       const baseCore = `
           id,
           created_at,
-          updated_at,
           content,
           media_urls,
           post_type,
-          visibility,
           likes_count,
           comments_count,
           user_id,
           user_type,
           racer_id,
-          total_tips,
-          allow_tips,
-          racer_profiles!racer_posts_racer_id_fkey (id, username, profile_photo_url)
+          visibility
         `;
       const baseSelect = includeProfiles
-        ? `${baseCore}, profiles!racer_posts_user_id_fkey (id, name, avatar, user_type)`
+        ? `${baseCore}, profiles!racer_posts_user_id_fkey (name, avatar, user_type)`
         : baseCore;
 
       let rows: any[] = [];
