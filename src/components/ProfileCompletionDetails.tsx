@@ -38,7 +38,7 @@ export const ProfileCompletionDetails: React.FC<ProfileCompletionDetailsProps> =
           .from('profiles')
           .select('is_verified')
           .eq('id', userId)
-          .single();
+          .maybeSingle();
           
         if (profileError) {
           console.error('Error fetching profile:', profileError);
