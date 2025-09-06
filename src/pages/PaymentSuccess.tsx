@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle, ArrowRight, Heart, Star, Users } from 'lucide-react';
-import { supabase, notifications } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { awardPoints, addToFavorites, POINT_VALUES } from '../lib/supabase/rewards';
 
 export const PaymentSuccess: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -9,14 +10,16 @@ export const PaymentSuccess: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
+  const [pointsAwarded, setPointsAwarded] = useState<number | null>(null);
+  const [badgeAwarded, setBadgeAwarded] = useState<string | null>(null);
   
   // Use useRef to prevent duplicate executions
   const isProcessingRef = useRef(false);
   const processedSessionsRef = useRef<Set<string>>(new Set());
 
   const sessionId = searchParams.get('session_id');
-  const racerName = searchParams.get('racer');
-  const tierName = searchParams.get('tier');
+  const urlRacerName = searchParams.get('racer');
+  const urlTierName = searchParams.get('tier');
 
   useEffect(() => {
     // Load already processed sessions from localStorage
@@ -48,7 +51,8 @@ export const PaymentSuccess: React.FC = () => {
     
     try {
       console.log('🎉 Payment success page loaded');
-      console.log('📋 Success parameters:', { sessionId, racerName, tierName });
+      console.log('📋 Success parameters:', { sessionId, racerName: urlRacerName, tierName: urlTierName });
+      console.log('📋 Display parameters:', { displayRacerName, displayTierName, displayRacerId });
 
       // Get pending subscription data from localStorage
       const pendingData = localStorage.getItem('pendingSubscriptionSuccess');
@@ -69,7 +73,7 @@ export const PaymentSuccess: React.FC = () => {
       }
 
       // Save subscription to database
-      if (sessionId && racerName && tierName) {
+      if (sessionId && (displayRacerName || displayRacerId)) {
         try {
           console.log('💾 Saving subscription to database...');
           
@@ -80,13 +84,13 @@ export const PaymentSuccess: React.FC = () => {
           }
 
           // Get racer ID from the subscription data or find by name
-          let racerId = subscriptionData?.racerId;
-          if (!racerId) {
+          let racerId = displayRacerId;
+          if (!racerId && displayRacerName) {
             // Find racer by name if racerId not provided
             const { data: racerProfile } = await supabase
               .from('profiles')
               .select('id')
-              .eq('name', racerName)
+              .eq('name', displayRacerName)
               .eq('user_type', 'racer')
               .single();
             
@@ -98,13 +102,13 @@ export const PaymentSuccess: React.FC = () => {
           }
 
           // Get subscription tier details
-          console.log('🔍 Looking for tier:', { racerId, tierName });
+          console.log('🔍 Looking for tier:', { racerId, tierName: displayTierName });
           
           const { data: tierData, error: tierError } = await supabase
             .from('subscription_tiers')
             .select('*')
             .eq('racer_id', racerId)
-            .eq('tier_name', tierName)
+            .eq('tier_name', displayTierName)
             .eq('is_active', true);
 
           if (tierError) {
@@ -122,7 +126,7 @@ export const PaymentSuccess: React.FC = () => {
               .eq('racer_id', racerId);
 
             console.log('📋 All tiers for this racer:', allTiers);
-            throw new Error(`Subscription tier '${tierName}' not found. Available tiers: ${allTiers?.map((t: any) => t.tier_name).join(', ')}`);
+            throw new Error(`Subscription tier '${displayTierName}' not found. Available tiers: ${allTiers?.map((t: any) => t.tier_name).join(', ')}`);
           }
 
           const tier = tierData[0]; // Use first match instead of single()
@@ -148,8 +152,8 @@ export const PaymentSuccess: React.FC = () => {
             status: 'completed',
             processed_at: new Date().toISOString(),
             metadata: {
-              racer_name: racerName,
-              tier_name: tierName,
+              racer_name: displayRacerName,
+              tier_name: displayTierName,
               user_email: authUser.email
             }
           };
@@ -292,39 +296,45 @@ export const PaymentSuccess: React.FC = () => {
           }
 
           console.log('✅ Subscription successfully saved to database');
+          
+          // Award points, badges, and add to favorites if transaction is new
+          if (!existingTransaction) {
+            try {
+              // 1. Award points based on tier
+              const tierPoints = getTierPoints(displayTierName);
+              await awardPoints(
+                authUser.id,
+                tierPoints,
+                'subscription',
+                tier.id,
+                `${displayTierName} tier subscription to ${displayRacerName}`
+              );
+              setPointsAwarded(tierPoints);
+              
+              // 2. Add racer to favorites with high level (3)
+              await addToFavorites(authUser.id, 'racer', racerId, 3);
+              
+              // 3. Award badge based on tier (handled by check_and_award_badges in awardPoints)
+              // Just set UI state based on tier
+              if (tierKey === 'vip') {
+                setBadgeAwarded('VIP Circle');
+              } else if (tierKey === 'supporter') {
+                setBadgeAwarded('Supporter');
+              } else {
+                setBadgeAwarded('Super Fan');
+              }
+              
+              console.log('✅ Rewards processed:', { points: tierPoints, badge: badgeAwarded });
+            } catch (rewardsError) {
+              console.error('⚠️ Error processing rewards:', rewardsError);
+              // Non-blocking - continue with success flow even if rewards fail
+            }
+          }
+          
           setSuccess(true);
 
         } catch (dbError) {
           console.error('❌ Database save failed:', dbError);
-            
-            // Create notification for racer about new super fan
-            try {
-              const { data: fanProfile } = await supabase
-                .from('profiles')
-                .select('name')
-                .eq('id', authUser.id)
-                .single();
-              
-              const fanName = fanProfile?.name || 'A fan';
-              
-              await notifications.createNotification(
-                racerId,
-                'new_superfan',
-                '🎉 New Super Fan!',
-                `${fanName} just subscribed to your ${tierName} tier!`,
-                {
-                  fan_id: authUser.id,
-                  fan_name: fanName,
-                  tier_name: tierName,
-                  subscription_amount: tier.price_cents,
-                  subscription_type: 'monthly'
-                }
-              );
-              
-              console.log('✅ Super fan notification created');
-            } catch (notificationError) {
-              console.error('⚠️ Failed to create super fan notification:', notificationError);
-            }
           setError('Failed to save subscription to database. Please contact support.');
         }
       } else {
@@ -356,6 +366,20 @@ export const PaymentSuccess: React.FC = () => {
   
 
   console.log("subscriptionData?.racerId", subscriptionData?.racerId);
+
+  // Fallbacks for UI rendering
+  const displayRacerName = urlRacerName || subscriptionData?.racerName || subscriptionData?.racer?.name || 'Racer';
+  const displayTierName = urlTierName || subscriptionData?.tierName || subscriptionData?.tier?.name || 'Fan';
+  const displayRacerId = subscriptionData?.racerId || subscriptionData?.racer?.id || null;
+  const tierKey = (displayTierName || '').toString().toLowerCase();
+  
+  // Determine points based on tier
+  const getTierPoints = (tier: string): number => {
+    const tierLower = tier.toLowerCase();
+    if (tierLower === 'vip') return 200;
+    if (tierLower === 'supporter') return 100;
+    return POINT_VALUES.subscription; // Default: 50 for Fan tier
+  };
   
   if (error) {
     return (
@@ -389,7 +413,7 @@ export const PaymentSuccess: React.FC = () => {
             Payment Successful!
           </h1>
           <p className="text-xl text-gray-300">
-            Welcome to the {tierName} tier!
+            Welcome to the {displayTierName} tier!
           </p>
         </div>
 
@@ -400,12 +424,12 @@ export const PaymentSuccess: React.FC = () => {
           <div className="space-y-4">
             <div className="flex justify-between items-center py-3 border-b border-gray-700">
               <span className="text-gray-400">Racer:</span>
-              <span className="text-white font-semibold">{racerName}</span>
+              <span className="text-white font-semibold">{displayRacerName}</span>
             </div>
             
             <div className="flex justify-between items-center py-3 border-b border-gray-700">
               <span className="text-gray-400">Tier:</span>
-              <span className="text-fedex-orange font-semibold">{tierName}</span>
+              <span className="text-fedex-orange font-semibold">{displayTierName}</span>
             </div>
       
             <div className="flex justify-between items-center py-3">
@@ -420,10 +444,28 @@ export const PaymentSuccess: React.FC = () => {
 
         {/* Tier Benefits */}
         <div className="bg-gray-900 rounded-xl p-8 mb-8">
-          <h2 className="text-2xl font-bold text-white mb-6">Your {tierName} Benefits</h2>
+          <h2 className="text-2xl font-bold text-white mb-6">Your {displayTierName} Benefits</h2>
+          
+          {/* Points and Badges Awarded */}
+          {pointsAwarded && (
+            <div className="mb-6 p-4 bg-green-900/30 border border-green-800/50 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-green-400 font-semibold">Points Awarded:</span>
+                <span className="text-white font-bold text-lg">+{pointsAwarded}</span>
+              </div>
+              {badgeAwarded && (
+                <div className="flex items-center justify-between">
+                  <span className="text-green-400 font-semibold">Badge Unlocked:</span>
+                  <span className="inline-flex items-center px-3 py-1 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 text-sm font-medium">
+                    <Star className="w-3 h-3 mr-1" /> {badgeAwarded}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
           
           <div className="space-y-4">
-            {tierName === 'Fan' && (
+            {(tierKey === 'fan') && (
               <>
                 <div className="flex items-center text-gray-300">
                   <Star className="w-5 h-5 text-fedex-orange mr-3" />
@@ -444,7 +486,7 @@ export const PaymentSuccess: React.FC = () => {
               </>
             )}
             
-            {tierName === 'Supporter' && (
+            {(tierKey === 'supporter') && (
               <>
                 <div className="flex items-center text-gray-300">
                   <Star className="w-5 h-5 text-fedex-orange mr-3" />
@@ -469,7 +511,7 @@ export const PaymentSuccess: React.FC = () => {
               </>
             )}
             
-            {tierName === 'VIP' && (
+            {(tierKey === 'vip') && (
               <>
                 <div className="flex items-center text-gray-300">
                   <Star className="w-5 h-5 text-fedex-orange mr-3" />
@@ -502,20 +544,22 @@ export const PaymentSuccess: React.FC = () => {
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4">
-          {/* <Link
-            to={`/racer/${subscriptionData?.racerId || ''}`}
-            className="flex-1 px-6 py-4 bg-fedex-orange hover:bg-fedex-orange-dark rounded-lg font-semibold text-center transition-colors flex items-center justify-center"
-          >
-            <Heart className="w-5 h-5 mr-2" />
-            View Racer Profile
-          </Link> */}
-          
+          {displayRacerId && (
+            <Link
+              to={`/racer/${displayRacerId}`}
+              className="flex-1 px-6 py-4 bg-fedex-orange hover:bg-fedex-orange-dark rounded-lg font-semibold text-center transition-colors flex items-center justify-center"
+            >
+              <Heart className="w-5 h-5 mr-2" />
+              View Racer Profile
+            </Link>
+          )}
+
           <Link
-            to="/feed"
+            to="/grandstand"
             className="flex-1 px-6 py-4 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold text-center transition-colors flex items-center justify-center"
           >
             <Users className="w-5 h-5 mr-2" />
-            Explore Feed
+            Go to Grandstand
           </Link>
         </div>
 

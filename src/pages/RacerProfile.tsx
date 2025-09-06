@@ -68,14 +68,8 @@ const RacerProfile: React.FC = () => {
         <div className="max-w-6xl mx-auto">
           {/* Owner actions are now shown inside the header */}
           {/* Navigation Tabs (Fan Dashboard style) */}
-          <div className="mb-6 flex items-center justify-between gap-3">
+          <div className="mb-6">
             <NavigationTabs tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
-            <button
-              onClick={() => navigate('/sponsorships')}
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-orange-500 hover:bg-orange-600 text-white transition-colors"
-            >
-              Check out Sponsors
-            </button>
           </div>
 
           {/* Tab Content */}
@@ -124,7 +118,7 @@ const RacerProfile: React.FC = () => {
           {activeTab === 'schedule' && (
             <div className="bg-card rounded-2xl p-6 border border-border">
               <h3 className="text-xl font-bold text-foreground mb-4">Schedule</h3>
-              <UpcomingRaces userId={userId} />
+              <UpcomingRaces userId={userId} canEdit={Boolean(isOwner)} />
             </div>
           )}
 
@@ -137,8 +131,24 @@ const RacerProfile: React.FC = () => {
 
           {activeTab === 'sponsorship-slots' && (
             <div className="bg-card rounded-2xl p-6 border border-border">
-              <h3 className="text-xl font-bold text-foreground mb-4">Sponsorship Slots</h3>
-              <p className="text-muted-foreground">Configure available sponsorship placements, prices, and inventory.</p>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-xl font-bold text-foreground">Sponsorship Slots</h3>
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-md bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">Coming Soon</span>
+                </div>
+                <button
+                  onClick={() => navigate('/sponsorships')}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-orange-500 hover:bg-orange-600 text-white transition-colors"
+                >
+                  Browse Sponsors
+                </button>
+              </div>
+              <div className="rounded-xl border border-border bg-muted/30 p-5">
+                <p className="text-muted-foreground">
+                  We’re building a streamlined way to create and manage sponsorship placements on your profile and content. 
+                  Set packages, inventory, and pricing, and let sponsors book directly. This feature will be available soon.
+                </p>
+              </div>
             </div>
           )}
         </div>

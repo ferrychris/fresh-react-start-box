@@ -4,6 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useApp } from '@/contexts/AppContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronDown, Bell, Search, Trophy, Layers, Handshake, Megaphone, Upload } from 'lucide-react';
+import { ProfileCompletionIndicator } from '@/components/ProfileCompletionIndicator';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -310,6 +311,14 @@ const Fanheader = () => {
             <Bell className="h-6 w-6" />
             <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500"></span>
           </button>
+          
+          {/* Profile Completion Indicator - only show for fans */}
+          {user.user_type === 'fan' && (
+            <ProfileCompletionIndicator 
+              userId={user.id} 
+              className="hidden md:flex"
+            />
+          )}
           
           {/* User dropdown */}
           <DropdownMenu>

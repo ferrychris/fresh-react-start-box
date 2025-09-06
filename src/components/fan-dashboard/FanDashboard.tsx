@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { supabase } from '../../lib/supabase/client';
+import { ProfileCompletionGuide } from '../ProfileCompletionGuide';
 
 // Import components
 import ProfileHeader from './ProfileHeader';
@@ -130,6 +131,11 @@ const FanDashboard: React.FC = () => {
   // Favorite racers and activity
   const [favoriteRacers, setFavoriteRacers] = useState<Racer[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+
+  // Profile guide state (must be declared before any early returns)
+  const [showProfileGuide, setShowProfileGuide] = useState<boolean>(false);
+  const [profileCompletionPercentage, setProfileCompletionPercentage] = useState<number>(0);
+  const [hasCheckedProfile, setHasCheckedProfile] = useState<boolean>(false);
 
   // Helper function to calculate time ago
   const getTimeAgo = (date: Date): string => {
@@ -338,7 +344,7 @@ const FanDashboard: React.FC = () => {
               .eq('fan_id', targetId)
               .order('created_at', { ascending: false })
               .limit(5);
-            if (!activityError) activityData = data || [];
+            if (!activityError) activityData = (data as ActivityData[] | null) || [];
           } catch (activityError: unknown) {
             const errorMsg = activityError instanceof Error ? activityError.message : 'Unknown error';
             console.log('Fan activity table may not exist yet:', errorMsg);
@@ -349,7 +355,7 @@ const FanDashboard: React.FC = () => {
               formattedActivity = [
                 {
                   id: 'placeholder-1',
-                  type: 'welcome',
+                  type: 'badge',
                   timestamp: new Date().toISOString(),
                   timeAgo: 'just now',
                   content: '',
@@ -481,52 +487,122 @@ const FanDashboard: React.FC = () => {
     { id: 'badges', label: 'Badges', count: fanProfile?.badges_count || 0 }
   ];
 
-  // Only block the entire page if we haven't even attempted to load the profile yet
-  if (loading && loadingProfile) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
-      </div>
-    );
-  }
+  // Determine if we should show a loading state until some data is fetched
+  const hasAnyData = Boolean(fanProfile) || favoriteRacers.length > 0 || recentActivity.length > 0;
+  const isLoadingOverall = !hasAnyData && (loadingProfile || loadingStats || loadingFavorites || loadingActivity);
 
-  if (!fanProfile) {
-    return (
-      <div className="text-center py-12">
-        <h2 className="text-xl font-bold text-white mb-2">Welcome to your Fan Dashboard</h2>
-        <p className="text-gray-400">We couldn't load a fan profile. If you just signed up, complete your profile in Settings.</p>
-      </div>
-    );
-  }
+  // Removed early return to keep hooks order consistent
 
   // Check if this is the user's own profile
   const isOwnProfile = user?.id === targetId;
 
+  useEffect(() => {
+    const checkProfileCompletion = async () => {
+      if (!user?.id) return;
+      
+      try {
+        // Fetch fan profile data
+        const { data: fanProfile, error } = await supabase
+          .from('fan_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+          
+        if (error) {
+          console.error('Error fetching fan profile:', error);
+          return;
+        }
+        
+        // Check if profile exists
+        if (!fanProfile) {
+          // Create empty profile if it doesn't exist
+          await supabase
+            .from('fan_profiles')
+            .insert({ id: user.id });
+          setShowProfileGuide(true);
+          setProfileCompletionPercentage(0);
+          setHasCheckedProfile(true);
+          return;
+        }
+        
+        // Calculate completion percentage
+        const fields = [
+          { name: 'location', completed: Boolean(fanProfile?.location) },
+          { name: 'favorite_classes', completed: Boolean(fanProfile?.favorite_classes?.length) },
+          { name: 'favorite_tracks', completed: Boolean(fanProfile?.favorite_tracks?.length) },
+          { name: 'followed_racers', completed: Boolean(fanProfile?.followed_racers?.length) },
+          { name: 'why_i_love_racing', completed: Boolean(fanProfile?.why_i_love_racing) },
+          { name: 'profile_photo_url', completed: Boolean(fanProfile?.profile_photo_url) },
+        ];
+        
+        const completedCount = fields.filter(f => f.completed).length;
+        const percentage = Math.round((completedCount / fields.length) * 100);
+        
+        setProfileCompletionPercentage(percentage);
+        
+        // Show guide for new users with incomplete profiles
+        // Check localStorage to see if we've shown the guide before
+        const hasSeenGuide = localStorage.getItem('profile_guide_seen');
+        
+        if (!hasSeenGuide && percentage < 50) {
+          setShowProfileGuide(true);
+        }
+        
+        setHasCheckedProfile(true);
+      } catch (error) {
+        console.error('Error checking profile completion:', error);
+      }
+    };
+    
+    checkProfileCompletion();
+  }, [user?.id]);
+  
+  const handleCloseGuide = () => {
+    setShowProfileGuide(false);
+    // Remember that we've shown the guide
+    localStorage.setItem('profile_guide_seen', 'true');
+  };
+
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Profile header */}
-      {loadingProfile ? (
-        <div className="relative w-full" aria-hidden="true">
-          <div className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-black rounded-3xl overflow-hidden border border-gray-800/50 shadow-2xl mx-4 sm:mx-6 lg:mx-8 animate-pulse">
-            <div className="h-64 sm:h-72 lg:h-80 bg-gray-800/70" />
-            <div className="relative pt-16 sm:pt-20 lg:pt-24 pb-8 px-6 sm:px-8 lg:px-10">
-              <div className="flex flex-col sm:flex-row items-start sm:items-end gap-6 mb-8">
-                <div>
-                  <div className="w-28 h-28 sm:w-32 sm:h-32 lg:w-36 lg:h-36 rounded-full bg-gray-700" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="h-8 sm:h-10 w-48 sm:w-64 bg-gray-700 rounded mb-3" />
-                  <div className="flex items-center gap-2">
-                    <div className="h-7 w-24 bg-gray-700 rounded-full" />
-                  </div>
+    <>
+      {isLoadingOverall ? (
+        <div className="min-h-screen p-6">
+          <div className="max-w-5xl mx-auto">
+            {/* Header skeleton */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 animate-pulse">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-slate-800" />
+                <div className="flex-1">
+                  <div className="w-40 h-4 bg-slate-800 rounded" />
+                  <div className="w-24 h-3 bg-slate-800 rounded mt-2" />
                 </div>
               </div>
-              <div className="flex flex-wrap gap-4 p-6 bg-black/30 backdrop-blur-xl border border-white/10 rounded-2xl">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="text-center w-1/2 sm:w-auto">
-                    <div className="w-8 h-8 bg-gray-700 rounded mx-auto mb-2" />
-                    <div className="h-6 w-16 bg-gray-700 rounded mx-auto mb-1" />
-                    <div className="h-3 w-20 bg-gray-800 rounded mx-auto" />
+                  <div key={i} className="bg-slate-800/60 h-16 rounded-xl" />
+                ))}
+              </div>
+            </div>
+
+            {/* Sections skeleton */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+              <div className="lg:col-span-2 space-y-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 animate-pulse">
+                    <div className="w-2/3 h-4 bg-slate-800 rounded mb-3" />
+                    <div className="w-full h-24 bg-slate-800/70 rounded" />
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-4">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 animate-pulse">
+                    <div className="w-1/2 h-4 bg-slate-800 rounded mb-3" />
+                    <div className="space-y-2">
+                      {Array.from({ length: 3 }).map((__, j) => (
+                        <div key={j} className="h-8 bg-slate-800/70 rounded" />
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -534,157 +610,24 @@ const FanDashboard: React.FC = () => {
           </div>
         </div>
       ) : (
-        <ProfileHeader
-          name={fanProfile.name || 'Racing Fan'}
-          username={fanProfile.username || 'user'}
-          avatarUrl={fanProfile.avatar_url || fanProfile.avatar || 'https://placehold.co/150'}
-          bannerImageUrl={fanProfile?.banner_image || bannerImage || undefined}
-          memberSince={new Date(fanProfile.created_at).toLocaleDateString()}
-          fanType={fanProfile.fan_type || 'Racing Fan'}
-          points={stats.support_points}
-          dayStreak={stats.activity_streak}
-          favorites={favoriteRacers.length}
-          badges={fanProfile.badges_count || 0}
-          onEditProfile={!isPreviewRoute && isOwnProfile ? handleEditProfile : undefined}
-          onPreviewProfile={!isPreviewRoute && isOwnProfile && targetId ? () => navigate(`/fan/${targetId}`) : undefined}
+        fanProfile ? (
+          <div className="min-h-screen">
+            {/* TODO: Render actual fan dashboard content here. This placeholder prevents recursive self-render. */}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <h2 className="text-xl font-bold text-white mb-2">Welcome to your Fan Dashboard</h2>
+            <p className="text-gray-400">We couldn't load a fan profile. If you just signed up, complete your profile in Settings.</p>
+          </div>
+        )
+      )}
+      {user && showProfileGuide && hasCheckedProfile && (
+        <ProfileCompletionGuide 
+          userId={user.id} 
+          onClose={handleCloseGuide} 
         />
       )}
-      
-      {/* Navigation tabs */}
-      <NavigationTabs
-        tabs={tabs}
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-      />
-      
-      {/* Main content with improved spacing and responsive design */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'overview' && (
-          <div className="space-y-8">
-            {/* Enhanced stats cards section */}
-            <div className="mb-8">
-              {loadingStats ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4" aria-hidden="true">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-6 shadow-xl animate-pulse">
-                      <div className="h-4 w-24 bg-gray-700 rounded mb-3" />
-                      <div className="h-8 w-20 bg-gray-600 rounded" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <StatsCards
-                  supportPoints={stats.support_points}
-                  totalTips={stats.total_tips}
-                  activeSubscriptions={stats.active_subscriptions}
-                  activityStreak={stats.activity_streak}
-                />
-              )}
-            </div>
-            
-            {/* Improved responsive layout */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-              {/* Favorite racers section with better styling */}
-              <div className="xl:col-span-2">
-                <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-6 shadow-xl">
-                  {loadingFavorites ? (
-                    <div className="space-y-4" aria-hidden="true">
-                      {Array.from({ length: 4 }).map((_, i) => (
-                        <div key={i} className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-full bg-gray-700" />
-                          <div className="flex-1">
-                            <div className="h-4 w-40 bg-gray-700 rounded mb-2" />
-                            <div className="h-3 w-24 bg-gray-800 rounded" />
-                          </div>
-                          <div className="h-8 w-20 bg-gray-700 rounded" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <FavoriteRacers
-                      racers={favoriteRacers}
-                      onTip={handleTipRacer}
-                    />
-                  )}
-                </div>
-              </div>
-              
-              {/* Recent activity with premium styling */}
-              <div className="xl:col-span-1">
-                <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-6 shadow-xl">
-                  {loadingActivity ? (
-                    <div className="space-y-4" aria-hidden="true">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gray-700" />
-                          <div className="flex-1">
-                            <div className="h-3 w-32 bg-gray-700 rounded mb-2" />
-                            <div className="h-3 w-48 bg-gray-800 rounded" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <RecentActivity
-                      activities={recentActivity}
-                      onViewAllActivity={handleViewAllActivity}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {activeTab === 'posts' && (
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-6 shadow-xl">
-            <PersonalPost fanId={targetId || undefined} />
-          </div>
-        )}
-        
-        {activeTab === 'racers' && (
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-8 shadow-xl">
-            <div className="text-center">
-              <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full flex items-center justify-center">
-                <svg className="w-10 h-10 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-3">Supported Racers</h2>
-              <p className="text-gray-400 max-w-md mx-auto">Your complete list of supported racers and subscription details will appear here.</p>
-            </div>
-          </div>
-        )}
-        
-        {activeTab === 'activity' && (
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-8 shadow-xl">
-            <div className="text-center">
-              <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-green-500/20 to-blue-500/20 rounded-full flex items-center justify-center">
-                <svg className="w-10 h-10 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-3">Activity History</h2>
-              <p className="text-gray-400 max-w-md mx-auto">Your complete activity timeline including tips, posts, and interactions will be displayed here.</p>
-            </div>
-          </div>
-        )}
-        
-        {activeTab === 'badges' && (
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-3xl p-8 shadow-xl">
-            <div className="text-center">
-              <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-full flex items-center justify-center">
-                <svg className="w-10 h-10 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-3">Achievement Badges</h2>
-              <p className="text-gray-400 max-w-md mx-auto">Your earned badges and achievements for being an outstanding racing fan will be showcased here.</p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+    </>
   );
 };
 

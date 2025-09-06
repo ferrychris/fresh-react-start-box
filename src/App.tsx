@@ -12,6 +12,7 @@ import { Tracks } from './pages/Tracks';
 import { HowItWorks } from './pages/HowItWorks';
 import { TrackProfile } from './pages/TrackProfile';
 import RacerProfile from './pages/RacerProfile';
+import FullSchedule from './pages/FullSchedule';
 import { SeriesProfile } from './pages/SeriesProfile';
 import TeamDetails from './pages/TeamDetails';
 import { Series } from './pages/Series';
@@ -169,6 +170,7 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
         <Route path="/live" element={<LiveFeed />} />
         <Route path="/track/:id" element={<TrackProfile />} />
         <Route path="/racer/:id" element={<RacerProfileRoute />} />
+        <Route path="/racer/:id/schedule" element={<FullSchedule />} />
         <Route path="/racer/:id/sponsorship" element={<SponsorshipPackages />} />
         <Route
           path="/dashboard"

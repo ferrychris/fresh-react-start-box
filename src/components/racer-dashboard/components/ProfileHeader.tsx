@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Flame, Users, Crown, DollarSign, Pencil, Eye, Camera } from 'lucide-react';
+import { Flame, Users, Crown, DollarSign, Pencil, Eye, Camera, CheckCircle, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../../integrations/supabase/client';
 import { recordActivityForStreak } from '../../../integrations/supabase/streaks';
 
@@ -63,6 +63,10 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(null); // the racer being viewed
   const [viewerId, setViewerId] = useState<string | null>(null); // the currently logged-in user
   const [isFollowing, setIsFollowing] = useState<boolean>(false);
+  const [isVerified, setIsVerified] = useState<boolean>(false);
+  const [completionPct, setCompletionPct] = useState<number>(0);
+  const [missingFields, setMissingFields] = useState<string[]>([]);
+  const [showMissing, setShowMissing] = useState<boolean>(false);
 
   // Helpers: detect if a string is already a URL and resolve storage paths to public URLs
   const isHttpUrl = (val?: string | null) => !!val && /^(https?:)?\/\//i.test(val);
@@ -170,7 +174,8 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
             email,
             user_type,
             avatar,
-            banner_image
+            banner_image,
+            is_verified
           `)
           .eq('id', resolvedUserId)
           .single();
@@ -182,6 +187,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
         
         // Create a username from email if not available
         const username = (profileData.email || '')?.split('@')[0] || 'racer';
+        setIsVerified(!!profileData.is_verified);
         
         // Fetch follower count
         const { count: followerCount, error: followerError } = await supabase
@@ -269,6 +275,19 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
             racer_banner: racerProfile?.banner_photo_url || null,
           },
         });
+
+        // Compute racer profile completion and missing fields
+        const checklist: Array<{ key: string; ok: boolean; label: string }> = [
+          { key: 'profile_photo_url', ok: !!racerProfile?.profile_photo_url, label: 'Profile photo' },
+          { key: 'banner_photo_url', ok: !!racerProfile?.banner_photo_url, label: 'Banner photo' },
+          { key: 'car_number', ok: !!racerProfile?.car_number, label: 'Car number' },
+          { key: 'racing_class', ok: !!racerProfile?.racing_class, label: 'Racing class' },
+          { key: 'team_name', ok: !!racerProfile?.team_name, label: 'Team name' },
+        ];
+        const total = checklist.length;
+        const done = checklist.filter(c => c.ok).length;
+        setCompletionPct(Math.round((done / total) * 100));
+        setMissingFields(checklist.filter(c => !c.ok).map(c => c.label));
       } catch (error) {
         console.error('Error fetching profile data:', error);
       } finally {
@@ -311,7 +330,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
   const bannerUrl = toPublicUrl(bannerRaw);
 
   return (
-    <div className="relative border-b border-border min-h-[320px] md:min-h-[380px]">
+    <div className="relative border-b border-border h-64 sm:h-72 lg:h-80">
       {/* Full-bleed banner background */}
       <div className="absolute inset-0">
         {loading ? (
@@ -370,12 +389,12 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
             </button>
           </div>
         )}
-        <div className="max-w-6xl mx-auto flex flex-col justify-end min-h-[320px] md:min-h-[380px]">
+        <div className="max-w-6xl mx-auto flex flex-col justify-end h-full">
           {/* Top row: avatar + name on left, metrics on right */}
           <div className="flex items-start sm:items-center justify-between gap-4 mb-4">
             <div className="flex items-center space-x-4">
               {loading ? (
-                <div className="w-24 h-24 rounded-2xl bg-muted animate-pulse"></div>
+                <div className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-full bg-muted animate-pulse"></div>
               ) : (
                 (() => {
                   const avatarRaw =
@@ -389,11 +408,11 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                     <img
                       src={avatarUrl}
                       alt={displayUser.name}
-                      className="w-24 h-24 rounded-2xl object-cover ring-4 ring-primary"
+                      className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-full object-cover ring-4 ring-primary"
                     />
                   ) : (
-                    <div className="w-24 h-24 rounded-2xl ring-4 ring-primary bg-gray-800 flex items-center justify-center">
-                      <span className="text-xl font-bold text-gray-200">{initials}</span>
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-full ring-4 ring-primary bg-gray-800 flex items-center justify-center">
+                      <span className="text-xl sm:text-2xl font-bold text-gray-200">{initials}</span>
                     </div>
                   );
                 })()
@@ -404,7 +423,14 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                     <div className="h-8 w-32 bg-muted rounded animate-pulse"></div>
                   ) : (
                     <>
-                      <h1 className="text-3xl font-bold text-foreground">{displayUser.name}</h1>
+                      <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+                        {displayUser.name}
+                        {isVerified && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-500/15 text-blue-400 border border-blue-500/30" title="Verified racer">
+                            <CheckCircle className="w-4 h-4" /> Verified
+                          </span>
+                        )}
+                      </h1>
                       <span className="ml-2 px-3 py-1 bg-primary text-primary-foreground text-sm font-bold rounded-full">#{displayUser.car_number}</span>
                     </>
                   )}
@@ -414,6 +440,43 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                 ) : (
                   <>
                     <p className="text-muted-foreground">@{displayUser.username} • Racer Dashboard</p>
+                    {isOwner && completionPct < 100 && (
+                      <div className="relative mt-2">
+                        <button
+                          onClick={() => setShowMissing(v => !v)}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 hover:bg-slate-700"
+                          title="View missing fields"
+                        >
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-3.5 h-3.5 text-yellow-400" />
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-500 ${completionPct < 30 ? 'bg-red-500' : completionPct < 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                                  style={{ width: `${completionPct}%` }}
+                                />
+                              </div>
+                              <span>Profile {completionPct}% complete</span>
+                            </div>
+                          </div>
+                        </button>
+                        {showMissing && (
+                          <div className="absolute z-20 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-3">
+                            <p className="text-xs text-slate-400 mb-2">Complete these to verify faster:</p>
+                            <ul className="space-y-1">
+                              {missingFields.map((m) => (
+                                <li key={m} className="text-xs text-slate-300 flex items-center gap-2">
+                                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400" /> {m}
+                                </li>
+                              ))}
+                            </ul>
+                            <div className="mt-2 text-right">
+                              <button onClick={onEditProfile} className="text-xs px-2 py-1 rounded bg-orange-500 hover:bg-orange-600 text-white">Complete now</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {displayUser.bio && <p className="text-muted-foreground mt-1">{displayUser.bio}</p>}
                     {/* Metrics directly beneath racer name */}
                     <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">

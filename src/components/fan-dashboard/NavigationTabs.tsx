@@ -28,7 +28,7 @@ const NavigationTabs: React.FC<NavigationTabsProps> = ({
             onClick={() => onTabChange(tab.id)}
             className={`relative px-4 sm:px-6 py-3 text-sm font-medium transition-all duration-300 rounded-xl whitespace-nowrap ${
               activeTab === tab.id
-                ? 'text-white bg-gradient-to-r from-green-500 to-emerald-600 shadow-lg transform scale-105'
+                ? 'text-white bg-gradient-to-r from-orange-500 to-orange-600 shadow-lg transform scale-105'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
             }`}
           >

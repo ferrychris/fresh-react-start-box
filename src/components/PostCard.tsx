@@ -15,7 +15,8 @@ import {
   Clock,
   X,
   Send,
-  UserPlus
+  UserPlus,
+  CheckCircle
 } from 'lucide-react';
 import { useUser } from '@/contexts/UserContext';
 import { PostComment } from '@/types';
@@ -25,6 +26,7 @@ import { getPostLikers, likePost, unlikePost, addCommentToPost, getPostComments,
 import { createPaymentSession } from '@/lib/supabase/payments'; // Verified path
 import { AuthModal } from '@/components/auth/AuthModal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 
 // Define a more complete Post type for the component
 export type Post = PostType;
@@ -42,6 +44,7 @@ interface PostCardProps {
         name: string;
         user_type: string;
         avatar?: string;
+        is_verified?: boolean;
       };
     };
     track?: {
@@ -78,6 +81,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [editingPost, setEditingPost] = useState(false);
   const [editedContent, setEditedContent] = useState('');
   const [isDeleted, setIsDeleted] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
 
   // Track comment IDs we've already added to avoid duplicates from
   // optimistic updates racing with realtime INSERT events
@@ -119,11 +123,21 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   // Determine user type
   const userType = (profile?.user_type || '').toLowerCase();
   const isRacer = userType === 'racer';
+  
+  // Check if racer is verified
+  useEffect(() => {
+    setIsVerified(!!post.racer_profiles?.profiles?.is_verified);
+  }, [post.racer_profiles?.profiles?.is_verified]);
 
   // Get display name - improved racer name fetching
   const emailUsername = profile?.email?.split('@')[0];
   const racerName = post.racer_profiles?.username || post.racer_profiles?.profiles?.name;
   const displayName = authorName || profile?.name || racerName || emailUsername || (isRacer ? 'Racer' : 'User');
+  
+  // Get racer details
+  const carNumber = post.racer_profiles?.car_number;
+  const racingClass = post.racer_profiles?.racing_class;
+  const teamName = post.racer_profiles?.team_name;
 
   // Get avatar URL - check for avatar property
   const avatarUrl = authorAvatar || profile?.avatar || post.racer_profiles?.profile_photo_url || '';
@@ -601,6 +615,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                   >
                     {displayName}
                   </button>
+                  
+                  {/* Verified badge */}
+                  {isRacer && isVerified && <VerifiedBadge size="sm" showText={false} />}
 
                   {/* Then user type chip */}
                   {isRacer ? (
@@ -615,10 +632,22 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                   ) : null}
                 </h4>
                 <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-                  {/* Remove duplicate tag chips here to avoid repeated badges */}
-                  {post.racer_profiles?.car_number && (
+                  {/* Car number */}
+                  {carNumber && (
                     <div className="bg-red-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
-                      #{post.racer_profiles.car_number}
+                      #{carNumber}
+                    </div>
+                  )}
+                  {/* Racing class */}
+                  {racingClass && (
+                    <div className="bg-blue-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
+                      {racingClass}
+                    </div>
+                  )}
+                  {/* Team name */}
+                  {teamName && (
+                    <div className="bg-green-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
+                      {teamName}
                     </div>
                   )}
                 </div>

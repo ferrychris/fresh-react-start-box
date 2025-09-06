@@ -19,6 +19,7 @@ const SettingsProfile: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
 
   const [userId, setUserId] = useState<string | null>(null);
+  const [userType, setUserType] = useState<'fan' | 'racer' | 'track' | 'series' | 'admin' | null>(null);
 
   const [name, setName] = useState('');
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -30,6 +31,18 @@ const SettingsProfile: React.FC = () => {
   const [originalBannerUrl, setOriginalBannerUrl] = useState<string | null>(null);
   const avatarObjectUrlRef = useRef<string | null>(null);
   const bannerObjectUrlRef = useRef<string | null>(null);
+
+  // Fan-specific fields
+  const [fanLocation, setFanLocation] = useState<string>('');
+  const [fanFavClasses, setFanFavClasses] = useState<string>('');
+  const [fanFavTracks, setFanFavTracks] = useState<string>('');
+  const [fanWhy, setFanWhy] = useState<string>('');
+
+  // Racer-specific fields
+  const [racerUsername, setRacerUsername] = useState<string>('');
+  const [racerTeam, setRacerTeam] = useState<string>('');
+  const [racerCarNum, setRacerCarNum] = useState<string>('');
+  const [racerClass, setRacerClass] = useState<string>('');
 
   useEffect(() => {
     const init = async () => {
@@ -53,12 +66,45 @@ const SettingsProfile: React.FC = () => {
         if (data) {
           const p = data as Profile;
           setName(p.name || '');
+          setUserType(p.user_type);
           const avatarFromDb = p.avatar && p.avatar.startsWith('blob:') ? null : (p.avatar || null);
           const bannerFromDb = p.banner_image && p.banner_image.startsWith('blob:') ? null : (p.banner_image || null);
           setAvatarPreview(avatarFromDb);
           setBannerPreview(bannerFromDb);
           setOriginalAvatarUrl(avatarFromDb);
           setOriginalBannerUrl(bannerFromDb);
+        }
+
+        // Load type-specific profile
+        try {
+          if (data?.user_type === 'fan') {
+            const { data: fan, error: fanErr } = await supabase
+              .from('fan_profiles')
+              .select('*')
+              .eq('id', user.id)
+              .maybeSingle();
+            if (!fanErr && fan) {
+              setFanLocation(fan.location || '');
+              setFanFavClasses(Array.isArray(fan.favorite_classes) ? fan.favorite_classes.join(', ') : '');
+              setFanFavTracks(Array.isArray(fan.favorite_tracks) ? fan.favorite_tracks.join(', ') : '');
+              setFanWhy(fan.why_i_love_racing || '');
+            }
+          } else if (data?.user_type === 'racer') {
+            const { data: racer, error: racerErr } = await supabase
+              .from('racer_profiles')
+              .select('*')
+              .eq('id', user.id)
+              .maybeSingle();
+            if (!racerErr && racer) {
+              setRacerUsername(racer.username || '');
+              setRacerTeam(racer.team_name || '');
+              setRacerCarNum(racer.car_number ? String(racer.car_number) : '');
+              setRacerClass(racer.racing_class || '');
+            }
+          }
+        } catch (typeErr) {
+          // Non-fatal; table may not exist yet
+          console.log('Type-specific profile load skipped:', typeErr);
         }
       } catch (e: unknown) {
         console.error(e);
@@ -75,14 +121,14 @@ const SettingsProfile: React.FC = () => {
   const handlePreviewError = (type: 'avatar' | 'banner') => () => {
     if (type === 'avatar') {
       if (avatarObjectUrlRef.current) {
-        try { URL.revokeObjectURL(avatarObjectUrlRef.current); } catch {}
+        try { URL.revokeObjectURL(avatarObjectUrlRef.current); } catch (err) { /* noop */ }
         avatarObjectUrlRef.current = null;
       }
       setAvatarPreview(null);
       setAvatarFile(null);
     } else {
       if (bannerObjectUrlRef.current) {
-        try { URL.revokeObjectURL(bannerObjectUrlRef.current); } catch {}
+        try { URL.revokeObjectURL(bannerObjectUrlRef.current); } catch (err) { /* noop */ }
         bannerObjectUrlRef.current = null;
       }
       setBannerPreview(null);
@@ -140,6 +186,39 @@ const SettingsProfile: React.FC = () => {
         .eq('id', userId);
 
       if (updateErr) throw updateErr;
+
+      // Save type-specific profile
+      try {
+        if (userType === 'fan') {
+          const fanPayload: Record<string, unknown> = {
+            id: userId,
+            location: fanLocation || null,
+            favorite_classes: fanFavClasses
+              ? fanFavClasses.split(',').map(s => s.trim()).filter(Boolean)
+              : [],
+            favorite_tracks: fanFavTracks
+              ? fanFavTracks.split(',').map(s => s.trim()).filter(Boolean)
+              : [],
+            why_i_love_racing: fanWhy || null,
+          };
+          // keep profile photo in sync if we uploaded a new avatar
+          if (typeof newAvatarUrl === 'string') fanPayload.profile_photo_url = newAvatarUrl;
+          await supabase.from('fan_profiles').upsert(fanPayload, { onConflict: 'id' });
+        } else if (userType === 'racer') {
+          const racerPayload: Record<string, unknown> = {
+            id: userId,
+            username: racerUsername || null,
+            team_name: racerTeam || null,
+            car_number: racerCarNum ? Number(racerCarNum) : null,
+            racing_class: racerClass || null,
+          };
+          if (typeof newAvatarUrl === 'string') racerPayload.profile_photo_url = newAvatarUrl;
+          if (typeof newBannerUrl === 'string') racerPayload.banner_photo_url = newBannerUrl;
+          await supabase.from('racer_profiles').upsert(racerPayload, { onConflict: 'id' });
+        }
+      } catch (typeSaveErr) {
+        console.log('Type-specific profile save skipped:', typeSaveErr);
+      }
 
       setSuccess('Profile updated successfully');
       setAvatarFile(null);
@@ -267,6 +346,96 @@ const SettingsProfile: React.FC = () => {
               className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
               placeholder="Your name"
             />
+
+            {/* Type-specific fields */}
+            {userType === 'fan' && (
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">Location</label>
+                  <input
+                    type="text"
+                    value={fanLocation}
+                    onChange={(e) => setFanLocation(e.target.value)}
+                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
+                    placeholder="City, State/Country"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">Favorite classes (comma separated)</label>
+                  <input
+                    type="text"
+                    value={fanFavClasses}
+                    onChange={(e) => setFanFavClasses(e.target.value)}
+                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
+                    placeholder="e.g. Late Model, Sprint, Modified"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">Favorite tracks (comma separated)</label>
+                  <input
+                    type="text"
+                    value={fanFavTracks}
+                    onChange={(e) => setFanFavTracks(e.target.value)}
+                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
+                    placeholder="e.g. Eldora, Knoxville, Bristol"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm text-gray-300 mb-1">Why I love racing</label>
+                  <textarea
+                    value={fanWhy}
+                    onChange={(e) => setFanWhy(e.target.value)}
+                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500 min-h-[80px]"
+                    placeholder="Share your racing story..."
+                  />
+                </div>
+              </div>
+            )}
+
+            {userType === 'racer' && (
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">Username</label>
+                  <input
+                    type="text"
+                    value={racerUsername}
+                    onChange={(e) => setRacerUsername(e.target.value)}
+                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
+                    placeholder="racer123"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">Team name</label>
+                  <input
+                    type="text"
+                    value={racerTeam}
+                    onChange={(e) => setRacerTeam(e.target.value)}
+                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
+                    placeholder="Team Lightning"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">Car number</label>
+                  <input
+                    type="text"
+                    value={racerCarNum}
+                    onChange={(e) => setRacerCarNum(e.target.value)}
+                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
+                    placeholder="#24"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">Racing class</label>
+                  <input
+                    type="text"
+                    value={racerClass}
+                    onChange={(e) => setRacerClass(e.target.value)}
+                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
+                    placeholder="Late Model"
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="mt-4 flex gap-3">
               <button
