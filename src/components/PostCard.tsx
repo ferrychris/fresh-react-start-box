@@ -129,10 +129,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     setIsVerified(!!post.racer_profiles?.profiles?.is_verified);
   }, [post.racer_profiles?.profiles?.is_verified]);
 
-  // Get display name - improved racer name fetching
+  // Get display name - prefer profile.name -> racer username -> email username -> role-based generic
   const emailUsername = profile?.email?.split('@')[0];
   const racerName = post.racer_profiles?.username || post.racer_profiles?.profiles?.name;
-  const displayName = authorName || profile?.name || racerName || emailUsername || (isRacer ? 'Racer' : 'User');
+  const profileId = (Array.isArray(post.profiles) ? post.profiles?.[0]?.id : post.profiles?.id) || post.user_id || '';
+  const roleGeneric = isRacer ? 'Racer' : 'Racing Fan';
+  const displayName = authorName || profile?.name || racerName || emailUsername || roleGeneric;
   
   // Get racer details
   const carNumber = post.racer_profiles?.car_number;
@@ -632,22 +634,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                   ) : null}
                 </h4>
                 <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-                  {/* Car number */}
+                  {/* Car number only */}
                   {carNumber && (
                     <div className="bg-red-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
                       #{carNumber}
-                    </div>
-                  )}
-                  {/* Racing class */}
-                  {racingClass && (
-                    <div className="bg-blue-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
-                      {racingClass}
-                    </div>
-                  )}
-                  {/* Team name */}
-                  {teamName && (
-                    <div className="bg-green-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
-                      {teamName}
                     </div>
                   )}
                 </div>

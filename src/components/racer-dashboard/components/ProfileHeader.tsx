@@ -8,6 +8,7 @@ interface ProfileHeaderProps {
   isOwner?: boolean;
   onEditProfile?: () => void;
   onPreviewProfile?: () => void;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 // Types for DB rows we select
@@ -57,7 +58,7 @@ interface RacerProfileData {
   };
 }
 
-export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = false, onEditProfile, onPreviewProfile }) => {
+export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = false, onEditProfile, onPreviewProfile, onLoadingChange }) => {
   const [loading, setLoading] = useState(false);
   const [profileData, setProfileData] = useState<RacerProfileData | null>(null);
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(null); // the racer being viewed
@@ -159,6 +160,10 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
     }
   };
   
+  useEffect(() => {
+    onLoadingChange?.(loading);
+  }, [loading, onLoadingChange]);
+
   useEffect(() => {
     const fetchProfileData = async () => {
       if (!resolvedUserId) return;
@@ -329,6 +334,10 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
     || '';
   const bannerUrl = toPublicUrl(bannerRaw);
 
+  // Compute verified display: backend flag OR (profile complete AND >=10 followers)
+  const followersForDisplay = (profileData?.followers_count ?? 0);
+  const computedVerified = isVerified || (completionPct >= 100 && followersForDisplay >= 10);
+
   return (
     <div className="relative border-b border-border h-64 sm:h-72 lg:h-80">
       {/* Full-bleed banner background */}
@@ -425,7 +434,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                     <>
                       <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
                         {displayUser.name}
-                        {isVerified && (
+                        {computedVerified && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-500/15 text-blue-400 border border-blue-500/30" title="Verified racer">
                             <CheckCircle className="w-4 h-4" /> Verified
                           </span>
@@ -486,7 +495,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                           <Users className="w-4 h-4" />
                         </span>
                         <span className="text-foreground font-semibold">{(displayUser.followers_count || 0).toLocaleString()}</span>
-                        <span>fans</span>
+                        <span>followers</span>
                       </div>
                       {/* Subscribers */}
                       <div className="inline-flex items-center gap-2">

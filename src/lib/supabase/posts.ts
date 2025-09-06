@@ -534,7 +534,7 @@ export const getPublicPostsPage = async ({
         `;
       const baseSelect = includeProfiles
         ? `${baseCore}, 
-           profiles!racer_posts_user_id_fkey (id, name, avatar, user_type),
+           profiles!racer_posts_user_id_fkey (id, name, email, avatar, user_type, is_verified),
            racer_profiles!racer_posts_racer_id_fkey (id, username, profile_photo_url, car_number, racing_class, team_name, profiles(id, name, user_type, avatar))`
         : baseCore;
 

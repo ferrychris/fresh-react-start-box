@@ -261,12 +261,12 @@ export default function Grandstand() {
         const hadCache = prefillFromCache();
         if (!hadCache) setLoading(true);
         setError(null);
-        // First load: omit profile join to reduce query cost, then backfill profiles in a separate batched query
+        // First load: keep the response lean to reduce risk of connection drops from large payloads
         const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 5, includeProfiles: false });
         if (error) throw error;
         if (!isMounted) return;
 
-        // Map posts minimally first (no profiles) for fastest paint
+        // Map posts minimally first (no profiles) for fastest paint and smaller payload
         const minimal: PostCardType[] = (rows || []).map((r) => ({ ...r } as PostCardType));
         console.debug('[Grandstand] Initial posts loaded (minimal):', { count: minimal.length, nextCursor: !!cursor });
 
@@ -278,31 +278,29 @@ export default function Grandstand() {
           localStorage.setItem(POSTS_CURSOR_CACHE_KEY, JSON.stringify(cursor || null));
         } catch {/* quota or serialization issues */}
         console.timeEnd('grandstand:firstLoad');
-
         // Kick off profile backfill asynchronously (does not block first paint)
         (async () => {
-          const profilesMap: Record<string, { id: string; name: string; avatar?: string; user_type?: string }> = {};
+          const profilesMap: Record<string, { id: string; name: string; email?: string; avatar?: string; user_type?: string; is_verified?: boolean }> = {};
           const racerProfilesMap: Record<string, { id: string; username: string; profile_photo_url?: string; car_number?: string; racing_class?: string; team_name?: string }> = {};
           try {
-            // Get all user IDs for profiles
+            // Collect user_ids and racer_ids to backfill their profiles
             const userIds = Array.from(new Set((rows || []).map((r: {user_id?: string}) => r.user_id).filter((v): v is string => typeof v === 'string' && v.length > 0)));
-            // Get all racer IDs for racer profiles
             const racerIds = Array.from(new Set((rows || []).map((r: {racer_id?: string}) => r.racer_id).filter((v): v is string => typeof v === 'string' && v.length > 0)));
-            
-            // Fetch regular profiles
+
+            // Fetch regular profiles in one query
             if (userIds.length) {
               const { data: profs, error: profErr } = await supabase
                 .from('profiles')
-                .select('id, name, avatar, user_type')
+                .select('id, name, email, avatar, user_type, is_verified')
                 .in('id', userIds);
               if (!profErr && Array.isArray(profs)) {
                 for (const p of profs) {
-                  profilesMap[p.id] = { id: p.id, name: p.name, avatar: p.avatar, user_type: p.user_type };
+                  profilesMap[p.id] = { id: p.id, name: p.name, email: p.email, avatar: p.avatar, user_type: p.user_type, is_verified: (p as any).is_verified };
                 }
               }
             }
-            
-            // Fetch racer profiles
+
+            // Fetch racer profiles in one query
             if (racerIds.length) {
               const { data: racerProfs, error: racerProfErr } = await supabase
                 .from('racer_profiles')
@@ -310,9 +308,9 @@ export default function Grandstand() {
                 .in('id', racerIds);
               if (!racerProfErr && Array.isArray(racerProfs)) {
                 for (const rp of racerProfs) {
-                  racerProfilesMap[rp.id] = { 
-                    id: rp.id, 
-                    username: rp.username || 'Racer', 
+                  racerProfilesMap[rp.id] = {
+                    id: rp.id,
+                    username: rp.username || 'Racer',
                     profile_photo_url: rp.profile_photo_url,
                     car_number: rp.car_number,
                     racing_class: rp.racing_class,
@@ -321,26 +319,25 @@ export default function Grandstand() {
                 }
               }
             }
-            
+
             // Merge profiles into existing posts
             setPosts((prev) => prev.map((p) => {
-              const postWithId = p as {user_id?: string; racer_id?: string};
+              const postWithId = p as {user_id?: string; racer_id?: string} & { profiles?: any };
               const userProfile = postWithId.user_id ? profilesMap[postWithId.user_id] : undefined;
               const racerProfile = postWithId.racer_id ? racerProfilesMap[postWithId.racer_id] : undefined;
-              
-              const updatedPost = {...p};
-              
-              // Add user profile if available
+
+              const updatedPost: any = { ...p };
               if (userProfile) {
-                updatedPost.profiles = { 
-                  id: userProfile.id, 
-                  name: userProfile.name, 
-                  avatar: userProfile.avatar, 
-                  user_type: userProfile.user_type 
+                // Flattened profile object for UI convenience
+                updatedPost.profiles = {
+                  id: userProfile.id,
+                  name: userProfile.name,
+                  email: userProfile.email,
+                  avatar: userProfile.avatar,
+                  user_type: userProfile.user_type,
+                  is_verified: userProfile.is_verified,
                 };
               }
-              
-              // Add racer profile if available
               if (racerProfile) {
                 updatedPost.racer_profiles = {
                   id: racerProfile.id,
@@ -351,7 +348,7 @@ export default function Grandstand() {
                   team_name: racerProfile.team_name
                 };
               }
-              
+
               return updatedPost as PostCardType;
             }));
           } catch (e) {

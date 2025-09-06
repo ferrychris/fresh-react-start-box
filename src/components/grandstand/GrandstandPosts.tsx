@@ -50,8 +50,30 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
   // Optimized data transformation
   const transformPost = useCallback((r: any): Post => {
     const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
-    const displayName = profile?.name || 'User';
-    const avatar = profile?.avatar || profile?.avatar_url || '';
+    const racerProf = Array.isArray(r.racer_profiles) ? r.racer_profiles[0] : r.racer_profiles;
+    const nestedRacerProfile = racerProf && typeof racerProf === 'object' ? (Array.isArray(racerProf.profiles) ? racerProf.profiles[0] : racerProf.profiles) : undefined;
+
+    const email: string | undefined = profile?.email || nestedRacerProfile?.email;
+    const emailUsername = email ? (email.includes('@') ? email.split('@')[0] : email) : '';
+
+    // Prefer explicit profile.name, nested racer name/username, then email username; finally role-based generic
+    const roleGeneric = ((r.user_type || '').toString().toLowerCase() === 'racer') ? 'Racer' : 'Racing Fan';
+    const displayName = (
+      profile?.name ||
+      nestedRacerProfile?.name ||
+      racerProf?.username ||
+      emailUsername ||
+      roleGeneric
+    );
+
+    // Avatar fallback: profiles.avatar -> nested racer profile photo -> default placeholder
+    const avatar = (
+      profile?.avatar ||
+      profile?.avatar_url ||
+      racerProf?.profile_photo_url ||
+      ''
+    );
+
     const userType = (r.user_type || 'fan').toString().toUpperCase();
     return {
       id: r.id,
@@ -59,7 +81,7 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
       userType: ['RACER','TRACK','SERIES','FAN'].includes(userType) ? userType as Post['userType'] : 'FAN',
       userName: displayName,
       userAvatar: avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
-      userVerified: false,
+      userVerified: Boolean(profile?.is_verified || nestedRacerProfile?.is_verified),
       carNumber: undefined,
       content: r.content || '',
       mediaUrls: r.media_urls || [],

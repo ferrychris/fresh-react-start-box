@@ -1,5 +1,5 @@
 // Test script for post creation and retrieval
-import { createFanPost, getFanPosts, supabase } from './lib/supabase';
+import { createFanPost, supabase } from './lib/supabase';
 
 // Define the FanPostData interface here to avoid import issues
 interface FanPostData {
@@ -13,7 +13,7 @@ interface FanPostData {
 interface TestResult {
   success: boolean;
   createdPost?: unknown;
-  posts?: unknown[];
+  retrievedPost?: unknown;
   error?: unknown;
 }
 
@@ -48,23 +48,38 @@ const testPostCreation = async (): Promise<TestResult> => {
     }
     console.log('Post created successfully:', created);
     
-    // Fetch posts to verify retrieval
-    console.log('Fetching posts...');
-    const posts = await getFanPosts();
-    console.log(`Retrieved ${posts.length} posts`);
-    
-    // Check if our test post is in the results
-    const foundPost = Array.isArray(posts)
-      ? posts.find((post: any) => post && (post as any).id === (created as any).id)
-      : undefined;
-    if (foundPost) {
-      console.log('Test post found in retrieved posts:', foundPost);
-      console.log('✅ Post creation and retrieval test passed!');
-    } else {
-      console.error('❌ Test post not found in retrieved posts');
+    // Directly fetch the created post instead of loading all posts
+    console.log('Fetching created post...');
+    const { data: retrieved, error: fetchErr } = await supabase
+      .from('racer_posts')
+      .select(`
+        id,
+        content,
+        media_urls,
+        created_at,
+        post_type,
+        visibility,
+        user_id,
+        user_type,
+        racer_id
+      `)
+      .eq('id', (created as any).id)
+      .single();
+      
+    if (fetchErr) {
+      console.error('❌ Error fetching created post:', fetchErr);
+      return { success: false, error: fetchErr };
     }
     
-    return { success: true, createdPost: created, posts };
+    if (retrieved) {
+      console.log('✅ Post successfully retrieved:', retrieved);
+      console.log('✅ Post creation and retrieval test passed!');
+    } else {
+      console.error('❌ Created post not found in database');
+      return { success: false, error: 'Post not found' };
+    }
+    
+    return { success: true, createdPost: created, retrievedPost: retrieved };
   } catch (error) {
     console.error('❌ Test failed:', error);
     return { success: false, error };

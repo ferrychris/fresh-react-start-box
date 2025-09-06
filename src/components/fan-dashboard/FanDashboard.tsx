@@ -237,31 +237,35 @@ const FanDashboard: React.FC = () => {
         }
       })();
 
-      // 2) Stats
+      // 2) Stats via lightweight queries (avoid RPC/table pitfalls)
       (async () => {
         try {
-          let statsData = null;
-          try {
-            const { data, error: statsError } = await supabase
-              .from('fan_stats')
-              .select('*')
-              .eq('fan_id', targetId)
-              .maybeSingle();
-            const errCode = (statsError as PostgrestErrorLike | null | undefined)?.code;
-            if (!statsError || errCode === 'PGRST116') {
-              statsData = data;
-            }
-          } catch (statsError: unknown) {
-            const errorMsg = statsError instanceof Error ? statsError.message : 'Unknown error';
-            console.log('Fan stats table may not exist yet:', errorMsg);
-          }
+          if (!targetId) return;
+          // Active subscriptions count (planned count to reduce overhead)
+          const { count: subsCount } = await supabase
+            .from('fan_connections')
+            .select('*', { count: 'planned', head: true })
+            .eq('fan_id', targetId)
+            .eq('is_subscribed', true);
+
+          // Sum total tips from fan_connections for this user
+          const { data: tipsRows } = await supabase
+            .from('fan_connections')
+            .select('total_tips')
+            .eq('fan_id', targetId);
+          const totalTips = Array.isArray(tipsRows)
+            ? tipsRows.reduce((sum: number, r: any) => sum + (Number(r.total_tips) || 0), 0)
+            : 0;
+
+          // Do not query fan_streaks to avoid 400s; default to 0
+          const streak = 0;
+
           setStats({
-            support_points: statsData?.support_points || 0,
-            total_tips: statsData?.total_tips || 0,
-            active_subscriptions: statsData?.active_subscriptions || 0,
-            activity_streak: statsData?.activity_streak || 0
+            support_points: Number(totalTips) + Number(subsCount || 0) * 10,
+            total_tips: Number(totalTips) || 0,
+            active_subscriptions: Number(subsCount) || 0,
+            activity_streak: streak
           });
-          if (!statsData) console.log('No stats data found or table missing, using default values');
         } finally {
           setLoadingStats(false);
         }

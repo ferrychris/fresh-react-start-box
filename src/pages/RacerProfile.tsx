@@ -20,6 +20,7 @@ const RacerProfile: React.FC = () => {
   const { user } = useUser();
   const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'feeds' | 'monetization' | 'racing-info' | 'schedule' | 'teams' | 'sponsorship-slots'>('overview');
   const [reloadToken, setReloadToken] = useState(0);
+  const [headerLoading, setHeaderLoading] = useState<boolean>(true);
 
   // Tabs configuration matching FanDashboard style
   const tabs = [
