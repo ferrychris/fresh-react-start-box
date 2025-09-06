@@ -1,6 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase/client';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import { Label } from '../components/ui/label';
+import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
+import { Camera, User, MapPin, Heart, Trophy, ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { useToast } from '../hooks/use-toast';
 
 interface Profile {
   id: string;
@@ -13,10 +21,9 @@ interface Profile {
 
 const SettingsProfile: React.FC = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   const [userId, setUserId] = useState<string | null>(null);
   const [userType, setUserType] = useState<'fan' | 'racer' | 'track' | 'series' | 'admin' | null>(null);
@@ -26,7 +33,6 @@ const SettingsProfile: React.FC = () => {
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
-  // Track original URLs from database to avoid writing blob: URLs if user doesn't save new files
   const [originalAvatarUrl, setOriginalAvatarUrl] = useState<string | null>(null);
   const [originalBannerUrl, setOriginalBannerUrl] = useState<string | null>(null);
   const avatarObjectUrlRef = useRef<string | null>(null);
@@ -50,8 +56,12 @@ const SettingsProfile: React.FC = () => {
         setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          setError('You must be signed in to edit your profile.');
-          setLoading(false);
+          toast({
+            title: "Authentication Required",
+            description: "You must be signed in to edit your profile.",
+            variant: "destructive",
+          });
+          navigate('/');
           return;
         }
         setUserId(user.id);
@@ -103,21 +113,23 @@ const SettingsProfile: React.FC = () => {
             }
           }
         } catch (typeErr) {
-          // Non-fatal; table may not exist yet
           console.log('Type-specific profile load skipped:', typeErr);
         }
       } catch (e: unknown) {
         console.error(e);
         const msg = e instanceof Error ? e.message : 'Failed to load profile';
-        setError(msg);
+        toast({
+          title: "Error",
+          description: msg,
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }
     };
     init();
-  }, []);
+  }, [navigate, toast]);
 
-  // Defensive handler: if a preview image fails to load (stale blob, etc), revoke and clear it
   const handlePreviewError = (type: 'avatar' | 'banner') => () => {
     if (type === 'avatar') {
       if (avatarObjectUrlRef.current) {
@@ -151,23 +163,18 @@ const SettingsProfile: React.FC = () => {
     if (!userId) return;
     try {
       setSaving(true);
-      setError(null);
-      setSuccess(null);
 
-      // Compute final URLs; do not persist blob: preview URLs
       let newAvatarUrl = originalAvatarUrl;
       let newBannerUrl = originalBannerUrl;
 
       if (avatarFile) {
         const ext = avatarFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-        // Path must start with the authenticated user's id to satisfy RLS
         const path = `${userId}/avatar.${ext}`;
         newAvatarUrl = await uploadToStorage('avatars', path, avatarFile);
       }
 
       if (bannerFile) {
         const ext = bannerFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-        // Path must start with the authenticated user's id to satisfy RLS
         const path = `${userId}/banner.${ext}`;
         newBannerUrl = await uploadToStorage('avatars', path, bannerFile);
       }
@@ -201,7 +208,6 @@ const SettingsProfile: React.FC = () => {
               : [],
             why_i_love_racing: fanWhy || null,
           };
-          // keep profile photo in sync if we uploaded a new avatar
           if (typeof newAvatarUrl === 'string') fanPayload.profile_photo_url = newAvatarUrl;
           await supabase.from('fan_profiles').upsert(fanPayload, { onConflict: 'id' });
         } else if (userType === 'racer') {
@@ -220,18 +226,26 @@ const SettingsProfile: React.FC = () => {
         console.log('Type-specific profile save skipped:', typeSaveErr);
       }
 
-      setSuccess('Profile updated successfully');
+      toast({
+        title: "Success!",
+        description: "Profile updated successfully.",
+      });
+
       setAvatarFile(null);
       setBannerFile(null);
       setOriginalAvatarUrl(newAvatarUrl || null);
       setOriginalBannerUrl(newBannerUrl || null);
 
-      // small delay, then navigate back
+      // Navigate back after short delay
       setTimeout(() => navigate(-1), 800);
     } catch (e: unknown) {
       console.error(e);
       const msg = e instanceof Error ? e.message : 'Failed to save profile';
-      setError(msg);
+      toast({
+        title: "Error",
+        description: msg,
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -241,7 +255,6 @@ const SettingsProfile: React.FC = () => {
     const f = e.target.files?.[0];
     if (f) {
       setAvatarFile(f);
-      // Revoke previous object URL if any to prevent leaks and stale refs
       if (avatarObjectUrlRef.current) {
         URL.revokeObjectURL(avatarObjectUrlRef.current);
         avatarObjectUrlRef.current = null;
@@ -256,7 +269,6 @@ const SettingsProfile: React.FC = () => {
     const f = e.target.files?.[0];
     if (f) {
       setBannerFile(f);
-      // Revoke previous object URL if any
       if (bannerObjectUrlRef.current) {
         URL.revokeObjectURL(bannerObjectUrlRef.current);
         bannerObjectUrlRef.current = null;
@@ -267,7 +279,6 @@ const SettingsProfile: React.FC = () => {
     }
   };
 
-  // Cleanup any object URLs on unmount
   useEffect(() => {
     return () => {
       if (avatarObjectUrlRef.current) {
@@ -283,187 +294,262 @@ const SettingsProfile: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-green-500" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="bg-red-900/30 border border-red-800 text-red-200 rounded p-4">{error}</div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-400">Loading profile...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
-      <h1 className="text-2xl font-bold mb-4">Edit Profile</h1>
-
-      {/* Banner uploader */}
-      <div className="mb-6">
-        <div className="relative h-48 w-full rounded-lg overflow-hidden bg-gray-800 border border-gray-700">
-          {bannerPreview ? (
-            <img src={bannerPreview} alt="Banner" className="w-full h-full object-cover" onError={handlePreviewError('banner')} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400">No banner image</div>
-          )}
-          <div className="absolute bottom-3 right-3">
-            <label className="inline-flex items-center px-3 py-2 bg-gray-900/80 hover:bg-gray-900 text-white text-sm rounded cursor-pointer border border-gray-700">
-              <input type="file" accept="image/*" className="hidden" onChange={onBannerChange} />
-              Upload Banner
-            </label>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-8">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(-1)}
+            className="text-slate-400 hover:text-white"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
+            Edit Profile
+          </h1>
         </div>
-      </div>
 
-      {/* Avatar and basic info */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-        <div className="flex items-start gap-4">
-          <div className="relative">
-            <div className="h-24 w-24 rounded-full overflow-hidden border border-gray-700 bg-gray-800">
-              {avatarPreview ? (
-                <img src={avatarPreview} alt="Avatar" className="h-full w-full object-cover" onError={handlePreviewError('avatar')} />
+        {/* Banner Card */}
+        <Card className="bg-slate-900/50 border-slate-800 mb-6">
+          <CardContent className="p-0">
+            <div className="relative h-48 w-full rounded-t-lg overflow-hidden bg-gradient-to-r from-slate-800 to-slate-700">
+              {bannerPreview ? (
+                <img 
+                  src={bannerPreview} 
+                  alt="Banner" 
+                  className="w-full h-full object-cover" 
+                  onError={handlePreviewError('banner')} 
+                />
               ) : (
-                <div className="h-full w-full flex items-center justify-center text-gray-400 text-sm">No avatar</div>
+                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                  <div className="text-center">
+                    <Camera className="w-8 h-8 mx-auto mb-2" />
+                    <p className="text-sm">No banner image</p>
+                  </div>
+                </div>
               )}
+              <div className="absolute bottom-4 right-4">
+                <Label htmlFor="banner-upload" className="cursor-pointer">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-black/70 hover:bg-black/80 text-white rounded-lg border border-slate-600 transition-colors">
+                    <Camera className="w-4 h-4" />
+                    Upload Banner
+                  </div>
+                  <input
+                    id="banner-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={onBannerChange}
+                  />
+                </Label>
+              </div>
             </div>
-            <div className="mt-3">
-              <label className="inline-flex items-center px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm rounded cursor-pointer border border-gray-700">
-                <input type="file" accept="image/*" className="hidden" onChange={onAvatarChange} />
-                Upload Avatar
-              </label>
-            </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          <div className="flex-1">
-            <label className="block text-sm text-gray-300 mb-1">Display name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
-              placeholder="Your name"
-            />
+        {/* Main Profile Card */}
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <User className="w-5 h-5" />
+              Profile Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Avatar and Name Section */}
+            <div className="flex items-start gap-6">
+              <div className="relative group">
+                <Avatar className="w-24 h-24 border-2 border-slate-700">
+                  <AvatarImage 
+                    src={avatarPreview || undefined} 
+                    onError={handlePreviewError('avatar')}
+                  />
+                  <AvatarFallback className="bg-slate-800 text-slate-400">
+                    <User className="w-8 h-8" />
+                  </AvatarFallback>
+                </Avatar>
+                <Label htmlFor="avatar-upload" className="cursor-pointer">
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 rounded-full flex items-center justify-center transition-opacity">
+                    <Camera className="w-6 h-6 text-white" />
+                  </div>
+                  <input
+                    id="avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={onAvatarChange}
+                  />
+                </Label>
+              </div>
+
+              <div className="flex-1 space-y-4">
+                <div>
+                  <Label htmlFor="name" className="text-slate-300">Display Name</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Your name"
+                    className="bg-slate-800 border-slate-700 text-white"
+                  />
+                </div>
+              </div>
+            </div>
 
             {/* Type-specific fields */}
             {userType === 'fan' && (
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-300 mb-1">Location</label>
-                  <input
-                    type="text"
-                    value={fanLocation}
-                    onChange={(e) => setFanLocation(e.target.value)}
-                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
-                    placeholder="City, State/Country"
-                  />
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 text-orange-400 font-semibold">
+                  <Heart className="w-5 h-5" />
+                  Fan Profile
                 </div>
-                <div>
-                  <label className="block text-sm text-gray-300 mb-1">Favorite classes (comma separated)</label>
-                  <input
-                    type="text"
-                    value={fanFavClasses}
-                    onChange={(e) => setFanFavClasses(e.target.value)}
-                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
-                    placeholder="e.g. Late Model, Sprint, Modified"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-300 mb-1">Favorite tracks (comma separated)</label>
-                  <input
-                    type="text"
-                    value={fanFavTracks}
-                    onChange={(e) => setFanFavTracks(e.target.value)}
-                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
-                    placeholder="e.g. Eldora, Knoxville, Bristol"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm text-gray-300 mb-1">Why I love racing</label>
-                  <textarea
-                    value={fanWhy}
-                    onChange={(e) => setFanWhy(e.target.value)}
-                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500 min-h-[80px]"
-                    placeholder="Share your racing story..."
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="location" className="text-slate-300 flex items-center gap-2">
+                      <MapPin className="w-4 h-4" />
+                      Location
+                    </Label>
+                    <Input
+                      id="location"
+                      value={fanLocation}
+                      onChange={(e) => setFanLocation(e.target.value)}
+                      placeholder="City, State/Country"
+                      className="bg-slate-800 border-slate-700 text-white"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="fav-classes" className="text-slate-300">Favorite Classes</Label>
+                    <Input
+                      id="fav-classes"
+                      value={fanFavClasses}
+                      onChange={(e) => setFanFavClasses(e.target.value)}
+                      placeholder="e.g. Late Model, Sprint, Modified"
+                      className="bg-slate-800 border-slate-700 text-white"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="fav-tracks" className="text-slate-300">Favorite Tracks</Label>
+                    <Input
+                      id="fav-tracks"
+                      value={fanFavTracks}
+                      onChange={(e) => setFanFavTracks(e.target.value)}
+                      placeholder="e.g. Eldora, Knoxville, Bristol"
+                      className="bg-slate-800 border-slate-700 text-white"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label htmlFor="why-racing" className="text-slate-300">Why I Love Racing</Label>
+                    <Textarea
+                      id="why-racing"
+                      value={fanWhy}
+                      onChange={(e) => setFanWhy(e.target.value)}
+                      placeholder="Share your racing story..."
+                      className="bg-slate-800 border-slate-700 text-white min-h-[100px]"
+                    />
+                  </div>
                 </div>
               </div>
             )}
 
             {userType === 'racer' && (
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-300 mb-1">Username</label>
-                  <input
-                    type="text"
-                    value={racerUsername}
-                    onChange={(e) => setRacerUsername(e.target.value)}
-                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
-                    placeholder="racer123"
-                  />
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 text-orange-400 font-semibold">
+                  <Trophy className="w-5 h-5" />
+                  Racer Profile
                 </div>
-                <div>
-                  <label className="block text-sm text-gray-300 mb-1">Team name</label>
-                  <input
-                    type="text"
-                    value={racerTeam}
-                    onChange={(e) => setRacerTeam(e.target.value)}
-                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
-                    placeholder="Team Lightning"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-300 mb-1">Car number</label>
-                  <input
-                    type="text"
-                    value={racerCarNum}
-                    onChange={(e) => setRacerCarNum(e.target.value)}
-                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
-                    placeholder="#24"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-300 mb-1">Racing class</label>
-                  <input
-                    type="text"
-                    value={racerClass}
-                    onChange={(e) => setRacerClass(e.target.value)}
-                    className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-green-500"
-                    placeholder="Late Model"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="username" className="text-slate-300">Username</Label>
+                    <Input
+                      id="username"
+                      value={racerUsername}
+                      onChange={(e) => setRacerUsername(e.target.value)}
+                      placeholder="racer123"
+                      className="bg-slate-800 border-slate-700 text-white"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="team" className="text-slate-300">Team Name</Label>
+                    <Input
+                      id="team"
+                      value={racerTeam}
+                      onChange={(e) => setRacerTeam(e.target.value)}
+                      placeholder="Team Lightning"
+                      className="bg-slate-800 border-slate-700 text-white"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="car-number" className="text-slate-300">Car Number</Label>
+                    <Input
+                      id="car-number"
+                      value={racerCarNum}
+                      onChange={(e) => setRacerCarNum(e.target.value)}
+                      placeholder="#24"
+                      className="bg-slate-800 border-slate-700 text-white"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="racing-class" className="text-slate-300">Racing Class</Label>
+                    <Input
+                      id="racing-class"
+                      value={racerClass}
+                      onChange={(e) => setRacerClass(e.target.value)}
+                      placeholder="Late Model"
+                      className="bg-slate-800 border-slate-700 text-white"
+                    />
+                  </div>
                 </div>
               </div>
             )}
 
-            <div className="mt-4 flex gap-3">
-              <button
+            {/* Action Buttons */}
+            <div className="flex gap-4 pt-6">
+              <Button
+                variant="outline"
                 onClick={() => navigate(-1)}
-                className="px-4 py-2 rounded border border-gray-700 text-gray-200 hover:bg-gray-800"
                 disabled={saving}
+                className="border-slate-700 text-slate-300 hover:bg-slate-800"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleSave}
-                className="px-4 py-2 rounded bg-green-600 hover:bg-green-500 text-white disabled:opacity-60"
                 disabled={saving}
+                className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
               >
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Changes
+                  </>
+                )}
+              </Button>
             </div>
+          </CardContent>
+        </Card>
 
-            {success && (
-              <div className="mt-3 text-sm text-green-400">{success}</div>
-            )}
-          </div>
-        </div>
+        <p className="text-xs text-slate-500 mt-4 text-center">
+          Images are stored securely. Please avoid uploading sensitive content.
+        </p>
       </div>
-
-      <p className="text-xs text-gray-500 mt-4">
-        Images are stored in a public bucket. Avoid uploading sensitive content.
-      </p>
     </div>
   );
 };

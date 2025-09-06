@@ -292,6 +292,7 @@ const FanDashboard: React.FC = () => {
       if (!user?.id || !isOwnProfile) return;
       
       try {
+        // Check profile completion but don't block loading
         const { data: fanProfile, error } = await supabase
           .from('fan_profiles')
           .select('*')
@@ -299,20 +300,26 @@ const FanDashboard: React.FC = () => {
           .single();
           
         if (error && error.code !== 'PGRST116') {
-          console.error('Error fetching fan profile:', error);
+          console.log('Fan profile check skipped:', error.message);
+          setHasCheckedProfile(true);
           return;
         }
         
         if (!fanProfile) {
-          await supabase
-            .from('fan_profiles')
-            .insert({ id: user.id });
-          setShowProfileGuide(true);
+          // Create empty profile if it doesn't exist, but don't require completion
+          try {
+            await supabase
+              .from('fan_profiles')
+              .insert({ id: user.id });
+          } catch (insertError) {
+            console.log('Fan profile creation skipped:', insertError);
+          }
           setProfileCompletionPercentage(0);
           setHasCheckedProfile(true);
           return;
         }
         
+        // Calculate completion percentage but make it optional
         const fields = [
           { name: 'location', completed: Boolean(fanProfile?.location) },
           { name: 'favorite_classes', completed: Boolean(fanProfile?.favorite_classes?.length) },
@@ -326,16 +333,10 @@ const FanDashboard: React.FC = () => {
         const percentage = Math.round((completedCount / fields.length) * 100);
         
         setProfileCompletionPercentage(percentage);
-        
-        const hasSeenGuide = localStorage.getItem('profile_guide_seen');
-        
-        if (!hasSeenGuide && percentage < 50) {
-          setShowProfileGuide(true);
-        }
-        
         setHasCheckedProfile(true);
       } catch (error) {
-        console.error('Error checking profile completion:', error);
+        console.log('Profile completion check failed:', error);
+        setHasCheckedProfile(true);
       }
     };
     
@@ -475,11 +476,29 @@ const FanDashboard: React.FC = () => {
           </div>
         )
       )}
-      {user && showProfileGuide && hasCheckedProfile && isOwnProfile && (
-        <ProfileCompletionGuide 
-          userId={user.id} 
-          onClose={handleCloseGuide} 
-        />
+      {user && showProfileGuide && hasCheckedProfile && isOwnProfile && profileCompletionPercentage < 50 && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 max-w-sm shadow-lg">
+            <h3 className="font-semibold text-white mb-2">Complete Your Profile</h3>
+            <p className="text-slate-400 text-sm mb-3">
+              Complete your profile to get the most out of OnlyRaceFans! ({profileCompletionPercentage}% complete)
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => navigate('/settings/profile')}
+                className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm rounded"
+              >
+                Complete Profile
+              </button>
+              <button
+                onClick={handleCloseGuide}
+                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded"
+              >
+                Maybe Later
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
