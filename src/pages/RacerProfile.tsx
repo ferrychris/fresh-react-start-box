@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 
 // Header with banner + metrics
@@ -15,6 +15,7 @@ import { PostCreator } from '../components/PostCreator';
 
 const RacerProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { user } = useUser();
   const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'feeds' | 'monetization' | 'racing-info' | 'schedule' | 'sponsors' | 'sponsorship-slots'>('overview');
   const [reloadToken, setReloadToken] = useState(0);
@@ -49,15 +50,22 @@ const RacerProfile: React.FC = () => {
 
   // Prefer route :id when present, else current user
   const userId = id || user?.id || 'current-user';
+  const isOwner = user && (userId === user.id || userId === 'current-user');
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header with banner + metrics */}
-      <ProfileHeader userId={userId} />
+      <ProfileHeader 
+        userId={userId}
+        isOwner={Boolean(isOwner)}
+        onEditProfile={() => navigate('/settings/profile')}
+        onPreviewProfile={() => navigate(`/racer/${user?.id}`)}
+      />
 
       {/* Content */}
       <div className="p-6">
         <div className="max-w-6xl mx-auto">
+          {/* Owner actions are now shown inside the header */}
           {/* Navigation Tabs (Fan Dashboard style) */}
           <div className="mb-6">
             <NavigationTabs tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
