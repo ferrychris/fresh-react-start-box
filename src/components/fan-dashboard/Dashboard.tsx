@@ -8,7 +8,7 @@ import {
 } from 'react-icons/fa';
 import { FiTrendingUp } from 'react-icons/fi';
 import { Link, useLocation } from 'react-router-dom';
-import { useApp } from '../contexts/AppContext';
+import { useApp } from '../../contexts/AppContext';
 import { 
   updateProfile, 
   updateRacerProfile, 
@@ -19,13 +19,13 @@ import {
   supabase,
   type RacerEarnings,
   type FanStats 
-} from '../lib/supabase';
-import { PostCreator } from '../components/PostCreator';
-import { PostCard, type Post } from '../components/PostCard';
-import { SupabaseImageUpload } from '../components/SupabaseImageUpload';
-import { ConnectAccountSetup } from '../components/ConnectAccountSetup';
-import { MonetizationDashboard } from '../components/MonetizationDashboard';
-import { raceClasses } from '../data/raceClasses';
+} from '../../lib/supabase';
+import { PostCreator } from '../PostCreator';
+import { PostCard, type Post } from '../PostCard';
+import { SupabaseImageUpload } from '../SupabaseImageUpload';
+import { ConnectAccountSetup } from '../ConnectAccountSetup';
+import { MonetizationDashboard } from '../MonetizationDashboard';
+import { raceClasses } from '../../data/raceClasses';
 
 export const Dashboard: React.FC = () => {
   const { user, setUser } = useApp();
@@ -336,7 +336,17 @@ export const Dashboard: React.FC = () => {
       console.error('Error loading dashboard data:', error);
       // Set default values on error
       setEarnings(null);
-      setFanStats({ total_fans: 0, super_fans: 0 });
+      setFanStats({ 
+        fan_id: user?.id || '', 
+        total_tips: 0, 
+        active_subscriptions: 0, 
+        support_points: 0, 
+        activity_streak: 0, 
+        created_at: new Date().toISOString(), 
+        updated_at: new Date().toISOString(), 
+        total_fans: 0, 
+        super_fans: 0 
+      });
       setProfileViews(0);
       setAvgEngagement(0);
     }

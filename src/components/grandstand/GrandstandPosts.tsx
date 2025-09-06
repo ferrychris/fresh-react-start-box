@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Heart, MessageCircle, Share, MoreHorizontal, Play, Calendar, MapPin, Users, DollarSign, Crown } from 'lucide-react';
 import { getPublicPostsPage, tipPost } from '../../lib/supabase/posts';
+import { supabase } from '../../lib/supabase/client';
 
 interface Post {
   id: string;
@@ -47,41 +48,33 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
     loadingTimeoutRef.current = setTimeout(fn, delay);
   }, []);
 
-  // Optimized data transformation
+  // Optimized data transformation with proper name fetching
   const transformPost = useCallback((r: any): Post => {
-    const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
-    const racerProf = Array.isArray(r.racer_profiles) ? r.racer_profiles[0] : r.racer_profiles;
-    const nestedRacerProfile = racerProf && typeof racerProf === 'object' ? (Array.isArray(racerProf.profiles) ? racerProf.profiles[0] : racerProf.profiles) : undefined;
+    // Get author name from post data or user profile
+    let authorName = 'Unknown User';
+    let authorAvatar = '';
+    let isVerified = false;
 
-    const email: string | undefined = profile?.email || nestedRacerProfile?.email;
-    const emailUsername = email ? (email.includes('@') ? email.split('@')[0] : email) : '';
-
-    // Prefer explicit profile.name, nested racer name/username, then email username; finally role-based generic
-    const roleGeneric = ((r.user_type || '').toString().toLowerCase() === 'racer') ? 'Racer' : 'Racing Fan';
-    const displayName = (
-      profile?.name ||
-      nestedRacerProfile?.name ||
-      racerProf?.username ||
-      emailUsername ||
-      roleGeneric
-    );
-
-    // Avatar fallback: profiles.avatar -> nested racer profile photo -> default placeholder
-    const avatar = (
-      profile?.avatar ||
-      profile?.avatar_url ||
-      racerProf?.profile_photo_url ||
-      ''
-    );
+    // If it's a racer post, get from racer profile
+    if (r.user_type === 'racer' && r.racer_id) {
+      authorName = r.author_name || 'Unknown Racer';
+      authorAvatar = r.author_avatar_url || '';
+      isVerified = Boolean(r.author_user_type === 'racer');
+    } else {
+      // For fan posts, get from profiles
+      authorName = r.author_name || 'Racing Fan';
+      authorAvatar = r.author_avatar_url || '';
+      isVerified = false;
+    }
 
     const userType = (r.user_type || 'fan').toString().toUpperCase();
     return {
       id: r.id,
       userId: r.user_id || r.racer_id || 'unknown',
       userType: ['RACER','TRACK','SERIES','FAN'].includes(userType) ? userType as Post['userType'] : 'FAN',
-      userName: displayName,
-      userAvatar: avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
-      userVerified: Boolean(profile?.is_verified || nestedRacerProfile?.is_verified),
+      userName: authorName,
+      userAvatar: authorAvatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
+      userVerified: isVerified,
       carNumber: undefined,
       content: r.content || '',
       mediaUrls: r.media_urls || [],
@@ -123,23 +116,64 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
     }
   }, [nextCursor, hasMore, loadingMore, transformPost]);
 
-  // Optimized initial load with faster first paint
+  // Load all fan posts with proper name fetching
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
       try {
         setLoading(true);
         setError(null);
-        const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit: 8 });
+        
+        // Fetch all posts from the public feed with enhanced profile data
+        const { data: posts, error: postsError } = await supabase
+          .from('racer_posts')
+          .select(`
+            *,
+            profiles!racer_posts_user_id_fkey(
+              id,
+              name,
+              avatar,
+              user_type,
+              is_verified
+            )
+          `)
+          .eq('visibility', 'public')
+          .order('created_at', { ascending: false })
+          .limit(20);
+
         if (!isMounted) return;
         
-        if (error) throw error;
+        if (postsError) throw postsError;
         
-        const mapped = (rows || []).map(transformPost);
+        const transformedPosts = (posts || []).map((post) => {
+          const profile = post.profiles;
+          
+          return {
+            id: post.id,
+            userId: post.user_id || 'unknown',
+            userType: 'FAN' as const,
+            userName: profile?.name || 'Racing Fan',
+            userAvatar: profile?.avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
+            userVerified: Boolean(profile?.is_verified),
+            carNumber: undefined,
+            content: post.content || '',
+            mediaUrls: Array.isArray(post.media_urls) ? post.media_urls : [],
+            mediaType: Array.isArray(post.media_urls) && post.media_urls.length > 0 ? 
+              (post.post_type === 'video' ? 'video' as const : 'image' as const) : undefined,
+            location: undefined,
+            eventDate: undefined,
+            likes: post.likes_count || 0,
+            comments: post.comments_count || 0,
+            shares: 0,
+            isLiked: false,
+            timestamp: post.created_at || new Date().toISOString(),
+            createdAt: post.created_at || new Date().toISOString(),
+          };
+        });
         
-        setPosts(mapped);
-        setNextCursor(cursor || null);
-        setHasMore(!!cursor);
+        setPosts(transformedPosts);
+        setHasMore(false); // For now, load all at once
+        
       } catch (e: any) {
         console.error('Failed to load posts', e);
         if (!isMounted) return;
@@ -150,7 +184,7 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
     };
     load();
     return () => { isMounted = false; };
-  }, [transformPost]);
+  }, []);
 
   // Aggressive prefetch for better UX
   useEffect(() => {
