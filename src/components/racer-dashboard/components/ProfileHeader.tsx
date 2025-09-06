@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Flame, Users, Crown, DollarSign, Pencil, Eye, Camera } from 'lucide-react';
-import { supabase } from '../../../lib/supabase/client';
+import { supabase } from '../../../integrations/supabase/client';
 
 interface ProfileHeaderProps {
   userId: string;
@@ -107,15 +107,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
             email,
             user_type,
             avatar,
-            avatar_url,
-            cover_photo,
-            banner_image,
-            banner,
-            bannerUrl,
-            racer_profiles (
-              profile_photo_url,
-              banner_photo_url
-            )
+            banner_image
           `)
           .eq('id', resolvedUserId)
           .single();
@@ -162,61 +154,56 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
         
         // Fetch subscribers count
         const { count: subscribersCount, error: subsError } = await supabase
-          .from('subscriptions')
+          .from('user_subscriptions')
           .select('id', { count: 'exact', head: true })
-          .eq('racer_id', resolvedUserId)
+          .eq('user_id', resolvedUserId)
           .eq('status', 'active');
         if (subsError) {
           console.error('Error fetching subscribers count:', subsError);
         }
 
-        // Fetch total tips (assume cents if available, else dollars)
+        // Fetch total tips from transactions table
         let totalTipsCents = 0;
-        const { data: tipsSumCents, error: tipsCentsErr } = await supabase
-          .from('tips')
-          .select('amount_cents')
-          .eq('racer_id', resolvedUserId);
-        if (!tipsCentsErr && Array.isArray(tipsSumCents)) {
-          totalTipsCents = tipsSumCents.reduce((acc: number, r: { amount_cents?: number | null }) => acc + (r?.amount_cents || 0), 0);
-        } else {
-          // try amount (dollars) as fallback
-          const { data: tipsSum, error: tipsErr } = await supabase
-            .from('tips')
-            .select('amount')
-            .eq('racer_id', resolvedUserId);
-          if (!tipsErr && Array.isArray(tipsSum)) {
-            totalTipsCents = tipsSum.reduce((acc: number, r: { amount?: number | null }) => acc + Math.round(((r?.amount || 0) * 100)), 0);
-          }
+        const { data: tipsSum, error: tipsErr } = await supabase
+          .from('transactions')
+          .select('total_amount_cents')
+          .eq('racer_id', resolvedUserId)
+          .eq('transaction_type', 'tip')
+          .eq('status', 'completed');
+        if (!tipsErr && Array.isArray(tipsSum)) {
+          totalTipsCents = tipsSum.reduce((acc: number, r: { total_amount_cents?: number | null }) => acc + (r?.total_amount_cents || 0), 0);
         }
 
-        // Normalize nested racer_profiles which can be object or array
-        const rel: RacerProfilesRel | null = Array.isArray(profileData.racer_profiles)
-          ? (profileData.racer_profiles[0] || null)
-          : (profileData.racer_profiles || null);
+        // Get racer profile data if available
+        const { data: racerProfile, error: racerError } = await supabase
+          .from('racer_profiles')
+          .select('profile_photo_url, banner_photo_url, car_number, racing_class, team_name')
+          .eq('id', resolvedUserId)
+          .maybeSingle();
+        
+        if (racerError && racerError.code !== 'PGRST116') {
+          console.error('Error fetching racer profile:', racerError);
+        }
 
         // Combine all data
         setProfileData({
           id: profileData.id,
           name: profileData.name || 'Racer',
           username: username,
-          avatar: profileData.avatar || profileData.avatar_url || rel?.profile_photo_url || '',
+          avatar: profileData.avatar || racerProfile?.profile_photo_url || '',
           bio: `${profileData.user_type || 'racer'} profile`,
-          car_number: '00',
-          racing_class: 'Open Class',
-          team: 'Independent',
+          car_number: racerProfile?.car_number || '00',
+          racing_class: racerProfile?.racing_class || 'Open Class',
+          team: racerProfile?.team_name || 'Independent',
           followers_count: followerCount || 0,
           streak_days: streakData?.current_streak || 0,
           subscribers_count: subscribersCount || 0,
           total_tips_cents: totalTipsCents || 0,
           _media: {
-            profile_photo_url: rel?.profile_photo_url || null,
-            avatar_url: profileData.avatar_url || null,
+            profile_photo_url: racerProfile?.profile_photo_url || null,
             avatar: profileData.avatar || null,
-            cover_photo: profileData.cover_photo || null,
             banner_image: profileData.banner_image || null,
-            banner: profileData.banner || null,
-            bannerUrl: profileData.bannerUrl || null,
-            racer_banner: rel?.banner_photo_url || null,
+            racer_banner: racerProfile?.banner_photo_url || null,
           },
         });
       } catch (error) {

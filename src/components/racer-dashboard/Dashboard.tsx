@@ -8,18 +8,17 @@ import {
 } from 'react-icons/fa';
 import { FiTrendingUp } from 'react-icons/fi';
 import { Link, useLocation } from 'react-router-dom';
-import { useApp } from '../../contexts/AppContext';
+import { useUser } from '../../contexts/UserContext';
+import { supabase } from '../../integrations/supabase/client';
 import { 
+  getRacerProfile, 
   updateProfile, 
   updateRacerProfile, 
   getRacerEarnings, 
   getRacerFanStats, 
-  getRacerPosts,
-  getRacerProfile,
-  supabase,
-  type RacerEarnings,
-  type FanStats 
-} from '../../lib/supabase';
+  getRacerPosts 
+} from '../../lib/supabase/profiles';
+import type { RacerEarnings, FanStats } from '../../lib/supabase/types';
 import { PostCreator } from '../PostCreator';
 import { PostCard, type Post } from '../PostCard';
 import { SupabaseImageUpload } from '../SupabaseImageUpload';
@@ -28,7 +27,7 @@ import { MonetizationDashboard } from '../MonetizationDashboard';
 import { raceClasses } from '../../data/raceClasses';
 
 export const Dashboard: React.FC = () => {
-  const { user, setUser } = useApp();
+  const { user } = useUser();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -444,13 +443,7 @@ export const Dashboard: React.FC = () => {
         achievements: stringifyAchievements(profileData.achievements)
       });
 
-      // Update local user state
-      setUser({
-        ...user,
-        ...profileData,
-        profilePicture: profileData.profilePhoto,
-        bannerImage: profileData.bannerPhoto
-      });
+      // Profile updated successfully
 
       setEditMode(false);
       alert('Profile updated successfully!');
@@ -486,7 +479,7 @@ export const Dashboard: React.FC = () => {
     (profileData.bio || '').trim() &&
     socialLinksCount >= 2
   );
-  const needsProfileCompletion = user?.type === 'racer' && !isProfileComplete;
+  const needsProfileCompletion = user?.user_metadata?.user_type === 'racer' && !isProfileComplete;
 
   if (!user) {
     return (
