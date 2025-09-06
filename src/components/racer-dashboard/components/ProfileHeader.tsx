@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Flame } from 'lucide-react';
+import { Flame, Users, Crown, DollarSign } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 
 interface ProfileHeaderProps {
@@ -17,6 +17,12 @@ interface RacerProfileData {
   team: string;
   followers_count: number;
   streak_days: number;
+  // Optional UI media fields
+  banner?: string;
+  banner_image?: string;
+  bannerUrl?: string;
+  subscribers_count?: number;
+  total_tips_cents?: number;
 }
 
 export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
@@ -49,7 +55,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
         // Fetch basic profile data
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('id, name, email, avatar, user_type')
+          .select('id, name, email, avatar, user_type, banner, banner_image, bannerUrl')
           .eq('id', resolvedUserId)
           .single();
           
@@ -61,7 +67,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
         // Create a username from email if not available
         const username = profileData.email?.split('@')[0] || 'racer';
         
-        // Fetch follower count from fan_connections
+        // Fetch follower count
         const { count: followerCount, error: followerError } = await supabase
           .from('fan_connections')
           .select('id', { count: 'exact', head: true })
@@ -71,7 +77,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
           console.error('Error fetching follower count:', followerError);
         }
         
-        // Fetch streak days from fan_streaks (if they exist)
+        // Fetch streak days (activity streak)
         const { data: streakData, error: streakError } = await supabase
           .from('fan_streaks')
           .select('current_streak')
@@ -93,6 +99,35 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
           console.error('Error fetching view data:', viewError);
         }
         
+        // Fetch subscribers count
+        const { count: subscribersCount, error: subsError } = await supabase
+          .from('subscriptions')
+          .select('id', { count: 'exact', head: true })
+          .eq('racer_id', resolvedUserId)
+          .eq('status', 'active');
+        if (subsError) {
+          console.error('Error fetching subscribers count:', subsError);
+        }
+
+        // Fetch total tips (assume cents if available, else dollars)
+        let totalTipsCents = 0;
+        const { data: tipsSumCents, error: tipsCentsErr } = await supabase
+          .from('tips')
+          .select('amount_cents')
+          .eq('racer_id', resolvedUserId);
+        if (!tipsCentsErr && Array.isArray(tipsSumCents)) {
+          totalTipsCents = tipsSumCents.reduce((acc: number, r: any) => acc + (r?.amount_cents || 0), 0);
+        } else {
+          // try amount (dollars) as fallback
+          const { data: tipsSum, error: tipsErr } = await supabase
+            .from('tips')
+            .select('amount')
+            .eq('racer_id', resolvedUserId);
+          if (!tipsErr && Array.isArray(tipsSum)) {
+            totalTipsCents = tipsSum.reduce((acc: number, r: any) => acc + Math.round(((r?.amount || 0) * 100)), 0);
+          }
+        }
+
         // Combine all data
         setProfileData({
           id: profileData.id,
@@ -104,7 +139,9 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
           racing_class: 'Open Class', // Default racing class
           team: 'Independent', // Default team
           followers_count: followerCount || 0,
-          streak_days: streakData?.current_streak || 0
+          streak_days: streakData?.current_streak || 0,
+          subscribers_count: subscribersCount || 0,
+          total_tips_cents: totalTipsCents || 0
         });
       } catch (error) {
         console.error('Error fetching profile data:', error);
@@ -130,63 +167,108 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId }) => {
     streak_days: 0
   };
 
+  // Prefer a dedicated banner field if present, else fall back to avatar, else placeholder
+  const bannerUrl = profileData?.banner
+    || profileData?.banner_image
+    || profileData?.bannerUrl
+    || displayUser.avatar
+    || '';
+
   return (
-    <div className="bg-card border-b border-border p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center space-x-4 mb-6">
-          {loading ? (
-            <div className="w-16 h-16 rounded-2xl bg-muted animate-pulse"></div>
-          ) : (
+    <div className="relative border-b border-border min-h-[320px] md:min-h-[380px]">
+      {/* Full-bleed banner background */}
+      <div className="absolute inset-0">
+        {loading ? (
+          <div className="w-full h-full bg-muted animate-pulse"></div>
+        ) : (
+          <div className="w-full h-full relative">
             <img
-              src={displayUser.avatar || 'https://placehold.co/128x128?text=Racer'}
-              alt={displayUser.name}
-              className="w-16 h-16 rounded-2xl object-cover ring-4 ring-primary"
+              src={bannerUrl || 'https://placehold.co/1200x300?text=Racer+Banner'}
+              alt="Profile banner"
+              className="w-full h-full object-cover"
             />
-          )}
-          <div className="flex-1">
-            <div className="flex items-center">
+            <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-black/60"></div>
+          </div>
+        )}
+      </div>
+
+      {/* Foreground header content */}
+      <div className="relative z-10 p-6 h-full">
+        <div className="max-w-6xl mx-auto flex flex-col justify-end min-h-[320px] md:min-h-[380px]">
+          {/* Top row: avatar + name on left, metrics on right */}
+          <div className="flex items-start sm:items-center justify-between gap-4 mb-4">
+            <div className="flex items-center space-x-4">
               {loading ? (
-                <div className="h-8 w-32 bg-muted rounded animate-pulse"></div>
+                <div className="w-24 h-24 rounded-2xl bg-muted animate-pulse"></div>
               ) : (
-                <>
-                  <h1 className="text-3xl font-bold text-foreground">{displayUser.name}</h1>
-                  <span className="ml-2 px-3 py-1 bg-primary text-primary-foreground text-sm font-bold rounded-full">#{displayUser.car_number}</span>
-                </>
+                <img
+                  src={displayUser.avatar || 'https://placehold.co/128x128?text=Racer'}
+                  alt={displayUser.name}
+                  className="w-24 h-24 rounded-2xl object-cover ring-4 ring-primary"
+                />
               )}
-            </div>
-            {loading ? (
-              <div className="h-4 w-48 bg-muted rounded animate-pulse mt-2"></div>
-            ) : (
-              <>
-                <p className="text-muted-foreground">@{displayUser.username} • Racer Dashboard</p>
-                {displayUser.bio && <p className="text-foreground mt-1">{displayUser.bio}</p>}
-              </>
-            )}
-          </div>
-          <div className="text-right">
-            <div className="flex items-center space-x-6">
-              <div className="text-center">
+              <div className="flex-1">
+                <div className="flex items-center">
+                  {loading ? (
+                    <div className="h-8 w-32 bg-muted rounded animate-pulse"></div>
+                  ) : (
+                    <>
+                      <h1 className="text-3xl font-bold text-foreground">{displayUser.name}</h1>
+                      <span className="ml-2 px-3 py-1 bg-primary text-primary-foreground text-sm font-bold rounded-full">#{displayUser.car_number}</span>
+                    </>
+                  )}
+                </div>
                 {loading ? (
-                  <div className="h-6 w-12 bg-muted rounded animate-pulse mx-auto mb-1"></div>
+                  <div className="h-4 w-48 bg-muted rounded animate-pulse mt-2"></div>
                 ) : (
-                  <div className="text-2xl font-bold text-primary">{displayUser.followers_count.toLocaleString()}</div>
+                  <>
+                    <p className="text-muted-foreground">@{displayUser.username} • Racer Dashboard</p>
+                    {displayUser.bio && <p className="text-muted-foreground mt-1">{displayUser.bio}</p>}
+                    {/* Metrics directly beneath racer name */}
+                    <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                      {/* Fans */}
+                      <div className="inline-flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500/15 text-blue-400">
+                          <Users className="w-4 h-4" />
+                        </span>
+                        <span className="text-foreground font-semibold">{(displayUser.followers_count || 0).toLocaleString()}</span>
+                        <span>fans</span>
+                      </div>
+                      {/* Subscribers */}
+                      <div className="inline-flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-purple-500/15 text-purple-400">
+                          <Crown className="w-4 h-4" />
+                        </span>
+                        <span className="text-foreground font-semibold">{(displayUser.subscribers_count || 0).toLocaleString()}</span>
+                        <span>subscribers</span>
+                      </div>
+                      {/* Total Tips */}
+                      <div className="inline-flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-500/15 text-green-400">
+                          <DollarSign className="w-4 h-4" />
+                        </span>
+                        <span className="text-foreground font-semibold">${(((displayUser.total_tips_cents || 0) / 100).toLocaleString())}</span>
+                        <span>total tips</span>
+                      </div>
+                      {/* Day Streak */}
+                      <div className="inline-flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-500/15 text-red-400">
+                          <Flame className="w-4 h-4" />
+                        </span>
+                        <span className="text-foreground font-semibold">{displayUser.streak_days || 0}</span>
+                        <span>day streak</span>
+                      </div>
+                    </div>
+                  </>
                 )}
-                <div className="text-xs text-muted-foreground">Followers</div>
-              </div>
-              <div className="text-center">
-                {loading ? (
-                  <div className="h-6 w-12 bg-muted rounded animate-pulse mx-auto mb-1"></div>
-                ) : (
-                  <div className="text-2xl font-bold text-primary flex items-center">
-                    <Flame className="w-6 h-6 mr-1" />
-                    {displayUser.streak_days}
-                  </div>
-                )}
-                <div className="text-xs text-muted-foreground">Day Streak</div>
               </div>
             </div>
+            {/* Metrics moved below name; right-side block removed */}
           </div>
+          {/* Edit button could sit below or be re-added at right if needed */}
         </div>
+
+        {/* Metrics rendered inside the identity block above */}
       </div>
     </div>
   );

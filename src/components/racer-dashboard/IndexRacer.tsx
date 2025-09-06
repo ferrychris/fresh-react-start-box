@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useUser } from '../../contexts/UserContext';
 import { useThemeClasses } from '../../hooks/useThemeClasses';
 import { Trophy, Flame, DollarSign, Users, TrendingUp, Calendar, Bell, Star, Clock } from 'lucide-react';
 
@@ -47,13 +47,28 @@ const mockUpcomingRaces = [
   }
 ];
 
+type CurrentUser = {
+  id: string;
+  name?: string;
+  user_type?: string;
+  type?: string;
+  username?: string;
+  avatar?: string;
+  profilePicture?: string;
+  bio?: string;
+  carNumber?: string;
+};
+
 export function RacerDashboard() {
-  const { user } = useAuth();
+  const { user } = useUser();
   const theme = useThemeClasses();
   const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'content' | 'monetization'>('overview');
 
   // Add role validation
-  if (!user || user.role !== 'RACER') {
+  const u = (user || {}) as CurrentUser;
+  const role = (u.user_type ?? u.type ?? '').toString().toLowerCase();
+  const isRacer = role === 'racer';
+  if (!user || !isRacer) {
     return (
       <div className={`min-h-screen ${theme.bg.primary} p-6 flex items-center justify-center`}>
         <div className="text-center">
@@ -66,7 +81,7 @@ export function RacerDashboard() {
 
   // Assume these properties exist on the user object
   const racerProfile = {
-    carNumber: user.racerProfile?.carNumber || '00',
+    carNumber: u.carNumber || '00',
     followers: 1254,
     totalEarnings: 2450,
     subscriberCount: 87,
@@ -88,17 +103,17 @@ export function RacerDashboard() {
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center space-x-4 mb-6">
             <img
-              src={user.avatar || 'https://placehold.co/128x128?text=Racer'}
-              alt={user.name}
+              src={u.avatar || u.profilePicture || 'https://placehold.co/128x128?text=Racer'}
+              alt={u.name || 'Racer'}
               className="w-16 h-16 rounded-2xl object-cover ring-4 ring-blue-500"
             />
             <div className="flex-1">
               <div className="flex items-center">
-                <h1 className="text-3xl font-bold text-white racing-number">{user.name}</h1>
+                <h1 className="text-3xl font-bold text-white racing-number">{u.name || 'Racer'}</h1>
                 <span className="ml-2 px-3 py-1 bg-blue-500 text-white text-sm font-bold rounded-full">#{racerProfile.carNumber}</span>
               </div>
-              <p className="text-slate-400">@{user.username} • Racer Dashboard</p>
-              {user.bio && <p className="text-slate-300 mt-1">{user.bio}</p>}
+              <p className="text-slate-400">@{u.username || (u.name || 'racer').toLowerCase().replace(/\s+/g, '')} • Racer Dashboard</p>
+              {u.bio && <p className="text-slate-300 mt-1">{u.bio}</p>}
             </div>
             <div className="text-right">
               <div className="flex items-center space-x-6">

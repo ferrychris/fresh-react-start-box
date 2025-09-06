@@ -5,7 +5,6 @@ import {
   MessageCircle, 
   DollarSign, 
   Share2, 
-  Filter, 
   Search,
   MapPin,
   Calendar,
@@ -391,9 +390,6 @@ export const Feed: React.FC = () => {
                 <option value="liked">Most Liked</option>
                 <option value="tipped">Most Tipped</option>
               </select>
-              <button className="p-1 md:p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
-                <Filter className="h-4 w-4 md:h-5 md:w-5" />
-              </button>
             </div>
           </div>
 
