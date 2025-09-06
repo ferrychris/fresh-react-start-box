@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Users, Heart, Trophy, ExternalLink, Crown, DollarSign } from 'lucide-react';
 import { EditProfile } from '../../pages/EditProfile';
+import { TeamsPanel } from './components/TeamsPanel';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../integrations/supabase/client';
 
 // Fallback theme classes to replace missing useThemeClasses hook
 const fallbackTheme = {
@@ -89,7 +90,7 @@ interface RacerProfileProps {
 }
 
 const RacerProfile: React.FC<RacerProfileProps> = ({ racerId }) => {
-  const [activeTab, setActiveTab] = useState<'feed' | 'about' | 'schedule' | 'sponsors' | 'racing-info' | 'sponsorship-slots'>('feed');
+  const [activeTab, setActiveTab] = useState<'feed' | 'about' | 'schedule' | 'sponsors' | 'racing-info' | 'sponsorship-slots' | 'teams'>('feed');
  const [isFan, setIsFan] = useState(false);
  const [fanCount, setFanCount] = useState(0);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -98,6 +99,18 @@ const RacerProfile: React.FC<RacerProfileProps> = ({ racerId }) => {
   const [profileUser, setProfileUser] = useState<any | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [sponsorSpots, setSponsorSpots] = useState<Array<{
+    id: string;
+    spot_name: string;
+    price_per_race: number;
+    spot_size: 'small' | 'medium' | 'large' | string;
+    is_available: boolean | null;
+    sponsor_name?: string | null;
+    sponsor_logo_url?: string | null;
+  }>>([]);
+  const [loadingSponsors, setLoadingSponsors] = useState(false);
+  const [sponsorsError, setSponsorsError] = useState<string | null>(null);
+  const availableSponsorCount = sponsorSpots.filter((s) => !!s.is_available).length;
   
   // Use current user if racerId is 'current-user'
   const actualRacerId = racerId === 'current-user' ? user?.id || racerId : racerId;
@@ -187,6 +200,31 @@ const RacerProfile: React.FC<RacerProfileProps> = ({ racerId }) => {
     fetchProfile();
   }, [racerId, isOwnProfile]);
 
+  // Load sponsorship spots for the viewed racer (own or other)
+  useEffect(() => {
+    const loadSpots = async () => {
+      const targetId = actualRacerId;
+      if (!targetId) return;
+      setLoadingSponsors(true);
+      setSponsorsError(null);
+      try {
+        const { data, error } = await supabase
+          .from('sponsorship_spots')
+          .select('id, spot_name, price_per_race, spot_size, is_available, sponsor_name, sponsor_logo_url')
+          .eq('racer_id', targetId)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        setSponsorSpots(data || []);
+      } catch (e: any) {
+        setSponsorsError(e?.message || 'Failed to load sponsorship spots');
+        setSponsorSpots([]);
+      } finally {
+        setLoadingSponsors(false);
+      }
+    };
+    loadSpots();
+  }, [actualRacerId]);
+
  // Initialize fan count to start from zero
  useEffect(() => {
    setFanCount(0);
@@ -243,6 +281,7 @@ const RacerProfile: React.FC<RacerProfileProps> = ({ racerId }) => {
     { id: 'racing-info' as const, label: 'Racing Info' },
     { id: 'schedule' as const, label: 'Schedule', count: 0 },
     { id: 'sponsors' as const, label: 'Sponsors', count: 0 },
+    { id: 'teams' as const, label: 'Teams' },
     { id: 'sponsorship-slots' as const, label: 'Car Sponsorships', count: 2 }
   ];
 
@@ -254,6 +293,12 @@ const RacerProfile: React.FC<RacerProfileProps> = ({ racerId }) => {
           {loadingProfile && (
             <div className="text-center text-slate-400">Loading racer profile…</div>
           )}
+
+        {activeTab === 'teams' && (
+          <div className="max-w-4xl">
+            <TeamsPanel />
+          </div>
+        )}
           {profileError && (
             <div className="text-center text-red-400">{profileError}</div>
           )}
@@ -671,28 +716,87 @@ const RacerProfile: React.FC<RacerProfileProps> = ({ racerId }) => {
         )}
 
         {activeTab === 'sponsors' && (
-          <div className="max-w-4xl">
-            <div className="bg-slate-900 rounded-2xl p-6">
-              <h3 className="text-xl font-bold text-white mb-6">Sponsors & Partners</h3>
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-orange-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <DollarSign className="w-8 h-8 text-orange-400" />
+          <div className="max-w-4xl space-y-4">
+            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
+              <div className="flex items-center justify-between mb-4 gap-3">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-xl font-bold text-white">Sponsors & Spots</h3>
+                  <span className="px-2 py-0.5 rounded-full bg-green-600/20 text-green-300 text-xs font-medium">
+                    Available: {availableSponsorCount}
+                  </span>
                 </div>
-                <h4 className="text-lg font-semibold text-white mb-2">
-                  {isOwnProfile ? 'Connect with Sponsors' : 'No Current Sponsors'}
-                </h4>
-                <p className="text-slate-400 mb-4">
-                  {isOwnProfile 
-                    ? 'Start attracting sponsors by completing your profile and creating sponsorship opportunities'
-                    : 'This racer doesn\'t have any current sponsors'
-                  }
-                </p>
-                {isOwnProfile && (
-                  <button className="px-6 py-3 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-colors duration-200">
-                    Browse Sponsors
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  <a
+                    href="/sponsorship-marketplace"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Connect with Sponsors
+                  </a>
+                  {isOwnProfile && (
+                    <a
+                      href="/sponsorship"
+                      className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Manage Spots
+                    </a>
+                  )}
+                </div>
               </div>
+              {loadingSponsors ? (
+                <div className="text-slate-400">Loading sponsorship spots…</div>
+              ) : sponsorsError ? (
+                <div className="text-red-400">{sponsorsError}</div>
+              ) : sponsorSpots.length === 0 ? (
+                <div className="text-center py-10 text-slate-400">
+                  <div className="w-16 h-16 bg-orange-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <DollarSign className="w-8 h-8 text-orange-400" />
+                  </div>
+                  <div className="text-lg font-semibold text-white mb-1">No sponsorship spots yet</div> 
+                  <p>
+                    {isOwnProfile ? 'Create your first sponsored placement to attract partners.' : 'This racer hasn\'t created any sponsorship spots yet.'}
+                  </p>
+                  <div className="mt-4">
+                    <a
+                      href="/sponsorship-marketplace"
+                      className="inline-flex px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Connect with Sponsors
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {sponsorSpots.map((spot) => (
+                    <div key={spot.id} className="p-4 rounded-xl border border-slate-800 bg-slate-900">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="text-white font-semibold">{spot.spot_name}</h4>
+                          <div className="text-slate-400 text-sm mt-1 capitalize">Size: {spot.spot_size}</div>
+                        </div>
+                        <div className="text-orange-400 font-bold">${(spot.price_per_race / 100).toLocaleString()}</div>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {spot.sponsor_logo_url ? (
+                            <img src={spot.sponsor_logo_url} alt={spot.sponsor_name || 'Sponsor'} className="w-10 h-10 object-contain rounded" />
+                          ) : (
+                            <div className={`w-10 h-10 rounded grid place-items-center text-xs ${spot.is_available ? 'bg-green-500/20 text-green-300' : 'bg-purple-500/20 text-purple-300'}`}>
+                              {spot.is_available ? 'Open' : 'Taken'}
+                            </div>
+                          )}
+                          <div className="text-sm">
+                            <div className="text-white font-medium">{spot.sponsor_name || (spot.is_available ? 'Available' : 'Sponsored')}</div>
+                            <div className="text-slate-500">Per race</div>
+                          </div>
+                        </div>
+                        {!isOwnProfile && spot.is_available && (
+                          <a href="/sponsorship" className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md">Inquire</a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

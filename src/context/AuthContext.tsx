@@ -1,4 +1,5 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '../integrations/supabase/client';
+import { recordActivityForStreak } from '../integrations/supabase/streaks';
 
 // Lightweight adapter used by components in src/components/auth/
 // Provides login(email, password) and register(payload) methods.
@@ -21,6 +22,16 @@ export const useAuth = () => {
   const login = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    // Update daily streak on successful login
+    try {
+      const userId = data?.user?.id;
+      if (userId) {
+        await recordActivityForStreak(userId);
+      }
+    } catch (e) {
+      // Non-fatal: do not block login on streak failure
+      console.warn('streak update on login failed', e);
+    }
     return data;
   };
 
@@ -57,7 +68,14 @@ export const useAuth = () => {
       throw new Error(`Failed to create profile: ${profileError.message}`);
     }
 
-    // 3) Optionally create racer/track/series specifics later during setup
+    // 3) Record initial streak day on successful registration (optional)
+    try {
+      await recordActivityForStreak(authData.user.id);
+    } catch (e) {
+      console.warn('streak update on register failed', e);
+    }
+
+    // 4) Optionally create racer/track/series specifics later during setup
     return { user: authData.user };
   };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Clock } from 'lucide-react';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../../integrations/supabase/client';
 
 interface RecentActivityProps {
   userId: string;
@@ -28,11 +28,13 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ userId }) => {
       
       setLoading(true);
       try {
-        // Fetch tips
+        // Fetch tips from unified transactions table
         const { data: tips, error: tipsError } = await supabase
-          .from('tips')
-          .select('id, amount, created_at, fan:fan_id(name)')
+          .from('transactions')
+          .select('id, total_amount_cents, created_at')
           .eq('racer_id', userId)
+          .eq('transaction_type', 'tip')
+          .eq('status', 'completed')
           .order('created_at', { ascending: false })
           .limit(5);
           
@@ -40,11 +42,12 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ userId }) => {
           console.error('Error fetching tips:', tipsError);
         }
         
-        // Fetch subscriptions
+        // Fetch subscriptions from user_subscriptions by user_id
         const { data: subscriptions, error: subsError } = await supabase
-          .from('subscriptions')
-          .select('id, tier_name, created_at, fan:fan_id(name)')
-          .eq('racer_id', userId)
+          .from('user_subscriptions')
+          .select('id, created_at')
+          .eq('user_id', userId)
+          .eq('status', 'active')
           .order('created_at', { ascending: false })
           .limit(5);
           
@@ -52,40 +55,31 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ userId }) => {
           console.error('Error fetching subscriptions:', subsError);
         }
         
-        // Fetch milestones (could be from a separate table or calculated)
-        const { data: milestones, error: milestonesError } = await supabase
-          .from('racer_milestones')
-          .select('id, description, created_at')
-          .eq('racer_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(3);
-          
-        if (milestonesError && milestonesError.code !== 'PGRST116') {
-          console.error('Error fetching milestones:', milestonesError);
-        }
+        // Milestones table not available in current schema; use empty for now
+        const milestones: Array<{ id: string; description?: string; created_at: string }> = [];
         
         // Transform and combine the data
-        const formattedTips = (tips || []).map(tip => ({
+        const formattedTips = (tips || []).map((tip: any) => ({
           id: `tip-${tip.id}`,
           type: 'tip' as const,
-          fanName: tip.fan?.name || 'Anonymous Fan',
-          amount: tip.amount / 100, // Assuming amount is stored in cents
+          fanName: 'A fan',
+          amount: (tip.total_amount_cents || 0) / 100,
           timestamp: formatTimestamp(tip.created_at),
           icon: '💰',
           created_at: tip.created_at
         }));
         
-        const formattedSubscriptions = (subscriptions || []).map(sub => ({
+        const formattedSubscriptions = (subscriptions || []).map((sub: any) => ({
           id: `sub-${sub.id}`,
           type: 'subscription' as const,
-          fanName: sub.fan?.name || 'Anonymous Fan',
-          tier: sub.tier_name || 'Fan',
+          fanName: 'A fan',
+          tier: 'Fan',
           timestamp: formatTimestamp(sub.created_at),
           icon: '👑',
           created_at: sub.created_at
         }));
         
-        const formattedMilestones = (milestones || []).map(milestone => ({
+        const formattedMilestones = (milestones || []).map((milestone) => ({
           id: `milestone-${milestone.id}`,
           type: 'milestone' as const,
           description: milestone.description || 'New milestone reached',
@@ -210,3 +204,5 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ userId }) => {
     </div>
   );
 };
+
+export default RecentActivity;

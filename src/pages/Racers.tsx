@@ -12,6 +12,9 @@ export const Racers: React.FC = () => {
   const { theme } = useTheme();
   const [sortBy, setSortBy] = useState('popular');
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [following, setFollowing] = useState<Record<string, boolean>>({});
+  const [loadingFollowing, setLoadingFollowing] = useState(false);
   const [stats, setStats] = useState({
     activeRacers: 0,
     raceClasses: 47,
@@ -28,6 +31,37 @@ export const Racers: React.FC = () => {
     }
     loadStats();
   }, [racers?.length]);
+
+  // Load current user id
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      setUserId(data?.user?.id ?? null);
+    })();
+  }, []);
+
+  // Load following status for visible racers
+  useEffect(() => {
+    (async () => {
+      if (!userId || !racers || racers.length === 0) return;
+      setLoadingFollowing(true);
+      try {
+        const racerIds = racers.map((r: any) => r.id);
+        const { data, error } = await supabase
+          .from('fan_connections')
+          .select('racer_id')
+          .eq('fan_id', userId)
+          .in('racer_id', racerIds);
+        if (!error) {
+          const map: Record<string, boolean> = {};
+          (data || []).forEach((row: any) => { map[row.racer_id] = true; });
+          setFollowing(map);
+        }
+      } finally {
+        setLoadingFollowing(false);
+      }
+    })();
+  }, [userId, racers]);
 
   const loadRacersData = async () => {
     try {
@@ -107,6 +141,28 @@ export const Racers: React.FC = () => {
   });
   }, [filteredRacers, sortBy]);
 
+  const myFollowed = useMemo(() => {
+    return filteredRacers.filter((r: any) => following[r.id]);
+  }, [filteredRacers, following]);
+
+  const toggleFollow = async (racerId: string) => {
+    if (!userId) return;
+    const isF = !!following[racerId];
+    if (isF) {
+      const { error } = await supabase
+        .from('fan_connections')
+        .delete()
+        .eq('fan_id', userId)
+        .eq('racer_id', racerId);
+      if (!error) setFollowing((f) => ({ ...f, [racerId]: false }));
+    } else {
+      const { error } = await supabase
+        .from('fan_connections')
+        .insert({ fan_id: userId, racer_id: racerId });
+      if (!error) setFollowing((f) => ({ ...f, [racerId]: true }));
+    }
+  };
+
   const locations = useMemo(() => {
     return [...new Set(racers.map(r => r.location))];
   }, [racers]);
@@ -137,6 +193,27 @@ export const Racers: React.FC = () => {
         {/* Content - Only show when not loading */}
         {!loading && (
           <>
+        {/* My Followed Racers */}
+        {userId && myFollowed.length > 0 && (
+          <div className="mb-6">
+            <div className="text-sm text-gray-300 mb-2">My Followed Racers</div>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {myFollowed.map((r: any) => (
+                <Link key={r.id} to={`/racer/${r.id}`} className="min-w-[180px] bg-gray-900 rounded-xl p-3 border border-gray-800 hover:border-fedex-orange transition-colors">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={r.profilePicture && r.profilePicture.trim() !== '' ? r.profilePicture : `https://api.dicebear.com/7.x/initials/svg?seed=${r.name}`}
+                      alt={r.name}
+                      className="h-8 w-8 rounded-lg object-cover border border-gray-700"
+                    />
+                    <div className="text-white text-sm font-medium truncate">{r.name}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Search UI removed: showing all racers */}
 
         {/* Racers Grid */}
@@ -223,8 +300,18 @@ export const Racers: React.FC = () => {
                   >
                     View
                   </button>
-                  <button className="px-2 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs font-semibold transition-colors">
-                    <Heart className="h-3 w-3" />
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleFollow(racer.id);
+                    }}
+                    disabled={!userId || loadingFollowing}
+                    className={`px-2 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                      following[racer.id] ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-green-600 hover:bg-green-700 text-white'
+                    }`}
+                  >
+                    {following[racer.id] ? 'Unfollow' : 'Follow'}
                   </button>
                 </div>
               </div>

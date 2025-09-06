@@ -13,6 +13,7 @@ import { HowItWorks } from './pages/HowItWorks';
 import { TrackProfile } from './pages/TrackProfile';
 import RacerProfile from './pages/RacerProfile';
 import { SeriesProfile } from './pages/SeriesProfile';
+import TeamDetails from './pages/TeamDetails';
 import { Series } from './pages/Series';
 import { SuperFans } from './pages/SuperFans';
 import { SponsorshipMarketplace } from './pages/SponsorshipMarketplace';
@@ -206,6 +207,7 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
           authUser?.user_type === 'series' ? <SeriesDashboard /> : <Navigate to="/" />
         } />
         <Route path="/series/:id" element={<SeriesProfile />} />
+        <Route path="/team/:id" element={<TeamDetails />} />
         <Route path="/sponsorships" element={<SponsorshipMarketplace />} />
         <Route path="/how-sponsorship-works" element={<HowSponsorshipWorks />} />
         <Route path="/admin" element={

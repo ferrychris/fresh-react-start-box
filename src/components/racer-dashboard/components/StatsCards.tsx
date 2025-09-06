@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, Users, Trophy } from 'lucide-react';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../../integrations/supabase/client';
 
 interface StatsCardsProps {
   userId: string;
@@ -35,8 +35,8 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ userId }) => {
         const { data: earningsData, error: earningsError } = await supabase
           .from('racer_earnings')
           .select('total_earnings_cents')
-          .eq('user_id', userId)
-          .single();
+          .eq('racer_id', userId)
+          .maybeSingle();
           
         if (earningsError && earningsError.code !== 'PGRST116') {
           console.error('Error fetching earnings:', earningsError);
@@ -44,9 +44,9 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ userId }) => {
         
         // Fetch subscriber count
         const { count: subscriberCount, error: subscriberError } = await supabase
-          .from('subscriptions')
+          .from('user_subscriptions')
           .select('id', { count: 'exact', head: true })
-          .eq('racer_id', userId)
+          .eq('user_id', userId)
           .eq('status', 'active');
           
         if (subscriberError) {
@@ -55,7 +55,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ userId }) => {
         
         // Fetch follower count
         const { count: followerCount, error: followerError } = await supabase
-          .from('fan_follows')
+          .from('fan_connections')
           .select('id', { count: 'exact', head: true })
           .eq('racer_id', userId);
           
@@ -66,13 +66,13 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ userId }) => {
         // Fetch next race
         const today = new Date().toISOString();
         const { data: nextRaceData, error: raceError } = await supabase
-          .from('racer_events')
-          .select('date, name')
+          .from('race_schedules')
+          .select('event_date, event_name')
           .eq('racer_id', userId)
-          .gt('date', today)
-          .order('date', { ascending: true })
+          .gt('event_date', today)
+          .order('event_date', { ascending: true })
           .limit(1)
-          .single();
+          .maybeSingle();
           
         if (raceError && raceError.code !== 'PGRST116') {
           console.error('Error fetching next race:', raceError);
@@ -82,7 +82,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ userId }) => {
           totalEarnings: earningsData?.total_earnings_cents || 0,
           subscriberCount: subscriberCount || 0,
           followers: followerCount || 0,
-          nextRace: nextRaceData || null
+          nextRace: nextRaceData ? { date: nextRaceData.event_date, name: nextRaceData.event_name } : null
         });
       } catch (error) {
         console.error('Error fetching racer stats:', error);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Flame, Users, Crown, DollarSign, Pencil, Eye, Camera } from 'lucide-react';
 import { supabase } from '../../../integrations/supabase/client';
+import { recordActivityForStreak } from '../../../integrations/supabase/streaks';
 
 interface ProfileHeaderProps {
   userId: string;
@@ -59,7 +60,9 @@ interface RacerProfileData {
 export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = false, onEditProfile, onPreviewProfile }) => {
   const [loading, setLoading] = useState(false);
   const [profileData, setProfileData] = useState<RacerProfileData | null>(null);
-  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null); // the racer being viewed
+  const [viewerId, setViewerId] = useState<string | null>(null); // the currently logged-in user
+  const [isFollowing, setIsFollowing] = useState<boolean>(false);
 
   // Helpers: detect if a string is already a URL and resolve storage paths to public URLs
   const isHttpUrl = (val?: string | null) => !!val && /^(https?:)?\/\//i.test(val);
@@ -80,17 +83,77 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Determine the racer being viewed
       if (userId && userId !== 'current-user') {
         if (!cancelled) setResolvedUserId(userId);
-        return;
+      } else {
+        const { data } = await supabase.auth.getUser();
+        if (!cancelled) setResolvedUserId(data?.user?.id ?? null);
       }
-      const { data, error } = await supabase.auth.getUser();
-      if (!cancelled) {
-        setResolvedUserId(data?.user?.id ?? null);
-      }
+      // Determine the viewer (logged-in user)
+      const { data: viewer } = await supabase.auth.getUser();
+      if (!cancelled) setViewerId(viewer?.user?.id ?? null);
     })();
     return () => { cancelled = true; };
   }, [userId]);
+  
+  // Record today's activity toward streak when we know the userId
+  useEffect(() => {
+    (async () => {
+      if (!resolvedUserId) return;
+      try {
+        await recordActivityForStreak(resolvedUserId);
+      } catch (e) {
+        // non-fatal
+        console.warn('streak update failed', e);
+      }
+    })();
+  }, [resolvedUserId]);
+
+  // Load follow status when viewer and racer ids are known
+  useEffect(() => {
+    (async () => {
+      if (!viewerId || !resolvedUserId) return;
+      try {
+        const { data, error } = await supabase
+          .from('fan_connections')
+          .select('id')
+          .eq('fan_id', viewerId)
+          .eq('racer_id', resolvedUserId)
+          .limit(1);
+        if (!error) setIsFollowing(!!(data && data.length > 0));
+      } catch (e) {
+        console.warn('failed to load follow status', e);
+      }
+    })();
+  }, [viewerId, resolvedUserId]);
+
+  const toggleFollow = async () => {
+    if (!viewerId || !resolvedUserId || viewerId === resolvedUserId) return;
+    try {
+      if (isFollowing) {
+        const { error } = await supabase
+          .from('fan_connections')
+          .delete()
+          .eq('fan_id', viewerId)
+          .eq('racer_id', resolvedUserId);
+        if (!error) {
+          setIsFollowing(false);
+          setProfileData((pd) => pd ? { ...pd, followers_count: Math.max(0, (pd.followers_count || 0) - 1) } : pd);
+        }
+      } else {
+        const { error } = await supabase
+          .from('fan_connections')
+          .insert({ fan_id: viewerId, racer_id: resolvedUserId });
+        if (!error) {
+          setIsFollowing(true);
+          setProfileData((pd) => pd ? { ...pd, followers_count: (pd.followers_count || 0) + 1 } : pd);
+        }
+      }
+    } catch (e) {
+      console.warn('follow toggle failed', e);
+    }
+  };
   
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -387,6 +450,19 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                         <span>day streak</span>
                       </div>
                     </div>
+                    {/* Follow/Unfollow button for non-owners */}
+                    {!isOwner && viewerId && viewerId !== resolvedUserId && (
+                      <div className="mt-3">
+                        <button
+                          onClick={toggleFollow}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isFollowing ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-orange-500 text-white hover:bg-orange-600'
+                          }`}
+                        >
+                          {isFollowing ? 'Unfollow' : 'Follow'}
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

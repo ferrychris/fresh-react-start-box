@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../../integrations/supabase/client';
 
 interface UpcomingRacesProps {
   userId: string;
@@ -26,13 +26,13 @@ export const UpcomingRaces: React.FC<UpcomingRacesProps> = ({ userId }) => {
       try {
         const today = new Date().toISOString();
         
-        // Fetch upcoming races for this racer
+        // Fetch upcoming races for this racer from race_schedules
         const { data, error } = await supabase
-          .from('racer_events')
-          .select('id, name, date, track_name, series_name')
+          .from('race_schedules')
+          .select('id, event_name, event_date, track_name')
           .eq('racer_id', userId)
-          .gt('date', today)
-          .order('date', { ascending: true })
+          .gt('event_date', today)
+          .order('event_date', { ascending: true })
           .limit(5);
           
         if (error) {
@@ -40,12 +40,12 @@ export const UpcomingRaces: React.FC<UpcomingRacesProps> = ({ userId }) => {
           // If there's an error or no data, fall back to mock data
           setRaces(getMockRaces());
         } else if (data && data.length > 0) {
-          const formattedRaces = data.map(race => ({
+          const formattedRaces = data.map((race: any) => ({
             id: race.id,
-            eventName: race.name,
-            date: race.date,
+            eventName: race.event_name,
+            date: race.event_date,
             track: race.track_name,
-            series: race.series_name
+            series: ''
           }));
           setRaces(formattedRaces);
         } else {

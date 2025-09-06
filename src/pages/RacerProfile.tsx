@@ -12,12 +12,13 @@ import { UpcomingRaces } from '../components/racer-dashboard/components/Upcoming
 import { RacerPostsList } from '../components/racer-dashboard/components/RacerPostsList';
 import { MonetizationPanel } from '../components/racer-dashboard/components/MonetizationPanel';
 import { PostCreator } from '../components/PostCreator';
+import { TeamsPanel } from '../components/racer-dashboard/components/TeamsPanel';
 
 const RacerProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useUser();
-  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'feeds' | 'monetization' | 'racing-info' | 'schedule' | 'sponsors' | 'sponsorship-slots'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'feeds' | 'monetization' | 'racing-info' | 'schedule' | 'teams' | 'sponsorship-slots'>('overview');
   const [reloadToken, setReloadToken] = useState(0);
 
   // Tabs configuration matching FanDashboard style
@@ -28,7 +29,7 @@ const RacerProfile: React.FC = () => {
     { id: 'monetization', label: 'Monetization' },
     { id: 'racing-info', label: 'Racing Info' },
     { id: 'schedule', label: 'Schedule' },
-    { id: 'sponsors', label: 'Sponsors' },
+    { id: 'teams', label: 'Teams' },
     { id: 'sponsorship-slots', label: 'Sponsorship Slots' }
   ];
 
@@ -41,7 +42,7 @@ const RacerProfile: React.FC = () => {
       tabId === 'monetization' ||
       tabId === 'racing-info' ||
       tabId === 'schedule' ||
-      tabId === 'sponsors' ||
+      tabId === 'teams' ||
       tabId === 'sponsorship-slots'
     ) {
       setActiveTab(tabId);
@@ -67,8 +68,14 @@ const RacerProfile: React.FC = () => {
         <div className="max-w-6xl mx-auto">
           {/* Owner actions are now shown inside the header */}
           {/* Navigation Tabs (Fan Dashboard style) */}
-          <div className="mb-6">
+          <div className="mb-6 flex items-center justify-between gap-3">
             <NavigationTabs tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
+            <button
+              onClick={() => navigate('/sponsorships')}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-orange-500 hover:bg-orange-600 text-white transition-colors"
+            >
+              Check out Sponsors
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -121,10 +128,10 @@ const RacerProfile: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'sponsors' && (
+          {activeTab === 'teams' && (
             <div className="bg-card rounded-2xl p-6 border border-border">
-              <h3 className="text-xl font-bold text-foreground mb-4">Sponsors</h3>
-              <p className="text-muted-foreground">Current sponsors and partner highlights will be listed here.</p>
+              <h3 className="text-xl font-bold text-foreground mb-4">Teams</h3>
+              <TeamsPanel />
             </div>
           )}
 

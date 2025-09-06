@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../../integrations/supabase/client';
 
 interface MonetizationPanelProps {
   userId: string;
@@ -23,38 +23,26 @@ export const MonetizationPanel: React.FC<MonetizationPanelProps> = ({ userId }) 
       
       setLoading(true);
       try {
-        // Fetch subscription tiers
+        // Fetch subscription tiers from current schema
         const { data: tiersData, error: tiersError } = await supabase
           .from('subscription_tiers')
-          .select('id, name, price_cents, subscriber_count')
+          .select('id, tier_name, price_cents')
           .eq('racer_id', userId)
           .order('price_cents', { ascending: true });
           
         if (tiersError) {
           console.error('Error fetching subscription tiers:', tiersError);
         } else if (tiersData) {
-          const formattedTiers = tiersData.map(tier => ({
+          const formattedTiers = tiersData.map((tier: any) => ({
             id: tier.id,
-            name: tier.name,
-            price: tier.price_cents / 100, // Convert cents to dollars
-            subscriberCount: tier.subscriber_count || 0
+            name: tier.tier_name,
+            price: (tier.price_cents || 0) / 100, // Convert cents to dollars
+            subscriberCount: 0 // Optional: compute from transactions if needed
           }));
           setTiers(formattedTiers);
         }
-        
-        // Check if payout method is connected
-        const { data: payoutData, error: payoutError } = await supabase
-          .from('racer_payout_methods')
-          .select('id, status')
-          .eq('user_id', userId)
-          .eq('status', 'active')
-          .limit(1);
-          
-        if (payoutError) {
-          console.error('Error checking payout status:', payoutError);
-        } else {
-          setPayoutConnected(payoutData && payoutData.length > 0);
-        }
+        // Payout methods table not available in current schema; default to false
+        setPayoutConnected(false);
       } catch (error) {
         console.error('Error in fetchMonetizationData:', error);
       } finally {
