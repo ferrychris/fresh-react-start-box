@@ -70,20 +70,23 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                       )}
                     </div>
                   </div>
-                  {(isFollowing(racer.id) && onUnfollowRacer) ? (
-                    <button
-                      onClick={() => onUnfollowRacer(racer.id)}
-                      className="px-2 py-1 text-xs font-semibold text-orange-500 hover:text-orange-400"
-                    >
-                      Unfollow
-                    </button>
+                  {isFollowing(racer.id) ? (
+                    onUnfollowRacer && (
+                      <button
+                        onClick={() => onUnfollowRacer(racer.id)}
+                        className="px-2 py-1 text-xs font-semibold text-green-500 hover:text-green-400"
+                        title="Unfollow"
+                      >
+                        Fan
+                      </button>
+                    )
                   ) : (
                     onFollowRacer && (
                       <button
                         onClick={() => onFollowRacer(racer.id)}
                         className="px-2 py-1 text-xs font-semibold text-orange-500 hover:text-orange-400"
                       >
-                        Follow
+                        Fan
                       </button>
                     )
                   )}

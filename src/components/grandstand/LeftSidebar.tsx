@@ -83,10 +83,10 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   {onUnfollowRacer && (
                     <button
                       onClick={() => onUnfollowRacer(racer.id)}
-                      className="text-[11px] text-slate-400 hover:text-slate-300"
-                      title="Unfollow"
+                      className="text-[11px] font-semibold text-green-500 hover:text-green-400"
+                      title="Unfollow racer"
                     >
-                      Unfollow
+                      Fan
                     </button>
                   )}
                 </li>

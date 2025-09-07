@@ -79,3 +79,35 @@ This document explains how the Grandstand page is structured, how it loads data,
 - Add a verified badge in Suggested Racers using `profiles.is_verified`.
 - Add quick follow/unfollow actions in Teams You Follow.
 - Consider server-side aggregations (materialized views) if feed volume grows.
+
+## Progress and Behavior Updates
+
+- __Unified "Fan" follow UX__
+  - Right sidebar (Suggested Racers):
+    - Not following → orange "Fan" (follows on click)
+    - Following → green "Fan" (unfollows on click)
+  - PostCard (racer posts):
+    - Not following → orange "Fan" (follows on click)
+    - Following → green "Fan" with tooltip "Unfollow racer"
+    - Buttons grey out while requests are in-flight; success/error toasts shown
+  - Left sidebar (Racers You Follow):
+    - Green "Fan" button acts as unfollow (tooltip "Unfollow racer")
+
+- __Consistent author names in PostCard__
+  - PostCard fetches `profiles(name, user_type, avatar)` for the author on-demand as needed; display name falls back to `racer_profiles.username` or email local-part.
+  - Introduced `isRacerEffective` (uses late-fetched `authorUserType`) to keep RACER chip and follow UI accurate even when initial payload omits `profiles`.
+
+- __Racers You Follow now includes reciprocal racer-fans__
+  - The left sidebar merges:
+    - Racers you follow (`fan_connections` where `fan_id = current user`)
+    - Racers who follow you (from `fan_connections` where `racer_id = current user` and `fan` has `user_type = 'racer'`)
+  - Entries are de-duplicated; names/avatars come from `racer_profiles` or `profiles` accordingly.
+
+- __Suggested Racers query hardened__
+  - Removed failing `profiles` join + OR filter that caused 400s.
+  - Now uses a safe query: `racer_profiles` where `profile_published` OR `is_featured`, ordered by `updated_at`.
+  - Still filters out racers the user already follows.
+
+- __Teams You Follow kept live via realtime__
+  - Left sidebar auto-updates when a team follow/unfollow occurs, using a Supabase realtime channel listening on `team_followers`.
+

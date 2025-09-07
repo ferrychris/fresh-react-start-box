@@ -39,6 +39,7 @@ interface PostCardProps {
       profile_photo_url: string;
       car_number?: string;
       racing_class?: string;
+      team_name?: string;
       profiles?: {
         id: string;
         name: string;
@@ -95,14 +96,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   // Cache user profiles by id to avoid repeated lookups
   const userCacheRef = useRef<Map<string, { name: string; avatar: string }>>(new Map());
 
-  const fetchUserProfile = async (userId: string): Promise<{ name: string; avatar: string }> => {
+  const fetchUserProfile = async (userId: string): Promise<{ name: string; avatar: string; user_type?: string }> => {
     if (!userId) return { name: 'User', avatar: '' };
     const cached = userCacheRef.current.get(userId);
     if (cached) return cached;
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('name, email, avatar')
+        .select('name, email, avatar, user_type')
         .eq('id', userId)
         .maybeSingle();
       if (error) {
@@ -110,7 +111,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
       }
       const email = (data?.email as string | undefined) || '';
       const emailName = email ? (email.includes('@') ? email.split('@')[0] : email) : '';
-      const result = { name: data?.name || emailName || 'User', avatar: data?.avatar || '' };
+      const result = { name: data?.name || emailName || 'User', avatar: data?.avatar || '', user_type: data?.user_type };
       userCacheRef.current.set(userId, result);
       return result;
     } catch (e) {
@@ -188,6 +189,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   // Local author state to allow late backfill for FAN posts (when profiles are omitted on initial fetch)
   const [authorName, setAuthorName] = useState<string | null>(null);
   const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
+  const [authorUserType, setAuthorUserType] = useState<string | null>(null);
   
   // Check if racer is verified
   useEffect(() => {
@@ -209,6 +211,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   // Get avatar URL - check for avatar property
   const avatarUrl = authorAvatar || profile?.avatar || post.racer_profiles?.profile_photo_url || '';
 
+  // Effective racer determination (includes late backfill of author user_type)
+  const isRacerEffective = isRacer || (authorUserType === 'racer');
+
   // Fetch author profile for FAN posts (or when profile is missing) without blocking initial paint
   useEffect(() => {
     const needsAuthorBackfill = !profile && (!post.racer_profiles || post.user_type?.toLowerCase() === 'fan');
@@ -228,7 +233,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
         }
         const { data, error } = await supabase
           .from('profiles')
-          .select('name, avatar')
+          .select('name, avatar, user_type')
           .eq('id', targetUserId)
           .maybeSingle();
         if (!error && data) {
@@ -238,6 +243,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
           if (!cancelled) {
             setAuthorName(nm);
             setAuthorAvatar(av);
+            setAuthorUserType((data.user_type as string | undefined) || null);
           }
         }
       } catch (e) {
@@ -684,17 +690,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                   </button>
                   
                   {/* Verified badge */}
-                  {isRacer && isVerified && <VerifiedBadge size="sm" showText={false} />}
+                  {isRacerEffective && isVerified && <VerifiedBadge size="sm" showText={false} />}
 
                   {/* Then user type chip */}
-                  {isRacer ? (
+                  {isRacerEffective ? (
                     <div className="flex items-center gap-2">
                       <div className="bg-fedex-orange text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
                         RACER
                       </div>
-                      {isFollowingRacer && (
-                        <span className="text-[11px] font-semibold text-fedex-orange/90">Following</span>
-                      )}
                     </div>
                   ) : userType === 'fan' ? (
                     <div className="bg-purple-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
@@ -733,15 +736,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
             </div>
           </div>
           <div className="relative flex items-center gap-2">
-            {isRacer && !isOwner && racerProfileId && (
+            {isRacerEffective && !isOwner && racerProfileId && (
               isFollowingRacer ? (
                 <button
                   disabled={followBusy}
                   onClick={handleUnfollowRacer}
-                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-fedex-orange hover:text-fedex-orange/80 ${followBusy ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-green-500 hover:text-green-400 ${followBusy ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  title="Unfollow racer"
                 >
                   <CheckCircle className="h-4 w-4" />
-                  Unfollow
+                  Fan
                 </button>
               ) : (
                 <button
@@ -750,7 +754,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                   className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-fedex-orange hover:text-fedex-orange/80 ${followBusy ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <UserPlus className="h-4 w-4" />
-                  Follow
+                  Fan
                 </button>
               )
             )}

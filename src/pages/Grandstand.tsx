@@ -207,8 +207,38 @@ export default function Grandstand() {
                   });
                 }
               }
+              // Also include racers who are fans of the current user (reciprocal), identified by fan user_type = 'racer'
+              const { data: racerFans } = await supabase
+                .from('fan_connections')
+                .select(`
+                  fan_id,
+                  became_fan_at,
+                  profiles!fan_connections_fan_id_fkey (name, user_type, avatar)
+                `)
+                .eq('racer_id', user.id);
+
+              const byId = new Map<string, { id: string; name: string; avatar: string; since?: string }>();
+              // seed with followed racers
+              for (const r of racers) byId.set(r.id, r);
+
+              if (Array.isArray(racerFans)) {
+                for (const rf of racerFans as any[]) {
+                  if (rf?.profiles?.user_type === 'racer' && rf.fan_id) {
+                    const id = String(rf.fan_id);
+                    if (!byId.has(id)) {
+                      byId.set(id, {
+                        id,
+                        name: rf.profiles?.name || 'Racer',
+                        avatar: rf.profiles?.avatar || 'https://images.pexels.com/photos/26994867/pexels-photo-26994867.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
+                        since: rf.became_fan_at ? `Fan since ${new Date(rf.became_fan_at).getFullYear()}` : undefined,
+                      });
+                    }
+                  }
+                }
+              }
+
               setFollowingRacers(new Set(Array.from(followedRacerIds)));
-              setRacersFollowed(racers);
+              setRacersFollowed(Array.from(byId.values()));
             }
           }
         } catch (e) {
