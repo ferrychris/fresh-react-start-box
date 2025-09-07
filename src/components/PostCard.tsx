@@ -83,6 +83,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [isDeleted, setIsDeleted] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
 
+  // Normalize profiles access early for dependent logic
+  const profile = Array.isArray(post.profiles) ? post.profiles[0] : post.profiles;
+  // Determine user type
+  const userType = (profile?.user_type || '').toLowerCase();
+  const isRacer = userType === 'racer' || !!post.racer_profiles?.id;
+
   // Track comment IDs we've already added to avoid duplicates from
   // optimistic updates racing with realtime INSERT events
   const commentIdsRef = useRef<Set<string>>(new Set());
@@ -113,16 +119,75 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     }
   };
 
-  // Normalize profiles access
-  const profile = Array.isArray(post.profiles) ? post.profiles[0] : post.profiles;
+  // Follow/Unfollow racer state and handlers
+  const racerProfileId: string | undefined = post.racer_profiles?.id || (isRacer ? post.user_id : undefined);
+  const [isFollowingRacer, setIsFollowingRacer] = useState<boolean>(false);
+  const [followBusy, setFollowBusy] = useState<boolean>(false);
+
+  useEffect(() => {
+    const checkFollow = async () => {
+      try {
+        if (!user?.id || !racerProfileId) { setIsFollowingRacer(false); return; }
+        const { data, error } = await supabase
+          .from('fan_connections')
+          .select('racer_id')
+          .eq('fan_id', user.id)
+          .eq('racer_id', racerProfileId)
+          .maybeSingle();
+        if (!error) setIsFollowingRacer(!!data);
+      } catch {
+        // non-fatal
+      }
+    };
+    checkFollow();
+  }, [user?.id, racerProfileId]);
+
+  const handleFollowRacer = async () => {
+    if (!user) { setShowAuthModal(true); return; }
+    if (!racerProfileId || followBusy) return;
+    setFollowBusy(true);
+    try {
+      const { error } = await supabase
+        .from('fan_connections')
+        .upsert({
+          fan_id: user.id,
+          racer_id: racerProfileId,
+          is_subscribed: false,
+          became_fan_at: new Date().toISOString()
+        }, { onConflict: 'fan_id,racer_id' });
+      if (error) throw error;
+      setIsFollowingRacer(true);
+      toast.success('You are now following this racer');
+    } catch (e) {
+      toast.error('Failed to follow');
+    } finally {
+      setFollowBusy(false);
+    }
+  };
+
+  const handleUnfollowRacer = async () => {
+    if (!user) { setShowAuthModal(true); return; }
+    if (!racerProfileId || followBusy) return;
+    setFollowBusy(true);
+    try {
+      const { error } = await supabase
+        .from('fan_connections')
+        .delete()
+        .eq('fan_id', user.id)
+        .eq('racer_id', racerProfileId);
+      if (error) throw error;
+      setIsFollowingRacer(false);
+      toast.success('Unfollowed racer');
+    } catch (e) {
+      toast.error('Failed to unfollow');
+    } finally {
+      setFollowBusy(false);
+    }
+  };
 
   // Local author state to allow late backfill for FAN posts (when profiles are omitted on initial fetch)
   const [authorName, setAuthorName] = useState<string | null>(null);
   const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
-
-  // Determine user type
-  const userType = (profile?.user_type || '').toLowerCase();
-  const isRacer = userType === 'racer';
   
   // Check if racer is verified
   useEffect(() => {
@@ -623,8 +688,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
 
                   {/* Then user type chip */}
                   {isRacer ? (
-                    <div className="bg-fedex-orange text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
-                      RACER
+                    <div className="flex items-center gap-2">
+                      <div className="bg-fedex-orange text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
+                        RACER
+                      </div>
+                      {isFollowingRacer && (
+                        <span className="text-[11px] font-semibold text-fedex-orange/90">Following</span>
+                      )}
                     </div>
                   ) : userType === 'fan' ? (
                     <div className="bg-purple-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
@@ -663,17 +733,26 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
             </div>
           </div>
           <div className="relative flex items-center gap-2">
-            {isRacer && !isOwner && (
-              <button
-                onClick={() => {
-                  if (!user) { setShowAuthModal(true); return; }
-                  toast.success('You are now a fan! (placeholder)');
-                }}
-                className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border border-fedex-orange text-fedex-orange hover:bg-fedex-orange/10 transition-colors"
-              >
-                <UserPlus className="h-4 w-4" />
-                Become a Fan
-              </button>
+            {isRacer && !isOwner && racerProfileId && (
+              isFollowingRacer ? (
+                <button
+                  disabled={followBusy}
+                  onClick={handleUnfollowRacer}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-fedex-orange hover:text-fedex-orange/80 ${followBusy ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Unfollow
+                </button>
+              ) : (
+                <button
+                  disabled={followBusy}
+                  onClick={handleFollowRacer}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-fedex-orange hover:text-fedex-orange/80 ${followBusy ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Follow
+                </button>
+              )
             )}
             <DropdownMenu>
               <DropdownMenuTrigger className="p-2 rounded-full text-gray-400 hover:text-white transition-colors">

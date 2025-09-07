@@ -214,36 +214,15 @@ export default function Grandstand() {
         } catch (e) {
           // non-fatal
         }
-        try {
-          const { data, error } = await supabase
-            .from('racer_profiles')
-            .select(`
-              id,
-              username,
-              profile_photo_url,
-              car_number,
-              racing_class,
-              team_name,
-              profile_published,
-              profiles!racer_profiles_id_fkey(is_verified)
-            `)
-            .or('profile_published.eq.true,profiles.is_verified.eq.true')
-            .order('updated_at', { ascending: false })
-            .limit(8);
-          if (error) throw error;
-          rpRows = (Array.isArray(data) ? data : []) as RacerProfileRow[];
-        } catch (joinErr) {
-          // Likely RLS on profiles; fall back to safe, no-join query
-          console.log('[Grandstand] Suggestions join failed; falling back:', joinErr);
-          const { data: fallback, error: fbErr } = await supabase
-            .from('racer_profiles')
-            .select('id, username, profile_photo_url, car_number, racing_class, team_name, profile_published')
-            .or('profile_published.eq.true,is_featured.eq.true')
-            .order('updated_at', { ascending: false })
-            .limit(8);
-          if (fbErr) throw fbErr;
-          rpRows = (Array.isArray(fallback) ? fallback : []) as RacerProfileRow[];
-        }
+        // Safe single query without joining profiles to avoid 400 errors
+        const { data: fallback, error: fbErr } = await supabase
+          .from('racer_profiles')
+          .select('id, username, profile_photo_url, car_number, racing_class, team_name, profile_published, is_featured')
+          .or('profile_published.eq.true,is_featured.eq.true')
+          .order('updated_at', { ascending: false })
+          .limit(8);
+        if (fbErr) throw fbErr;
+        rpRows = (Array.isArray(fallback) ? fallback : []) as RacerProfileRow[];
 
         const racers = rpRows
           .filter((r) => r.profile_published !== false)
