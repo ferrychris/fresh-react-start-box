@@ -21,6 +21,8 @@ interface RightSidebarProps {
   featuredRacers: RacerData[];
   featuredTeams: TeamData[];
   onFollowRacer?: (racerId: string) => Promise<void> | void;
+  onUnfollowRacer?: (racerId: string) => Promise<void> | void;
+  followingRacers?: Set<string> | string[];
 }
 
 export const RightSidebar: React.FC<RightSidebarProps> = ({
@@ -28,8 +30,16 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   suggestionsError,
   featuredRacers,
   featuredTeams,
-  onFollowRacer
+  onFollowRacer,
+  onUnfollowRacer,
+  followingRacers
 }) => {
+  const isFollowing = (id: string) => {
+    if (!followingRacers) return false;
+    return Array.isArray(followingRacers)
+      ? followingRacers.includes(id)
+      : (followingRacers as Set<string>).has(id);
+  };
   return (
     <aside className="hidden lg:block">
       <div className="sticky top-4 space-y-4">
@@ -60,13 +70,22 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                       )}
                     </div>
                   </div>
-                  {onFollowRacer && (
+                  {(isFollowing(racer.id) && onUnfollowRacer) ? (
                     <button
-                      onClick={() => onFollowRacer(racer.id)}
+                      onClick={() => onUnfollowRacer(racer.id)}
                       className="px-2 py-1 text-xs font-semibold text-orange-500 hover:text-orange-400"
                     >
-                      Follow
+                      Unfollow
                     </button>
+                  ) : (
+                    onFollowRacer && (
+                      <button
+                        onClick={() => onFollowRacer(racer.id)}
+                        className="px-2 py-1 text-xs font-semibold text-orange-500 hover:text-orange-400"
+                      >
+                        Follow
+                      </button>
+                    )
                   )}
                 </li>
               ))}

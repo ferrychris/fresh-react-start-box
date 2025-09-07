@@ -13,13 +13,19 @@ interface LeftSidebarProps {
   teamsLoading: boolean;
   teamsError: string | null;
   fanTeams: TeamData[];
+  onUnfollowTeam?: (teamId: string) => Promise<void> | void;
+  racersFollowed?: TeamData[];
+  onUnfollowRacer?: (racerId: string) => Promise<void> | void;
 }
 
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({ 
   user, 
   teamsLoading, 
   teamsError, 
-  fanTeams 
+  fanTeams,
+  onUnfollowTeam,
+  racersFollowed,
+  onUnfollowRacer
 }) => {
   return (
     <aside className="hidden lg:block">
@@ -52,6 +58,43 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
           <div className="mt-3 text-xs text-slate-400">By participating, you agree to these rules.</div>
         </div>
         
+        {/* Racers You Follow */}
+        {user && racersFollowed && racersFollowed.length > 0 && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-white">Racers You Follow</h2>
+            </div>
+            <ul className="space-y-3">
+              {racersFollowed.map((racer) => (
+                <li key={racer.id} className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <img
+                      src={racer.avatar}
+                      alt={racer.name}
+                      className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-700"
+                    />
+                    <div className="ml-3">
+                      <div className="text-sm text-white font-medium">{racer.name}</div>
+                      {racer.since && (
+                        <div className="text-[11px] text-slate-400">{racer.since}</div>
+                      )}
+                    </div>
+                  </div>
+                  {onUnfollowRacer && (
+                    <button
+                      onClick={() => onUnfollowRacer(racer.id)}
+                      className="text-[11px] text-slate-400 hover:text-slate-300"
+                      title="Unfollow"
+                    >
+                      Unfollow
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Teams You Follow Section */}
         {user && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
@@ -66,7 +109,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             ) : fanTeams.length > 0 ? (
               <ul className="space-y-3">
                 {fanTeams.map((team) => (
-                  <li key={team.id} className="flex items-center">
+                <li key={team.id} className="flex items-center justify-between">
+                  <div className="flex items-center">
                     <img
                       src={team.avatar}
                       alt={team.name}
@@ -78,8 +122,18 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                         <div className="text-[11px] text-slate-400">{team.since}</div>
                       )}
                     </div>
-                  </li>
-                ))}
+                  </div>
+                  {onUnfollowTeam && (
+                    <button
+                      onClick={() => onUnfollowTeam(team.id)}
+                      className="text-[11px] text-slate-400 hover:text-slate-300"
+                      title="Unfollow"
+                    >
+                      Unfollow
+                    </button>
+                  )}
+                </li>
+              ))}
               </ul>
             ) : (
               <div className="text-sm text-slate-400">You haven't followed any teams yet.</div>

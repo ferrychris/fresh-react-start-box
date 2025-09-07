@@ -103,6 +103,10 @@ export default function Grandstand() {
   const [featuredTeams, setFeaturedTeams] = useState<Array<{ name: string; avatar: string }>>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState<boolean>(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  // Track racers the user follows for label state in Suggested Racers
+  const [followingRacers, setFollowingRacers] = useState<Set<string>>(new Set());
+  // Left sidebar: Racers You Follow list
+  const [racersFollowed, setRacersFollowed] = useState<Array<{ id: string; name: string; avatar: string; since?: string }>>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -178,18 +182,33 @@ export default function Grandstand() {
           }
         } catch {/* ignore cookie parse issues */}
         let rpRows: RacerProfileRow[] = [];
-        // Fetch racers the user already follows to filter suggestions
-        let followedRacerIds = new Set<string>();
+        // Fetch racers the user already follows to filter suggestions and set following state
+        const followedRacerIds = new Set<string>();
         try {
           if (user?.id) {
             const { data: follows } = await supabase
               .from('fan_connections')
-              .select('racer_id')
+              .select(`
+                racer_id,
+                became_fan_at,
+                racer_profiles!fan_connections_racer_id_fkey (username, profile_photo_url)
+              `)
               .eq('fan_id', user.id);
             if (Array.isArray(follows)) {
-              for (const f of follows) {
-                if ((f as any).racer_id) followedRacerIds.add(String((f as any).racer_id));
+              const racers: Array<{ id: string; name: string; avatar: string; since?: string }> = [];
+              for (const f of follows as any[]) {
+                if (f.racer_id) {
+                  followedRacerIds.add(String(f.racer_id));
+                  racers.push({
+                    id: String(f.racer_id),
+                    name: f.racer_profiles?.username || 'Racer',
+                    avatar: f.racer_profiles?.profile_photo_url || 'https://images.pexels.com/photos/26994867/pexels-photo-26994867.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
+                    since: f.became_fan_at ? `Following since ${new Date(f.became_fan_at).getFullYear()}` : undefined,
+                  });
+                }
               }
+              setFollowingRacers(new Set(Array.from(followedRacerIds)));
+              setRacersFollowed(racers);
             }
           }
         } catch (e) {
@@ -267,6 +286,56 @@ export default function Grandstand() {
     loadSuggestions();
     return () => { isMounted = false; };
   }, []);
+
+  // Realtime: keep 'Teams You Follow' in sync with team_followers changes
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel('grandstand-team-follows')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'team_followers' },
+        async (payload) => {
+          const row = payload.new as { user_id?: string; team_id?: string; is_active?: boolean; followed_at?: string };
+          if (row?.user_id !== user.id) return;
+          if (row?.is_active !== true) return;
+          if (!row?.team_id) return;
+          try {
+            const { data: team } = await supabase
+              .from('teams')
+              .select('id, team_name, logo_url, is_active')
+              .eq('id', row.team_id)
+              .maybeSingle();
+            if (team && (team as any).is_active !== false) {
+              setFanTeams((prev) => [{
+                id: (team as any).id,
+                name: (team as any).team_name || 'Team',
+                avatar: (team as any).logo_url || 'https://images.pexels.com/photos/26994867/pexels-photo-26994867.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
+                since: row.followed_at ? `Following since ${new Date(row.followed_at).getFullYear()}` : undefined,
+              }, ...prev.filter(t => t.id !== (team as any).id)]);
+            }
+          } catch (e) {
+            // non-fatal
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'team_followers' },
+        (payload) => {
+          const row = payload.new as { user_id?: string; team_id?: string; is_active?: boolean };
+          if (row?.user_id !== user.id) return;
+          if (row?.is_active === false && row?.team_id) {
+            setFanTeams((prev) => prev.filter(t => t.id !== row.team_id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -586,7 +655,45 @@ export default function Grandstand() {
             user={user} 
             teamsLoading={teamsLoading} 
             teamsError={teamsError} 
-            fanTeams={fanTeams} 
+            fanTeams={fanTeams}
+            racersFollowed={racersFollowed}
+            onUnfollowTeam={async (teamId: string) => {
+              try {
+                if (!user?.id) return;
+                // Mark team follow as inactive
+                const { error } = await supabase
+                  .from('team_followers')
+                  .update({ is_active: false })
+                  .eq('user_id', user.id)
+                  .eq('team_id', teamId)
+                  .eq('is_active', true);
+                if (error) throw error;
+                // Update UI
+                setFanTeams((prev) => prev.filter(t => t.id !== teamId));
+              } catch (e) {
+                console.error('Failed to unfollow team:', e);
+              }
+            }}
+            onUnfollowRacer={async (racerId: string) => {
+              try {
+                if (!user?.id) return;
+                const { error } = await supabase
+                  .from('fan_connections')
+                  .delete()
+                  .eq('fan_id', user.id)
+                  .eq('racer_id', racerId);
+                if (error) throw error;
+                // Update local lists
+                setRacersFollowed((prev) => prev.filter(r => r.id !== racerId));
+                setFollowingRacers((prev) => {
+                  const next = new Set(Array.from(prev));
+                  next.delete(racerId);
+                  return next;
+                });
+              } catch (e) {
+                console.error('Failed to unfollow racer (sidebar):', e);
+              }
+            }}
           />
           <div className="space-y-6">
             {user && (
@@ -738,12 +845,31 @@ export default function Grandstand() {
                     became_fan_at: new Date().toISOString()
                   }, { onConflict: 'fan_id,racer_id' });
                 if (error) throw error;
-                // remove from suggestions locally
-                setFeaturedRacers((prev) => prev.filter(r => r.id !== racerId));
+                // mark following locally
+                setFollowingRacers((prev) => new Set([...Array.from(prev), racerId]));
               } catch (e) {
                 console.error('Failed to follow racer:', e);
               }
             }}
+            onUnfollowRacer={async (racerId: string) => {
+              try {
+                if (!user?.id) return;
+                const { error } = await supabase
+                  .from('fan_connections')
+                  .delete()
+                  .eq('fan_id', user.id)
+                  .eq('racer_id', racerId);
+                if (error) throw error;
+                setFollowingRacers((prev) => {
+                  const next = new Set(Array.from(prev));
+                  next.delete(racerId);
+                  return next;
+                });
+              } catch (e) {
+                console.error('Failed to unfollow racer:', e);
+              }
+            }}
+            followingRacers={followingRacers}
           />
         </div>
       </div>
