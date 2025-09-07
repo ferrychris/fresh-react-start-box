@@ -20,13 +20,15 @@ interface RightSidebarProps {
   suggestionsError: string | null;
   featuredRacers: RacerData[];
   featuredTeams: TeamData[];
+  onFollowRacer?: (racerId: string) => Promise<void> | void;
 }
 
 export const RightSidebar: React.FC<RightSidebarProps> = ({
   suggestionsLoading,
   suggestionsError,
   featuredRacers,
-  featuredTeams
+  featuredTeams,
+  onFollowRacer
 }) => {
   return (
     <aside className="hidden lg:block">
@@ -43,19 +45,29 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
             <div className="text-sm text-red-400">{suggestionsError}</div>
           ) : featuredRacers.length > 0 ? (
             <ul className="space-y-3">
-              {featuredRacers.slice(0, 3).map((racer) => (
-                <li key={racer.id} className="flex items-center">
-                  <img
-                    src={racer.avatar}
-                    alt={racer.name}
-                    className="w-8 h-8 rounded-md object-cover ring-1 ring-slate-700"
-                  />
-                  <div className="ml-3">
-                    <div className="text-sm text-white font-medium">{racer.name}</div>
-                    {racer.car && racer.cls && (
-                      <div className="text-[11px] text-slate-400">#{racer.car} • {racer.cls}</div>
-                    )}
+              {featuredRacers.slice(0, 5).map((racer) => (
+                <li key={racer.id} className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <img
+                      src={racer.avatar}
+                      alt={racer.name}
+                      className="w-8 h-8 rounded-md object-cover ring-1 ring-slate-700"
+                    />
+                    <div className="ml-3">
+                      <div className="text-sm text-white font-medium">{racer.name}</div>
+                      {racer.car && racer.cls && (
+                        <div className="text-[11px] text-slate-400">#{racer.car} • {racer.cls}</div>
+                      )}
+                    </div>
                   </div>
+                  {onFollowRacer && (
+                    <button
+                      onClick={() => onFollowRacer(racer.id)}
+                      className="px-2 py-1 text-xs font-semibold text-orange-500 hover:text-orange-400"
+                    >
+                      Follow
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

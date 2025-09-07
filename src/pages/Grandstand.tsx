@@ -133,6 +133,7 @@ export default function Grandstand() {
           `)
           .eq('user_id', user.id)
           .eq('is_active', true)
+          .eq('teams.is_active', true)
           .order('followed_at', { ascending: false });
         if (error) throw error;
         const teams = (data || []).map((row: any) => ({
@@ -176,26 +177,58 @@ export default function Grandstand() {
             if (cachedTeams && cachedTeams.length) setFeaturedTeams(cachedTeams);
           }
         } catch {/* ignore cookie parse issues */}
-        const { data, error } = await supabase
-          .from('racer_profiles')
-          .select(`
-            id,
-            username,
-            profile_photo_url,
-            car_number,
-            racing_class,
-            team_name,
-            profile_published,
-            profiles!racer_profiles_id_fkey(is_verified)
-          `)
-          .or('profile_published.eq.true,profiles.is_verified.eq.true')
-          .order('updated_at', { ascending: false })
-          .limit(8);
-        if (error) throw error;
+        let rpRows: RacerProfileRow[] = [];
+        // Fetch racers the user already follows to filter suggestions
+        let followedRacerIds = new Set<string>();
+        try {
+          if (user?.id) {
+            const { data: follows } = await supabase
+              .from('fan_connections')
+              .select('racer_id')
+              .eq('fan_id', user.id);
+            if (Array.isArray(follows)) {
+              for (const f of follows) {
+                if ((f as any).racer_id) followedRacerIds.add(String((f as any).racer_id));
+              }
+            }
+          }
+        } catch (e) {
+          // non-fatal
+        }
+        try {
+          const { data, error } = await supabase
+            .from('racer_profiles')
+            .select(`
+              id,
+              username,
+              profile_photo_url,
+              car_number,
+              racing_class,
+              team_name,
+              profile_published,
+              profiles!racer_profiles_id_fkey(is_verified)
+            `)
+            .or('profile_published.eq.true,profiles.is_verified.eq.true')
+            .order('updated_at', { ascending: false })
+            .limit(8);
+          if (error) throw error;
+          rpRows = (Array.isArray(data) ? data : []) as RacerProfileRow[];
+        } catch (joinErr) {
+          // Likely RLS on profiles; fall back to safe, no-join query
+          console.log('[Grandstand] Suggestions join failed; falling back:', joinErr);
+          const { data: fallback, error: fbErr } = await supabase
+            .from('racer_profiles')
+            .select('id, username, profile_photo_url, car_number, racing_class, team_name, profile_published')
+            .or('profile_published.eq.true,is_featured.eq.true')
+            .order('updated_at', { ascending: false })
+            .limit(8);
+          if (fbErr) throw fbErr;
+          rpRows = (Array.isArray(fallback) ? fallback : []) as RacerProfileRow[];
+        }
 
-        const rpRows = (data ?? []) as RacerProfileRow[];
         const racers = rpRows
           .filter((r) => r.profile_published !== false)
+          .filter((r) => !followedRacerIds.has(String(r.id)))
           .map((r) => ({
             id: String(r.id),
             name: r.username || 'Racer',
@@ -692,6 +725,25 @@ export default function Grandstand() {
             suggestionsError={suggestionsError} 
             featuredRacers={featuredRacers} 
             featuredTeams={featuredTeams} 
+            onFollowRacer={async (racerId: string) => {
+              try {
+                if (!user?.id) return;
+                // upsert fan connection
+                const { error } = await supabase
+                  .from('fan_connections')
+                  .upsert({
+                    fan_id: user.id,
+                    racer_id: racerId,
+                    is_subscribed: false,
+                    became_fan_at: new Date().toISOString()
+                  }, { onConflict: 'fan_id,racer_id' });
+                if (error) throw error;
+                // remove from suggestions locally
+                setFeaturedRacers((prev) => prev.filter(r => r.id !== racerId));
+              } catch (e) {
+                console.error('Failed to follow racer:', e);
+              }
+            }}
           />
         </div>
       </div>
