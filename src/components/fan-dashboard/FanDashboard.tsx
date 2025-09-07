@@ -503,61 +503,37 @@ const FanDashboard: React.FC = () => {
   useEffect(() => {
     const checkProfileCompletion = async () => {
       if (!user?.id) return;
-      
       try {
-        // Fetch fan profile data
-        const { data: fanProfile, error } = await supabase
+        // Try to fetch fan profile data; do not block UX or auto-create
+        const { data: fp } = await supabase
           .from('fan_profiles')
-          .select('*')
+          .select('location,favorite_classes,favorite_tracks,followed_racers,why_i_love_racing,profile_photo_url')
           .eq('id', user.id)
-          .single();
-          
-        if (error) {
-          console.error('Error fetching fan profile:', error);
-          return;
-        }
-        
-        // Check if profile exists
-        if (!fanProfile) {
-          // Create empty profile if it doesn't exist
-          await supabase
-            .from('fan_profiles')
-            .insert({ id: user.id });
-          setShowProfileGuide(true);
+          .maybeSingle();
+
+        if (fp) {
+          const fields = [
+            Boolean(fp.location),
+            Boolean((fp as any).favorite_classes?.length),
+            Boolean((fp as any).favorite_tracks?.length),
+            Boolean((fp as any).followed_racers?.length),
+            Boolean(fp.why_i_love_racing),
+            Boolean(fp.profile_photo_url),
+          ];
+          const completedCount = fields.filter(Boolean).length;
+          const percentage = Math.round((completedCount / fields.length) * 100);
+          setProfileCompletionPercentage(percentage);
+        } else {
           setProfileCompletionPercentage(0);
-          setHasCheckedProfile(true);
-          return;
         }
-        
-        // Calculate completion percentage
-        const fields = [
-          { name: 'location', completed: Boolean(fanProfile?.location) },
-          { name: 'favorite_classes', completed: Boolean(fanProfile?.favorite_classes?.length) },
-          { name: 'favorite_tracks', completed: Boolean(fanProfile?.favorite_tracks?.length) },
-          { name: 'followed_racers', completed: Boolean(fanProfile?.followed_racers?.length) },
-          { name: 'why_i_love_racing', completed: Boolean(fanProfile?.why_i_love_racing) },
-          { name: 'profile_photo_url', completed: Boolean(fanProfile?.profile_photo_url) },
-        ];
-        
-        const completedCount = fields.filter(f => f.completed).length;
-        const percentage = Math.round((completedCount / fields.length) * 100);
-        
-        setProfileCompletionPercentage(percentage);
-        
-        // Show guide for new users with incomplete profiles
-        // Check localStorage to see if we've shown the guide before
-        const hasSeenGuide = localStorage.getItem('profile_guide_seen');
-        
-        if (!hasSeenGuide && percentage < 50) {
-          setShowProfileGuide(true);
-        }
-        
-        setHasCheckedProfile(true);
       } catch (error) {
-        console.error('Error checking profile completion:', error);
+        // Non-fatal: keep defaults
+      } finally {
+        // Do not auto-open the guide; make it optional
+        setShowProfileGuide(false);
+        setHasCheckedProfile(true);
       }
     };
-    
     checkProfileCompletion();
   }, [user?.id]);
   
@@ -625,12 +601,7 @@ const FanDashboard: React.FC = () => {
           </div>
         )
       )}
-      {user && showProfileGuide && hasCheckedProfile && (
-        <ProfileCompletionGuide 
-          userId={user.id} 
-          onClose={handleCloseGuide} 
-        />
-      )}
+      {/* Profile guide is optional; consider showing a small banner elsewhere instead */}
     </>
   );
 };

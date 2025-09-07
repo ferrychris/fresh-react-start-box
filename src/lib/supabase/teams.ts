@@ -68,17 +68,96 @@ export const toggleTeamFollow = async (teamId: string) => {
     throw new Error('User not authenticated');
   }
 
-  const { data, error } = await supabase.rpc('toggle_team_follow', {
-    p_user_id: user.id,
-    p_team_id: teamId
-  });
-
-  if (error) {
+  try {
+    // First check if the user already follows this team
+    const { data: existingFollow } = await supabase
+      .from('team_followers')
+      .select('id, is_active')
+      .eq('user_id', user.id)
+      .eq('team_id', teamId)
+      .maybeSingle();
+    
+    if (existingFollow) {
+      // Record exists, toggle is_active status
+      const newStatus = !existingFollow.is_active;
+      
+      const { data, error } = await supabase
+        .from('team_followers')
+        .update({ 
+          is_active: newStatus,
+          followed_at: newStatus ? new Date().toISOString() : undefined
+        })
+        .eq('id', existingFollow.id)
+        .select('is_active');
+      
+      if (error) throw error;
+      
+      // Update follower count directly
+      if (newStatus) {
+        await supabase
+          .from('teams')
+          .update({ follower_count: supabase.sql`follower_count + 1` })
+          .eq('id', teamId);
+      } else {
+        await supabase
+          .from('teams')
+          .update({ follower_count: supabase.sql`GREATEST(0, follower_count - 1)` })
+          .eq('id', teamId);
+      }
+      
+      return newStatus;
+    } else {
+      // No record exists, create a new follow
+      const { data, error } = await supabase
+        .from('team_followers')
+        .insert({
+          user_id: user.id,
+          team_id: teamId,
+          is_active: true,
+          followed_at: new Date().toISOString()
+        })
+        .select('is_active');
+      
+      if (error) {
+        // If we get a unique violation, the record was created in a race condition
+        // Update the existing record instead
+        if (error.code === '23505') {
+          const { data: updatedData, error: updateError } = await supabase
+            .from('team_followers')
+            .update({ 
+              is_active: true,
+              followed_at: new Date().toISOString() 
+            })
+            .eq('user_id', user.id)
+            .eq('team_id', teamId)
+            .select('is_active');
+          
+          if (updateError) throw updateError;
+          
+          // Increment follower count directly
+          await supabase
+            .from('teams')
+            .update({ follower_count: supabase.sql`follower_count + 1` })
+            .eq('id', teamId);
+          
+          return true;
+        } else {
+          throw error;
+        }
+      }
+      
+      // Increment follower count directly
+      await supabase
+        .from('teams')
+        .update({ follower_count: supabase.sql`follower_count + 1` })
+        .eq('id', teamId);
+      
+      return true;
+    }
+  } catch (error) {
     console.error('Error toggling team follow:', error);
     throw error;
   }
-
-  return data;
 };
 
 // Check if user follows team

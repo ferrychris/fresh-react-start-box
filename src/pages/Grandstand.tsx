@@ -8,6 +8,8 @@ import { PostCard, type Post as PostCardType } from '../components/PostCard';
 import { supabase } from '../lib/supabase';
 import { getJSONCookie, setJSONCookie } from '@/lib/cookies';
 import { SuggestionsPanel } from '../components/SuggestionsPanel';
+import LeftSidebar from '../components/grandstand/LeftSidebar';
+import RightSidebar from '../components/grandstand/RightSidebar';
 
 // Define proper types for the CreatePost component's return value
 interface NewPostData {
@@ -120,37 +122,28 @@ export default function Grandstand() {
       setTeamsError(null);
       try {
         const { data, error } = await supabase
-          .from('fan_connections')
+          .from('team_followers')
           .select(`
-            became_fan_at,
-            racer_profiles!fan_connections_racer_id_fkey (
-              id,
-              username,
-              profile_photo_url,
-              team_name
+            followed_at,
+            team_id,
+            teams!inner(
+              team_name,
+              logo_url
             )
           `)
-          .eq('fan_id', user.id)
-          .order('became_fan_at', { ascending: false });
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .order('followed_at', { ascending: false });
         if (error) throw error;
-        const rows = ((data ?? []) as unknown) as FanConnectionRow[];
-        console.debug('[Grandstand] Loaded fan teams:', { count: rows.length });
-        const teams = rows
-          .map((row) => {
-            const rp = row.racer_profiles;
-            return {
-              id: rp?.id || '',
-              name: rp?.team_name || rp?.username || 'Racer',
-              avatar:
-                rp?.profile_photo_url ||
-                'https://images.pexels.com/photos/26994867/pexels-photo-26994867.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
-              since: row.became_fan_at ? `Fan since ${new Date(row.became_fan_at).getFullYear()}` : undefined,
-            };
-          })
-          .filter((t) => Boolean(t.id));
+        const teams = (data || []).map((row: any) => ({
+          id: row.team_id,
+          name: row.teams?.team_name || 'Team',
+          avatar: row.teams?.logo_url || 'https://images.pexels.com/photos/26994867/pexels-photo-26994867.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
+          since: row.followed_at ? `Following since ${new Date(row.followed_at).getFullYear()}` : undefined,
+        }));
+        console.debug('[Grandstand] Loaded followed teams:', { count: teams.length });
         if (isMounted) {
           setFanTeams(teams);
-          // Cache for 10 minutes
           setJSONCookie('gs_fan_teams', teams, 60 * 10);
         }
       } catch (e: unknown) {
@@ -185,8 +178,17 @@ export default function Grandstand() {
         } catch {/* ignore cookie parse issues */}
         const { data, error } = await supabase
           .from('racer_profiles')
-          .select('id, username, profile_photo_url, car_number, racing_class, team_name, profile_published, is_featured')
-          .eq('is_featured', true)
+          .select(`
+            id,
+            username,
+            profile_photo_url,
+            car_number,
+            racing_class,
+            team_name,
+            profile_published,
+            profiles!racer_profiles_id_fkey(is_verified)
+          `)
+          .or('profile_published.eq.true,profiles.is_verified.eq.true')
           .order('updated_at', { ascending: false })
           .limit(8);
         if (error) throw error;
@@ -291,11 +293,11 @@ export default function Grandstand() {
             if (userIds.length) {
               const { data: profs, error: profErr } = await supabase
                 .from('profiles')
-                .select('id, name, email, avatar, user_type, is_verified')
+                .select('id, name, email, avatar, user_type')
                 .in('id', userIds);
               if (!profErr && Array.isArray(profs)) {
                 for (const p of profs) {
-                  profilesMap[p.id] = { id: p.id, name: p.name, email: p.email, avatar: p.avatar, user_type: p.user_type, is_verified: (p as any).is_verified };
+                  profilesMap[p.id] = { id: p.id, name: p.name, email: p.email, avatar: p.avatar, user_type: p.user_type };
                 }
               }
             }
@@ -547,34 +549,12 @@ export default function Grandstand() {
       {/* Feed */}
       <div className="p-4 lg:p-6">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_260px] gap-6">
-          <aside className="hidden lg:block">
-            <div className="sticky top-4 bg-slate-900 border border-slate-800 rounded-2xl p-4">
-              <h2 className="text-sm font-semibold text-white mb-3">Community Guidelines</h2>
-              <ul className="space-y-2 text-sm text-slate-300">
-                <li className="flex items-start">
-                  <span className="mt-1 mr-2 h-1.5 w-1.5 rounded-full bg-orange-500"></span>
-                  <span>Be respectful. No harassment, hate speech, or bullying.</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mt-1 mr-2 h-1.5 w-1.5 rounded-full bg-orange-500"></span>
-                  <span>Keep it racing. Off-topic or NSFW content may be removed.</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mt-1 mr-2 h-1.5 w-1.5 rounded-full bg-orange-500"></span>
-                  <span>No spam, scams, or misleading promotions.</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mt-1 mr-2 h-1.5 w-1.5 rounded-full bg-orange-500"></span>
-                  <span>Protect privacy. Don’t share personal info without consent.</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mt-1 mr-2 h-1.5 w-1.5 rounded-full bg-orange-500"></span>
-                  <span>Report issues. Use the menu to flag problematic posts.</span>
-                </li>
-              </ul>
-              <div className="mt-3 text-xs text-slate-400">By participating, you agree to these rules.</div>
-            </div>
-          </aside>
+          <LeftSidebar 
+            user={user} 
+            teamsLoading={teamsLoading} 
+            teamsError={teamsError} 
+            fanTeams={fanTeams} 
+          />
           <div className="space-y-6">
             {user && (
               <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
@@ -707,49 +687,12 @@ export default function Grandstand() {
               </div>
             )}
           </div>
-
-          {/* Right sidebar: Teams user is a fan of */}
-          <aside className="hidden lg:block">
-            <div className="sticky top-4 space-y-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-semibold text-white">Your Teams</h2>
-                  <Users className="w-4 h-4 text-slate-400" />
-                </div>
-                {user ? (
-                  teamsLoading ? (
-                    <div className="text-sm text-slate-400">Loading your teams…</div>
-                  ) : teamsError ? (
-                    <div className="text-sm text-red-400">{teamsError}</div>
-                  ) : fanTeams.length > 0 ? (
-                    <ul className="space-y-3">
-                      {fanTeams.map((team) => (
-                        <li key={team.id} className="flex items-center">
-                          <img
-                            src={team.avatar}
-                            alt={team.name}
-                            className="w-8 h-8 rounded-md object-cover ring-1 ring-slate-700"
-                          />
-                          <div className="ml-3">
-                            <div className="text-sm text-white font-medium">{team.name}</div>
-                            {team.since && (
-                              <div className="text-[11px] text-slate-400">{team.since}</div>
-                            )}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="text-sm text-slate-400">Follow teams to see them here.</div>
-                  )
-                ) : (
-                  <div className="text-sm text-slate-400">Sign in to see the teams you support.</div>
-                )}
-              </div>
-
-              <SuggestionsPanel />
-            </div>
-          </aside>
+          <RightSidebar 
+            suggestionsLoading={suggestionsLoading} 
+            suggestionsError={suggestionsError} 
+            featuredRacers={featuredRacers} 
+            featuredTeams={featuredTeams} 
+          />
         </div>
       </div>
       {showCreatePost && (
