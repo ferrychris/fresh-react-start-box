@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Image, Video, Globe, Users, MapPin, Calendar, Upload, Trash2, Smile } from 'lucide-react';
 import { Post, PostCreationPayload } from './types';
-import { createFanPost } from '../../../lib/supabase/posts';
+import { createFanPost, createRacerPost } from '../../../lib/supabase/posts';
 import {
   uploadPostImage,
   uploadPostVideo,
@@ -117,7 +117,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
 
       for (const file of selectedFiles) {
         const isVideo = file.type.startsWith('video/');
-        const isFan = user?.user_type === 'fan';
+        const isFan = (user?.user_type || '').toString().toLowerCase() === 'fan';
 
         let result;
         if (isVideo) {
@@ -164,14 +164,33 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
         return content.trim();
       })();
 
-      // Create the fan post
-      const { data: created, error: postError } = await createFanPost({
-        fan_id: user.id,
-        content: composedContent,
-        media_urls: uploadedUrls,
-        post_type: postType,
-        visibility: visibility,
-      });
+      const userType = (user.user_type || '').toString().toLowerCase();
+      let created: any = null;
+      let postError: any = null;
+      if (userType === 'racer') {
+        // Create a racer post and ensure racer_id is set
+        const { data, error } = await createRacerPost({
+          racer_id: user.id,
+          content: composedContent,
+          media_urls: uploadedUrls,
+          post_type: postType,
+          visibility,
+          allow_tips: false,
+        });
+        created = data;
+        postError = error;
+      } else {
+        // Default: fan post
+        const { data, error } = await createFanPost({
+          fan_id: user.id,
+          content: composedContent,
+          media_urls: uploadedUrls,
+          post_type: postType,
+          visibility,
+        });
+        created = data;
+        postError = error;
+      }
 
       if (postError || !created) {
         console.error('Error creating post:', postError);
@@ -186,7 +205,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
         userId: user.id,
         userName: user.name || 'Fan',
         userAvatar: user.avatar || '',
-        userType: 'FAN',
+        userType: userType === 'racer' ? 'RACER' : 'FAN',
         userVerified: false,
         content: composedContent,
         mediaUrls: uploadedUrls,

@@ -3,7 +3,7 @@ import { useUser } from '@/contexts/UserContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useApp } from '@/contexts/AppContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronDown, Bell, Search, Trophy, Layers, Handshake, Megaphone, Upload } from 'lucide-react';
+import { ChevronDown, Bell, Search, Upload } from 'lucide-react';
 import { ProfileCompletionIndicator } from '@/components/ProfileCompletionIndicator';
 import { 
   DropdownMenu, 
@@ -225,10 +225,10 @@ const Fanheader = () => {
           </div>
         </div>
         
-        {/* Center: Quick action icons */}
+        {/* Center: Quick action text buttons */}
         <div className="hidden md:flex flex-1 items-center justify-center gap-6">
           <button
-            className={`p-2 pb-1 flex flex-col items-center border-b-2 ${
+            className={`p-2 pb-1 flex flex-col items-center border-b-2 cursor-pointer ${
               theme === 'dark'
                 ? 'text-gray-400 hover:text-white hover:bg-gray-800/80'
                 : 'text-gray-600 hover:text-fedex-orange hover:bg-gray-100/80'
@@ -237,10 +237,10 @@ const Fanheader = () => {
             aria-label="Grandstand"
             onClick={() => navigate('/grandstand')}
           >
-            <Megaphone className={`h-6 w-6 ${location.pathname.startsWith('/grandstand') ? 'text-fedex-orange' : ''}`} />
+            <span className={`text-sm font-semibold ${location.pathname.startsWith('/grandstand') ? 'text-fedex-orange' : ''}`}>Grandstand</span>
           </button>
           <button
-            className={`p-2 pb-1 flex flex-col items-center border-b-2 ${
+            className={`p-2 pb-1 flex flex-col items-center border-b-2 cursor-pointer ${
               theme === 'dark'
                 ? 'text-gray-400 hover:text-white hover:bg-gray-800/80'
                 : 'text-gray-600 hover:text-fedex-orange hover:bg-gray-100/80'
@@ -249,10 +249,10 @@ const Fanheader = () => {
             aria-label="Search"
             onClick={() => navigate('/racers')}
           >
-            <Search className={`h-6 w-6 ${location.pathname.startsWith('/racers') ? 'text-fedex-orange' : ''}`} />
+            <span className={`text-sm font-semibold ${location.pathname.startsWith('/racers') ? 'text-fedex-orange' : ''}`}>Racers</span>
           </button>
           <button
-            className={`p-2 pb-1 flex flex-col items-center border-b-2 ${
+            className={`p-2 pb-1 flex flex-col items-center border-b-2 cursor-pointer ${
               theme === 'dark'
                 ? 'text-gray-400 hover:text-white hover:bg-gray-800/80'
                 : 'text-gray-600 hover:text-fedex-orange hover:bg-gray-100/80'
@@ -261,10 +261,10 @@ const Fanheader = () => {
             aria-label="Leaderboard"
             onClick={() => navigate('/super-fans')}
           >
-            <Trophy className={`h-6 w-6 ${location.pathname.startsWith('/super-fans') ? 'text-fedex-orange' : ''}`} />
+            <span className={`text-sm font-semibold ${location.pathname.startsWith('/super-fans') ? 'text-fedex-orange' : ''}`}>Super Fans</span>
           </button>
           <button
-            className={`p-2 pb-1 flex flex-col items-center border-b-2 ${
+            className={`p-2 pb-1 flex flex-col items-center border-b-2 cursor-pointer ${
               theme === 'dark'
                 ? 'text-gray-400 hover:text-white hover:bg-gray-800/80'
                 : 'text-gray-600 hover:text-fedex-orange hover:bg-gray-100/80'
@@ -273,10 +273,10 @@ const Fanheader = () => {
             aria-label="Series"
             onClick={() => navigate('/series')}
           >
-            <Layers className={`h-6 w-6 ${location.pathname.startsWith('/series') ? 'text-fedex-orange' : ''}`} />
+            <span className={`text-sm font-semibold ${location.pathname.startsWith('/series') ? 'text-fedex-orange' : ''}`}>Series</span>
           </button>
           <button
-            className={`p-2 pb-1 flex flex-col items-center border-b-2 ${
+            className={`p-2 pb-1 flex flex-col items-center border-b-2 cursor-pointer ${
               theme === 'dark'
                 ? 'text-gray-400 hover:text-white hover:bg-gray-800/80'
                 : 'text-gray-600 hover:text-fedex-orange hover:bg-gray-100/80'
@@ -285,7 +285,7 @@ const Fanheader = () => {
             aria-label="Sponsorship"
             onClick={() => navigate('/sponsorships')}
           >
-            <Handshake className={`h-6 w-6 ${location.pathname.startsWith('/sponsorships') ? 'text-fedex-orange' : ''}`} />
+            <span className={`text-sm font-semibold ${location.pathname.startsWith('/sponsorships') ? 'text-fedex-orange' : ''}`}>Sponsors</span>
           </button>
         </div>
 
@@ -385,7 +385,7 @@ const Fanheader = () => {
     {/* Spacer to offset fixed header height */}
     <div className="h-16" aria-hidden="true" />
 
-    {/* Mobile Bottom Navigation - shows on all authenticated pages */}
+    {/* Mobile Bottom Navigation - text labels only */}
     <nav
       className={`fixed bottom-0 inset-x-0 z-50 md:hidden border-t backdrop-blur-xl ${
         theme === 'dark' ? 'bg-black/90 border-gray-800/50' : 'bg-white/90 border-gray-200/50'
@@ -395,63 +395,58 @@ const Fanheader = () => {
       <div className="max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-5 py-2 gap-1">
           <button
-            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md cursor-pointer ${
               location.pathname.startsWith('/grandstand')
                 ? 'text-fedex-orange'
                 : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
             }`}
             onClick={() => navigate('/grandstand')}
           >
-            <Megaphone className="h-5 w-5" />
-            <span className="text-[10px] mt-0.5">Grandstand</span>
+            <span className="text-[12px] mt-0.5 font-semibold">Grandstand</span>
           </button>
 
           <button
-            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md cursor-pointer ${
               location.pathname.startsWith('/racers')
                 ? 'text-fedex-orange'
                 : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
             }`}
             onClick={() => navigate('/racers')}
           >
-            <Search className="h-5 w-5" />
-            <span className="text-[10px] mt-0.5">Racers</span>
+            <span className="text-[12px] mt-0.5 font-semibold">Racers</span>
           </button>
 
           <button
-            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md cursor-pointer ${
               location.pathname.startsWith('/super-fans')
                 ? 'text-fedex-orange'
                 : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
             }`}
             onClick={() => navigate('/super-fans')}
           >
-            <Trophy className="h-5 w-5" />
-            <span className="text-[10px] mt-0.5">Super Fans</span>
+            <span className="text-[12px] mt-0.5 font-semibold">Super Fans</span>
           </button>
 
           <button
-            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md cursor-pointer ${
               location.pathname.startsWith('/series')
                 ? 'text-fedex-orange'
                 : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
             }`}
             onClick={() => navigate('/series')}
           >
-            <Layers className="h-5 w-5" />
-            <span className="text-[10px] mt-0.5">Series</span>
+            <span className="text-[12px] mt-0.5 font-semibold">Series</span>
           </button>
 
           <button
-            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md ${
+            className={`flex flex-col items-center py-1 text-xs font-medium rounded-md cursor-pointer ${
               location.pathname.startsWith('/sponsorships')
                 ? 'text-fedex-orange'
                 : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
             }`}
             onClick={() => navigate('/sponsorships')}
           >
-            <Handshake className="h-5 w-5" />
-            <span className="text-[10px] mt-0.5">Sponsors</span>
+            <span className="text-[12px] mt-0.5 font-semibold">Sponsors</span>
           </button>
         </div>
       </div>

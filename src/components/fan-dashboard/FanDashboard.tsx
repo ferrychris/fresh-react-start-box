@@ -167,16 +167,8 @@ const FanDashboard: React.FC = () => {
       setLoadingFavorites(true);
       setLoadingActivity(true);
       if (!targetId) {
-        // No route id and no logged-in user; show empty state instead of hanging
-        setFanProfile(null);
-        setFavoriteRacers([]);
-        setRecentActivity([]);
-        setStats({ support_points: 0, total_tips: 0, active_subscriptions: 0, activity_streak: 0 });
-        setLoading(false);
-        setLoadingProfile(false);
-        setLoadingStats(false);
-        setLoadingFavorites(false);
-        setLoadingActivity(false);
+        // Defer until we have a route id or an authenticated user id
+        // Keep loading indicators so the user doesn't need to reload manually
         return;
       }
       // Start all fetches in parallel; update sections independently as they resolve
@@ -413,9 +405,10 @@ const FanDashboard: React.FC = () => {
   }, [targetId, user?.id]);
 
   useEffect(() => {
-    // Load when we have either route id or logged-in user id
+    // Only load when we have either route id or logged-in user id available
+    if (!id && !user?.id) return;
     loadFanProfile();
-  }, [loadFanProfile]);
+  }, [id, user?.id, loadFanProfile]);
 
   // Handle tab navigation
   const handleTabChange = (tab: string) => {

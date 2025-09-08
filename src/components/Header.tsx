@@ -219,7 +219,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
     | { path: string; label: string; icon: React.ElementType; type?: 'link' }
     | { type: 'search'; label: string; icon: React.ElementType }
   > = [
-    { path: '/feed', label: 'Grandstand', icon: Compass, type: 'link' },
+    { path: '/grandstand', label: 'Grandstand', icon: Compass, type: 'link' },
     { path: '/racers', label: 'Racers', icon: Users, type: 'link' },
     { type: 'search', label: 'Search', icon: Search },
     { path: '/tracks', label: 'Tracks', icon: Flag, type: 'link' },

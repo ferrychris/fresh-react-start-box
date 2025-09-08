@@ -8,8 +8,7 @@ import { PostCard, type Post as PostCardType } from '../components/PostCard';
 import { supabase } from '../lib/supabase';
 import { getJSONCookie, setJSONCookie } from '@/lib/cookies';
 import { SuggestionsPanel } from '../components/SuggestionsPanel';
-import LeftSidebar from '../components/grandstand/LeftSidebar';
-import RightSidebar from '../components/grandstand/RightSidebar';
+// Sidebars removed for a cleaner single-column layout
 
 // Define proper types for the CreatePost component's return value
 interface NewPostData {
@@ -659,51 +658,7 @@ export default function Grandstand() {
       )}
       {/* Feed */}
       <div className="p-4 lg:p-6">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_260px] gap-6">
-          <LeftSidebar 
-            user={user} 
-            teamsLoading={teamsLoading} 
-            teamsError={teamsError} 
-            fanTeams={fanTeams}
-            racersFollowed={racersFollowed}
-            onUnfollowTeam={async (teamId: string) => {
-              try {
-                if (!user?.id) return;
-                // Mark team follow as inactive
-                const { error } = await supabase
-                  .from('team_followers')
-                  .update({ is_active: false })
-                  .eq('user_id', user.id)
-                  .eq('team_id', teamId)
-                  .eq('is_active', true);
-                if (error) throw error;
-                // Update UI
-                setFanTeams((prev) => prev.filter(t => t.id !== teamId));
-              } catch (e) {
-                console.error('Failed to unfollow team:', e);
-              }
-            }}
-            onUnfollowRacer={async (racerId: string) => {
-              try {
-                if (!user?.id) return;
-                const { error } = await supabase
-                  .from('fan_connections')
-                  .delete()
-                  .eq('fan_id', user.id)
-                  .eq('racer_id', racerId);
-                if (error) throw error;
-                // Update local lists
-                setRacersFollowed((prev) => prev.filter(r => r.id !== racerId));
-                setFollowingRacers((prev) => {
-                  const next = new Set(Array.from(prev));
-                  next.delete(racerId);
-                  return next;
-                });
-              } catch (e) {
-                console.error('Failed to unfollow racer (sidebar):', e);
-              }
-            }}
-          />
+        <div className="max-w-3xl mx-auto">
           <div className="space-y-6">
             {user && (
               <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
@@ -827,59 +782,16 @@ export default function Grandstand() {
                       <div className="w-10 h-10 rounded-full bg-slate-800" />
                       <div className="flex-1">
                         <div className="w-32 h-3 bg-slate-800 rounded" />
-                        <div className="w-20 h-2 bg-slate-800 rounded mt-2" />
+                        <div className="w-24 h-3 bg-slate-800 rounded mt-2" />
                       </div>
+                      <div className="w-6 h-6 bg-slate-800 rounded" />
                     </div>
-                    <div className="w-full h-24 bg-slate-800 rounded-lg" />
+                    <div className="w-full h-24 bg-slate-800/70 rounded" />
                   </div>
                 ))}
               </div>
             )}
           </div>
-          <RightSidebar 
-            suggestionsLoading={suggestionsLoading} 
-            suggestionsError={suggestionsError} 
-            featuredRacers={featuredRacers} 
-            featuredTeams={featuredTeams} 
-            onFollowRacer={async (racerId: string) => {
-              try {
-                if (!user?.id) return;
-                // upsert fan connection
-                const { error } = await supabase
-                  .from('fan_connections')
-                  .upsert({
-                    fan_id: user.id,
-                    racer_id: racerId,
-                    is_subscribed: false,
-                    became_fan_at: new Date().toISOString()
-                  }, { onConflict: 'fan_id,racer_id' });
-                if (error) throw error;
-                // mark following locally
-                setFollowingRacers((prev) => new Set([...Array.from(prev), racerId]));
-              } catch (e) {
-                console.error('Failed to follow racer:', e);
-              }
-            }}
-            onUnfollowRacer={async (racerId: string) => {
-              try {
-                if (!user?.id) return;
-                const { error } = await supabase
-                  .from('fan_connections')
-                  .delete()
-                  .eq('fan_id', user.id)
-                  .eq('racer_id', racerId);
-                if (error) throw error;
-                setFollowingRacers((prev) => {
-                  const next = new Set(Array.from(prev));
-                  next.delete(racerId);
-                  return next;
-                });
-              } catch (e) {
-                console.error('Failed to unfollow racer:', e);
-              }
-            }}
-            followingRacers={followingRacers}
-          />
         </div>
       </div>
       {showCreatePost && (

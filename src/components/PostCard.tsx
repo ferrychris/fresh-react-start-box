@@ -16,17 +16,40 @@ import {
   X,
   Send,
   UserPlus,
-  CheckCircle
+  CheckCircle,
+  Crown,
+  ArrowBigUp
 } from 'lucide-react';
 import { useUser } from '@/contexts/UserContext';
 import { PostComment } from '@/types';
 import type { Post as PostType } from '@/types';
 import { formatTimeAgo } from '@/lib/utils';
-import { getPostLikers, likePost, unlikePost, addCommentToPost, getPostComments, deletePost, updatePost } from '@/lib/supabase/posts';
+import { getPostLikers, likePost, unlikePost, addCommentToPost, getPostComments, deletePost, updatePost, getPostUpvoter, upvotePost, removeUpvote } from '@/lib/supabase/posts';
 import { createPaymentSession } from '@/lib/supabase/payments'; // Verified path
 import { AuthModal } from '@/components/auth/AuthModal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+
+// Helper functions for user type styling
+const getUserTypeColor = (userType: string) => {
+  switch (userType) {
+    case 'RACER': return 'text-orange-500';
+    case 'TRACK': return 'text-blue-500';
+    case 'SERIES': return 'text-purple-500';
+    case 'FAN': return 'text-green-500';
+    default: return 'text-slate-500';
+  }
+};
+
+const getUserTypeIcon = (userType: string) => {
+  switch (userType) {
+    case 'RACER': return '🏎️';
+    case 'TRACK': return '🏁';
+    case 'SERIES': return '🏆';
+    case 'FAN': return '👥';
+    default: return '👤';
+  }
+};
 
 // Define a more complete Post type for the component
 export type Post = PostType;
@@ -66,6 +89,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(post.likes_count || 0);
   const [commentsCount, setCommentsCount] = useState<number>(post.comments_count || 0);
+  const [isUpvoted, setIsUpvoted] = useState(false);
+  const [upvotesCount, setUpvotesCount] = useState<number>((post as any).upvotes_count || 0);
   const [likeBusy, setLikeBusy] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<PostComment[]>([]);
@@ -86,9 +111,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
 
   // Normalize profiles access early for dependent logic
   const profile = Array.isArray(post.profiles) ? post.profiles[0] : post.profiles;
-  // Determine user type
+  // Determine user type (broaden checks so RACER badge always shows for racer posts)
   const userType = (profile?.user_type || '').toLowerCase();
-  const isRacer = userType === 'racer' || !!post.racer_profiles?.id;
+  const postUserType = (post.user_type || '').toString().toLowerCase();
+  const isRacer =
+    userType === 'racer' ||
+    postUserType === 'racer' ||
+    !!post.racer_profiles?.id ||
+    !!(post as any).racer_id;
 
   // Track comment IDs we've already added to avoid duplicates from
   // optimistic updates racing with realtime INSERT events
@@ -216,7 +246,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
 
   // Fetch author profile for FAN posts (or when profile is missing) without blocking initial paint
   useEffect(() => {
-    const needsAuthorBackfill = !profile && (!post.racer_profiles || post.user_type?.toLowerCase() === 'fan');
+    // Backfill whenever the flat profile is missing or lacks a name.
+    // This covers both fan-authored and racer-authored posts and avoids
+    // relying on racer_profiles being present.
+    const needsAuthorBackfill = (!profile || !profile?.name);
     const targetUserId = (Array.isArray(post.profiles) ? post.profiles?.[0]?.id : post.profiles?.id) || post.user_id;
     if (!needsAuthorBackfill || !targetUserId) return;
 
@@ -233,11 +266,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
         }
         const { data, error } = await supabase
           .from('profiles')
-          .select('name, avatar, user_type')
+          .select('name, email, avatar, user_type')
           .eq('id', targetUserId)
           .maybeSingle();
         if (!error && data) {
-          const nm = data.name || 'User';
+          const email = (data?.email as string | undefined) || '';
+          const emailName = email ? (email.includes('@') ? email.split('@')[0] : email) : '';
+          const nm = data.name || emailName || 'User';
           const av = data.avatar || '';
           userCacheRef.current.set(targetUserId, { name: nm, avatar: av });
           if (!cancelled) {
@@ -308,6 +343,46 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     setLikesCount(post.likes_count || 0);
   }, [post.id, user, post.likes_count]);
 
+  // Upvote: check user upvote status and initialize count
+  useEffect(() => {
+    const checkUpvote = async () => {
+      if (!user) {
+        setIsUpvoted(false);
+        return;
+      }
+      const { data, error } = await getPostUpvoter(post.id, user.id);
+      if (error) {
+        console.error('Error checking post upvote:', error);
+      }
+      setIsUpvoted(!!data);
+      setUpvotesCount((post as any).upvotes_count || 0);
+    };
+    checkUpvote();
+  }, [post.id, user, (post as any).upvotes_count]);
+
+  const handleUpvoteToggle = async () => {
+    if (!user) { setShowAuthModal(true); return; }
+    const wasUpvoted = isUpvoted;
+    const prevCount = upvotesCount;
+    // Optimistic UI
+    setIsUpvoted(!wasUpvoted);
+    setUpvotesCount(prev => prev + (wasUpvoted ? -1 : 1));
+    try {
+      const { data, error } = await supabase.rpc('toggle_post_upvote', { p_post_id: post.id });
+      if (error) throw error;
+      // If server result disagrees, reconcile
+      if (typeof data === 'boolean' && data !== !wasUpvoted) {
+        setIsUpvoted(data);
+        setUpvotesCount(prev => prev + (data ? 1 : -1));
+      }
+    } catch (e) {
+      console.error('Error toggling upvote:', e);
+      setIsUpvoted(wasUpvoted);
+      setUpvotesCount(prevCount);
+      toast.error('Failed to update upvote. Please try again.');
+    }
+  };
+
   // Realtime: listen for comments INSERT/DELETE for this post and racer_posts updates
   useEffect(() => {
     const channel = supabase
@@ -359,6 +434,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
           const updatedPost = payload.new as any;
           if (updatedPost?.comments_count !== undefined) {
             setCommentsCount(updatedPost.comments_count);
+          }
+          if (updatedPost?.upvotes_count !== undefined) {
+            setUpvotesCount(updatedPost.upvotes_count);
+          }
+          if (updatedPost?.likes_count !== undefined) {
+            setLikesCount(updatedPost.likes_count);
           }
         }
       )
@@ -590,73 +671,77 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     if (post.post_type === 'video' && post.media_urls.length > 0) {
       if (isDeleted) return null;
 
-  return (
-        <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-          <video
-            src={post.media_urls[0]}
-            className="w-full h-48 sm:h-64 object-cover"
-            poster={post.media_urls[0] + '#t=0.1'}
-            controls
-            preload="metadata"
-            playsInline
-          >
-            <source src={post.media_urls[0]} type="video/mp4" />
-            <source src={post.media_urls[0]} type="video/webm" />
-            <source src={post.media_urls[0]} type="video/ogg" />
-            Your browser does not support the video tag.
-          </video>
+      return (
+        <div className="relative -mx-4 lg:-mx-6 mb-4">
+          <div className="relative">
+            <video
+              src={post.media_urls[0]}
+              className="w-full h-64 lg:h-80 object-cover"
+              poster={post.media_urls[0] + '#t=0.1'}
+              controls
+              preload="metadata"
+              playsInline
+            >
+              <source src={post.media_urls[0]} type="video/mp4" />
+              <source src={post.media_urls[0]} type="video/webm" />
+              <source src={post.media_urls[0]} type="video/ogg" />
+              Your browser does not support the video tag.
+            </video>
+          </div>
         </div>
       );
     }
 
     if ((post.post_type === 'gallery' || post.post_type === 'photo') && post.media_urls.length > 0) {
       return (
-        <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-          {post.media_urls[currentImageIndex]?.startsWith('data:video/') || 
-           post.media_urls[currentImageIndex]?.includes('.mp4') ||
-           post.media_urls[currentImageIndex]?.includes('.webm') ||
-           post.media_urls[currentImageIndex]?.includes('.ogg') ? (
-            <video
-              src={post.media_urls[currentImageIndex]}
-              className="w-full h-48 sm:h-64 object-cover"
-              controls
-              preload="metadata"
-            >
-              Your browser does not support the video tag.
-            </video>
-          ) : (
-            <img
-              src={post.media_urls[currentImageIndex]}
-              alt={`Post image ${currentImageIndex + 1}`}
-              className="w-full h-48 sm:h-64 object-cover"
-              loading="lazy"
-              decoding="async"
-              sizes="(max-width: 640px) 100vw, 640px"
-            />
-          )}
-          {post.media_urls.length > 1 && (
-            <>
-              <button
-                onClick={() => setCurrentImageIndex(prev => 
-                  prev > 0 ? prev - 1 : post.media_urls.length - 1
-                )}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-colors"
+        <div className="relative -mx-4 lg:-mx-6 mb-4">
+          <div className="relative">
+            {post.media_urls[currentImageIndex]?.startsWith('data:video/') || 
+             post.media_urls[currentImageIndex]?.includes('.mp4') ||
+             post.media_urls[currentImageIndex]?.includes('.webm') ||
+             post.media_urls[currentImageIndex]?.includes('.ogg') ? (
+              <video
+                src={post.media_urls[currentImageIndex]}
+                className="w-full h-64 lg:h-80 object-cover"
+                controls
+                preload="metadata"
               >
-                <ChevronLeft className="h-5 w-5 text-white" />
-              </button>
-              <button
-                onClick={() => setCurrentImageIndex(prev => 
-                  prev < post.media_urls.length - 1 ? prev + 1 : 0
-                )}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-colors"
-              >
-                <ChevronRight className="h-5 w-5 text-white" />
-              </button>
-              <div className="absolute bottom-4 right-4 bg-black/80 px-2 py-1 rounded text-sm text-white">
-                {currentImageIndex + 1} / {post.media_urls.length}
-              </div>
-            </>
-          )}
+                Your browser does not support the video tag.
+              </video>
+            ) : (
+              <img
+                src={post.media_urls[currentImageIndex]}
+                alt={`Post image ${currentImageIndex + 1}`}
+                className="w-full h-64 lg:h-80 object-cover"
+                loading="lazy"
+                decoding="async"
+                sizes="(max-width: 640px) 100vw, 640px"
+              />
+            )}
+            {post.media_urls.length > 1 && (
+              <>
+                <button
+                  onClick={() => setCurrentImageIndex(prev => 
+                    prev > 0 ? prev - 1 : post.media_urls.length - 1
+                  )}
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-colors"
+                >
+                  <ChevronLeft className="h-5 w-5 text-white" />
+                </button>
+                <button
+                  onClick={() => setCurrentImageIndex(prev => 
+                    prev < post.media_urls.length - 1 ? prev + 1 : 0
+                  )}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-colors"
+                >
+                  <ChevronRight className="h-5 w-5 text-white" />
+                </button>
+                <div className="absolute bottom-4 right-4 bg-black/80 px-2 py-1 rounded text-sm text-white">
+                  {currentImageIndex + 1} / {post.media_urls.length}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       );
     }
@@ -665,21 +750,20 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   };
 
   return (
-    <div className="bg-gray-900 rounded-xl overflow-hidden hover:bg-gray-800/50 transition-colors">
+    <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden hover:border-gray-700 transition-all duration-300">
       {/* Post Header */}
-      <div className="p-6 pb-4">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center space-x-3">
+      <div className="p-4 lg:p-6">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="flex items-center space-x-3 hover:bg-gradient-to-r hover:from-orange-500/10 hover:to-gray-800 hover:border hover:border-orange-500/30 rounded-xl p-3 -m-3 transition-all duration-300 flex-1 group hover:shadow-lg hover:shadow-orange-500/10">
             <img
               src={avatarUrl || dicebearUrl}
               alt={displayName}
-              className="w-12 h-12 rounded-full object-cover cursor-pointer"
+              className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl object-cover ring-2 ring-gray-700 group-hover:ring-orange-500 group-hover:ring-2 group-hover:scale-105 transition-all duration-300"
               onClick={goToAuthorProfile}
             />
-            <div>
+            <div className="flex-1 text-left">
               <div className="flex items-center space-x-2">
-                <h4 className="font-semibold flex items-center gap-2">
-                  {/* Display name first */}
+                <span className="font-semibold text-white group-hover:text-orange-300 transition-colors duration-300 group-hover:drop-shadow-sm">
                   <button
                     type="button"
                     onClick={goToAuthorProfile}
@@ -688,50 +772,23 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                   >
                     {displayName}
                   </button>
-                  
-                  {/* Verified badge */}
-                  {isRacerEffective && isVerified && <VerifiedBadge size="sm" showText={false} />}
-
-                  {/* Then user type chip */}
-                  {isRacerEffective ? (
-                    <div className="flex items-center gap-2">
-                      <div className="bg-fedex-orange text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
-                        RACER
-                      </div>
-                    </div>
-                  ) : userType === 'fan' ? (
-                    <div className="bg-purple-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
-                      <span className="hidden sm:inline">RACING FAN</span>
-                      <span className="sm:hidden">FAN</span>
-                    </div>
-                  ) : null}
-                </h4>
-                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-                  {/* Car number only */}
-                  {carNumber && (
-                    <div className="bg-red-600 text-white px-1.5 py-0.5 sm:px-2 rounded-full text-xs font-semibold whitespace-nowrap">
-                      #{carNumber}
-                    </div>
-                  )}
-                </div>
+                </span>
+                {/* Verified badge */}
+                {isRacerEffective && isVerified && (
+                  <div className="w-4 h-4 bg-orange-500 rounded-full flex items-center justify-center group-hover:bg-orange-400 group-hover:scale-110 transition-all duration-300">
+                    <span className="text-white text-xs">✓</span>
+                  </div>
+                )}
+                {carNumber && (
+                  <span className="text-orange-500 text-sm group-hover:text-orange-300 group-hover:font-bold transition-all duration-300">#{carNumber}</span>
+                )}
               </div>
-              <div className="flex items-center space-x-2 text-sm text-gray-400">
-                <Clock className="h-3 w-3" />
-                <span>{formatTimeAgo(post.created_at)}</span>
-                <span>•</span>
-                <div className="flex items-center space-x-1">
-                  {post.visibility === 'public' ? (
-                    <>
-                      <Globe className="h-3 w-3" />
-                      <span>Public</span>
-                    </>
-                  ) : (
-                    <>
-                      <Users className="h-3 w-3" />
-                      <span>Fans Only</span>
-                    </>
-                  )}
-                </div>
+              <div className="flex items-center space-x-2 text-sm">
+                <span className={`font-medium ${getUserTypeColor(userType.toUpperCase())} group-hover:brightness-110 transition-all duration-300`}>
+                  {getUserTypeIcon(userType.toUpperCase())} {userType.toUpperCase()}
+                </span>
+                <span className="text-gray-500">•</span>
+                <span className="text-gray-400 group-hover:text-gray-300 transition-colors duration-300">{formatTimeAgo(post.created_at)}</span>
               </div>
             </div>
           </div>
@@ -758,44 +815,45 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                 </button>
               )
             )}
-            <DropdownMenu>
-              <DropdownMenuTrigger className="p-2 rounded-full text-gray-400 hover:text-white transition-colors">
-                <MoreHorizontal className="h-4 w-4 text-gray-400" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                side="bottom"
-                sideOffset={8}
-                avoidCollisions={false}
-                className="w-auto bg-transparent border-0 shadow-none p-1 text-right min-w-[120px]"
-              >
+            <button className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all duration-200">
+              <MoreHorizontal className="w-5 h-5" onClick={() => setShowMoreMenu(!showMoreMenu)} />
+            </button>
+            {showMoreMenu && (
+              <div className="absolute right-0 top-full mt-2 bg-gray-800 rounded-lg shadow-lg z-10 py-1">
                 {isOwner && (
                   <>
-                    <DropdownMenuItem 
+                    <button 
                       onClick={() => {
                         setEditedContent(post.content);
                         setEditingPost(true);
+                        setShowMoreMenu(false);
                       }}
-                      className="cursor-pointer bg-transparent hover:bg-transparent focus:bg-transparent px-2 py-1 text-gray-300 hover:text-green-500 flex justify-end font-semibold"
+                      className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
                     >
                       Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={handleDeletePost}
-                      className="cursor-pointer bg-transparent hover:bg-transparent focus:bg-transparent px-2 py-1 text-gray-300 hover:text-red-500 flex justify-end font-semibold"
+                    </button>
+                    <button 
+                      onClick={() => {
+                        handleDeletePost();
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-red-500"
                     >
                       Delete
-                    </DropdownMenuItem>
+                    </button>
                   </>
                 )}
-                <DropdownMenuItem 
-                  onClick={() => setShowAuthModal(true)}
-                  className="cursor-pointer bg-transparent hover:bg-transparent focus:bg-transparent px-2 py-1 text-gray-300 hover:text-red-500 flex justify-end font-semibold"
+                <button 
+                  onClick={() => {
+                    setShowAuthModal(true);
+                    setShowMoreMenu(false);
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-red-500"
                 >
                   Report
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -825,25 +883,23 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
               </div>
             </div>
           ) : (
-            <p className="mt-2">{post.content}</p>
+            <p className="text-gray-300 leading-relaxed">{post.content}</p>
           )}
         </div>
-      </div>
 
       {/* Post Media */}
-      {post.media_urls.length > 0 && (
-        <div className="px-6 pb-4">
-          <PostMedia />
-        </div>
-      )}
+      {post.media_urls.length > 0 && <PostMedia />}
 
       {/* Engagement Stats */}
-      {(likesCount > 0 || commentsCount > 0 || post.total_tips > 0) && (
-        <div className="px-6 py-2 text-sm text-gray-400 border-t border-gray-800">
+      {(likesCount > 0 || upvotesCount > 0 || commentsCount > 0 || post.total_tips > 0) && (
+        <div className="px-4 lg:px-6 py-2 text-sm text-gray-400 border-t border-gray-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               {likesCount > 0 && (
                 <span>{likesCount} {likesCount === 1 ? 'like' : 'likes'}</span>
+              )}
+              {upvotesCount > 0 && (
+                <span>{upvotesCount} {upvotesCount === 1 ? 'upvote' : 'upvotes'}</span>
               )}
               {commentsCount > 0 && (
                 <span>{commentsCount} {commentsCount === 1 ? 'comment' : 'comments'}</span>
@@ -856,51 +912,69 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
         </div>
       )}
 
-      {/* Engagement Bar */}
-      <div className="px-6 py-4 border-t border-gray-800">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-6">
-            <button
-              onClick={handleLike}
-              disabled={likeBusy}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all ${
-                isLiked
-                  ? 'bg-red-500/20 text-red-500'
-                  : 'hover:bg-gray-800 text-gray-400 hover:text-red-500'
-              } ${likeBusy ? 'opacity-60 cursor-not-allowed' : ''}`}
-            >
-              <Heart className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
-              <span className="font-semibold">
-                {likesCount}
-              </span>
-            </button>
-            
-            <button
-              onClick={handleToggleComments}
-              className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-fedex-purple transition-all"
-            >
-              <MessageCircle className="h-5 w-5" />
-              <span className="font-semibold">{commentsCount}</span>
-            </button>
-            
-            {post.allow_tips && (
-              <button
-                onClick={() => setShowTipModal(true)}
-                className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-800 text-fedex-orange hover:text-fedex-orange/80 transition-colors"
-              >
-                <DollarSign className="h-5 w-5" />
-                <span className="font-semibold">Tip</span>
-              </button>
-            )}
-          </div>
-          
+      {/* Post Actions */}
+      <div className="flex items-center justify-between pt-4 px-4 lg:px-6 border-t border-gray-800">
+        <div className="flex items-center space-x-6">
+          <button
+            onClick={handleLike}
+            disabled={likeBusy}
+            className={`flex items-center space-x-2 transition-all duration-200 ${isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-400'}`}
+          >
+            <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+            <span className="font-medium">{likesCount}</span>
+          </button>
+          <button
+            onClick={handleUpvoteToggle}
+            className={`flex items-center space-x-2 transition-all duration-200 ${isUpvoted ? 'text-fedex-orange' : 'text-gray-400 hover:text-fedex-orange'}`}
+          >
+            <ArrowBigUp className={`w-5 h-5 ${isUpvoted ? 'fill-current' : ''}`} />
+            <span className="font-medium">{upvotesCount}</span>
+          </button>
+          <button 
+            onClick={handleToggleComments}
+            className="flex items-center space-x-2 text-gray-400 hover:text-blue-400 transition-all duration-200"
+          >
+            <MessageCircle className="w-5 h-5" />
+            <span className="font-medium">{commentsCount}</span>
+          </button>
           <button 
             onClick={handleShare}
-            className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"
-            aria-label="Share post"
+            className="flex items-center space-x-2 text-gray-400 hover:text-green-400 transition-all duration-200"
           >
-            <Share2 className="h-5 w-5" />
+            <Share2 className="w-5 h-5" />
+            <span className="font-medium">Share</span>
           </button>
+        </div>
+
+        {/* Tip/Subscribe Actions for Racers */}
+        {isRacerEffective && !isOwner && (
+          <div className="flex items-center space-x-2">
+            <button 
+              onClick={() => setShowTipModal(true)}
+              aria-label="Tip"
+              className={`w-9 h-9 rounded-full transition-colors duration-200 flex items-center justify-center ${loading ? 'bg-green-700 cursor-not-allowed opacity-80' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+              disabled={loading}
+            >
+              <DollarSign className="w-4 h-4" />
+            </button>
+            <button 
+              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm flex items-center space-x-1"
+            >
+              <Crown className="w-3 h-3" />
+              <span>Join the Team</span>
+            </button>
+          </div>
+        )}
+
+        {/* Follow Actions for Tracks/Series */}
+        {(userType === 'track' || userType === 'series') && !isOwner && (
+          <div className="flex items-center space-x-2">
+            <button className="px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors duration-200 text-sm flex items-center space-x-1">
+              <Users className="w-3 h-3" />
+              <span>Follow</span>
+            </button>
+          </div>
+        )}
         </div>
 
         {/* Comments Section */}

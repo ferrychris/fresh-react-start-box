@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Heart, MessageCircle, Share, MoreHorizontal, Play, Calendar, MapPin, Users, DollarSign, Crown } from 'lucide-react';
 import { getPublicPostsPage, tipPost } from '../../lib/supabase/posts';
 import { supabase } from '../../lib/supabase/client';
+import { useUser } from '../../contexts/UserContext';
 
 interface Post {
   id: string;
@@ -29,6 +30,8 @@ interface GrandstandPostsProps {
 }
 
 const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
+  const { user } = useUser();
+  const viewerIsRacer = ((user?.user_type || '').toString().toLowerCase() === 'racer');
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -67,7 +70,19 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
       isVerified = false;
     }
 
-    const userType = (r.user_type || 'fan').toString().toUpperCase();
+    // Broaden type detection: RACER if user_type='racer' OR racer_id present OR profiles.user_type='racer' OR racer_profiles exists
+    const userTypeRaw = (r.user_type || '').toString().toLowerCase();
+    const profileUserTypeRaw = (r?.profiles?.user_type || '').toString().toLowerCase();
+    const hasRacerProfile = !!(Array.isArray(r?.racer_profiles) ? r.racer_profiles[0] : r?.racer_profiles);
+    const isRacer = (userTypeRaw === 'racer') || !!r.racer_id || (profileUserTypeRaw === 'racer') || hasRacerProfile;
+    const userType = isRacer
+      ? 'RACER'
+      : (['track','series','fan'].includes(userTypeRaw) ? userTypeRaw.toUpperCase() : 'FAN');
+    // Ensure media_urls is a string[]
+    const mediaUrls: string[] = Array.isArray(r.media_urls)
+      ? r.media_urls.filter((m: unknown) => typeof m === 'string') as string[]
+      : [];
+
     return {
       id: r.id,
       userId: r.user_id || r.racer_id || 'unknown',
@@ -77,8 +92,8 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
       userVerified: isVerified,
       carNumber: undefined,
       content: r.content || '',
-      mediaUrls: r.media_urls || [],
-      mediaType: Array.isArray(r.media_urls) && r.media_urls.length > 0 ? (r.post_type === 'video' ? 'video' : 'image') : undefined,
+      mediaUrls,
+      mediaType: mediaUrls.length > 0 ? (r.post_type === 'video' ? 'video' : 'image') : undefined,
       location: undefined,
       eventDate: undefined,
       likes: r.likes_count ?? 0,
@@ -89,6 +104,32 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
       createdAt: r.created_at || new Date().toISOString(),
     };
   }, []);
+
+  const handleFan = async (racerId: string) => {
+    try {
+      if (!user?.id) {
+        alert('Please sign in to become a fan.');
+        return;
+      }
+      const { error } = await supabase
+        .from('fan_connections')
+        .upsert({
+          fan_id: user.id,
+          racer_id: racerId,
+          is_subscribed: false,
+          became_fan_at: new Date().toISOString()
+        }, { onConflict: 'fan_id,racer_id' });
+      if (error) {
+        console.error('Failed to become a fan:', error);
+        alert(error.message || 'Failed to become a fan');
+        return;
+      }
+      alert('You are now a fan!');
+    } catch (e: any) {
+      console.error('Exception becoming a fan:', e);
+      alert(e?.message || 'Failed to become a fan');
+    }
+  };
 
   // Load more posts with optimized batching
   const loadMore = useCallback(async () => {
@@ -133,8 +174,13 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
               id,
               name,
               avatar,
-              user_type,
-              is_verified
+              user_type
+            ),
+            racer_profiles!racer_posts_racer_id_fkey(
+              id,
+              username,
+              display_name,
+              profile_photo_url
             )
           `)
           .eq('visibility', 'public')
@@ -145,21 +191,32 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
         
         if (postsError) throw postsError;
         
-        const transformedPosts = (posts || []).map((post) => {
+        const transformedPosts: Post[] = (posts || []).map((post): Post => {
           const profile = post.profiles;
-          
+          const racerProf = Array.isArray(post.racer_profiles) ? post.racer_profiles[0] : post.racer_profiles;
+          const typeRaw = (post.user_type || '').toString().toLowerCase();
+          const detectedType: Post['userType'] = (typeRaw === 'racer' || !!post.racer_id)
+            ? 'RACER'
+            : (typeRaw === 'track' ? 'TRACK' : typeRaw === 'series' ? 'SERIES' : 'FAN');
+          const mediaUrls: string[] = Array.isArray(post.media_urls)
+            ? (post.media_urls as unknown[]).filter((m) => typeof m === 'string') as string[]
+            : [];
+
+          if (detectedType === 'RACER' && (!racerProf || !racerProf.display_name)) {
+            console.error('Racer post without racer profile:', post);
+          }
+
           return {
             id: post.id,
-            userId: post.user_id || 'unknown',
-            userType: 'FAN' as const,
-            userName: profile?.name || 'Racing Fan',
-            userAvatar: profile?.avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2',
-            userVerified: Boolean(profile?.is_verified),
+            userId: post.user_id || post.racer_id || 'unknown',
+            userType: detectedType,
+            userName: detectedType === 'RACER' ? (racerProf?.display_name || racerProf?.username || profile?.name || 'Racer') : (profile?.name || 'Racing Fan'),
+            userAvatar: detectedType === 'RACER' ? (racerProf?.profile_photo_url || profile?.avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&dpr=2') : (profile?.avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&dpr=2'),
+            userVerified: false,
             carNumber: undefined,
             content: post.content || '',
-            mediaUrls: Array.isArray(post.media_urls) ? post.media_urls : [],
-            mediaType: Array.isArray(post.media_urls) && post.media_urls.length > 0 ? 
-              (post.post_type === 'video' ? 'video' as const : 'image' as const) : undefined,
+            mediaUrls,
+            mediaType: mediaUrls.length > 0 ? (post.post_type === 'video' ? 'video' as const : 'image' as const) : undefined,
             location: undefined,
             eventDate: undefined,
             likes: post.likes_count || 0,
@@ -168,7 +225,7 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
             isLiked: false,
             timestamp: post.created_at || new Date().toISOString(),
             createdAt: post.created_at || new Date().toISOString(),
-          };
+          } as Post;
         });
         
         setPosts(transformedPosts);
@@ -328,6 +385,11 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
                           <span className="font-semibold text-white group-hover:text-orange-300 transition-colors duration-300 group-hover:drop-shadow-sm">
                             {post.userName}
                           </span>
+                          {post.userType === 'RACER' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/30">
+                              🏎️ Racer
+                            </span>
+                          )}
                           {post.userVerified && (
                             <div className="w-4 h-4 bg-orange-500 rounded-full flex items-center justify-center group-hover:bg-orange-400 group-hover:scale-110 transition-all duration-300">
                               <span className="text-white text-xs">✓</span>
@@ -418,7 +480,7 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
                       </button>
                     </div>
 
-                    {/* Tip/Subscribe Actions for Racers */}
+                    {/* Tip/Subscribe/Fan Actions (only for racer-authored posts) */}
                     {post.userType === 'RACER' && (
                       <div className="flex items-center space-x-2">
                         <button 
@@ -435,6 +497,14 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
                           <Crown className="w-3 h-3" />
                           <span>Join the Team</span>
                         </button>
+                        {post.userType === 'RACER' && user?.id !== post.userId && (
+                          <button
+                            onClick={() => handleFan(post.userId)}
+                            className="px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors duration-200 text-sm"
+                          >
+                            Fan
+                          </button>
+                        )}
                       </div>
                     )}
 

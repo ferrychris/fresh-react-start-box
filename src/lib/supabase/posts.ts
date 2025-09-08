@@ -25,6 +25,7 @@ export const getPostsForRacer = async (racerId: string): Promise<{ data: Databas
           post_type,
           visibility,
           likes_count,
+          upvotes_count,
           comments_count,
           user_id,
           user_type,
@@ -153,6 +154,55 @@ export const updateCommentOnPost = async (
     return { data: mapped, error: null };
   } catch (e) {
     return { data: null, error: e as Error };
+  }
+};
+
+// Upvotes helpers
+// Check if a user has upvoted a post
+export const getPostUpvoter = async (
+  postId: string,
+  userId: string
+): Promise<{ data: { user_id: string } | null; error: any | null }> => {
+  if (!postId || !userId) {
+    return { data: null, error: { message: 'Post ID and User ID are required' } };
+  }
+  // Use RPC that checks for current auth user; maintain signature for callers
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session || sessionData.session.user.id !== userId) {
+    return { data: null, error: { message: 'Authentication required to check upvote' } };
+  }
+  const { data, error } = await supabase.rpc('has_upvoted', { p_post_id: postId });
+  if (error) return { data: null, error };
+  return data === true ? { data: { user_id: userId }, error: null } : { data: null, error: null };
+};
+
+// Add an upvote
+export const upvotePost = async (postId: string, userId: string): Promise<{ error: any | null }> => {
+  try {
+    // Use upsert to avoid duplicate key violations on rapid clicks/race conditions
+    const { error } = await supabase
+      .from('post_upvotes')
+      .upsert({ post_id: postId, user_id: userId }, { onConflict: 'post_id,user_id', ignoreDuplicates: true });
+    if (error) throw error;
+
+    // Count is maintained by DB triggers
+    return { error: null };
+  } catch (error) {
+    return { error };
+  }
+};
+
+// Remove an upvote
+export const removeUpvote = async (postId: string, userId: string): Promise<{ error: any | null }> => {
+  try {
+    const { error } = await supabase
+      .from('post_upvotes')
+      .delete()
+      .match({ post_id: postId, user_id: userId });
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    return { error };
   }
 };
 
@@ -1159,10 +1209,51 @@ export const createRacerPost = async (post: {
       return { data: null, error: { message: 'Unauthorized: You can only create posts for yourself' } };
     }
     
+    // Sanitize visibility to align with DB enum
+    const rawVisibility = post.visibility;
+    let visibilityValue = rawVisibility === 'community' ? 'fans_only' : (rawVisibility || 'public');
+    if (!['public', 'fans_only'].includes(visibilityValue)) {
+      console.warn('Unsupported visibility provided for racer post, defaulting to public:', rawVisibility);
+      visibilityValue = 'public';
+    }
+
+    // Ensure a racer_profile exists for this racer_id to satisfy FK constraint
+    try {
+      const { data: rp, error: rpErr } = await supabase
+        .from('racer_profiles')
+        .select('id')
+        .eq('id', post.racer_id)
+        .maybeSingle();
+      if (rpErr) {
+        console.warn('Could not verify racer_profiles record:', rpErr);
+      }
+      if (!rp) {
+        // Attempt to create a minimal racer profile (may be blocked by RLS)
+        const { error: insertRpErr } = await supabase
+          .from('racer_profiles')
+          .insert([{ id: post.racer_id }]);
+        if (insertRpErr) {
+          // Provide a clearer message rather than surfacing FK violation later
+          return { 
+            data: null, 
+            error: { message: 'Racer profile not found. Please complete your racer profile before posting.' }
+          };
+        }
+      }
+    } catch (precheckErr) {
+      console.warn('Exception while ensuring racer_profile exists:', precheckErr);
+      // Continue; insert may still succeed if profile exists
+    }
+    
     const { data, error } = await supabase.from('racer_posts').insert([{
-      ...post,
+      content: post.content,
+      media_urls: post.media_urls || [],
+      post_type: post.post_type || 'text',
+      visibility: visibilityValue,
+      allow_tips: !!post.allow_tips,
       user_id: post.racer_id,
-      user_type: 'racer'
+      user_type: 'racer',
+      racer_id: post.racer_id
     }]).select();
     
     if (error) {

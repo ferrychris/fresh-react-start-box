@@ -61,12 +61,12 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                     <img
                       src={racer.avatar}
                       alt={racer.name}
-                      className="w-8 h-8 rounded-md object-cover ring-1 ring-slate-700"
+                      className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-700"
                     />
                     <div className="ml-3">
-                      <div className="text-sm text-white font-medium">{racer.name}</div>
+                      <div className="text-xs text-white font-medium">{racer.name}</div>
                       {racer.car && racer.cls && (
-                        <div className="text-[11px] text-slate-400">#{racer.car} • {racer.cls}</div>
+                        <div className="text-[10px] text-slate-400">#{racer.car} • {racer.cls}</div>
                       )}
                     </div>
                   </div>
@@ -107,7 +107,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
           {suggestionsLoading ? (
             <div className="text-sm text-slate-400">Loading active teams...</div>
           ) : suggestionsError ? (
-            <div className="text-sm text-red-400">{suggestionsError}</div>
+            <div className="text-xs text-red-400">{suggestionsError}</div>
           ) : featuredTeams.length > 0 ? (
             <ul className="space-y-3">
               {featuredTeams.slice(0, 3).map((team, index) => (
@@ -115,17 +115,17 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                   <img
                     src={team.avatar}
                     alt={team.name}
-                    className="w-8 h-8 rounded-md object-cover ring-1 ring-slate-700"
+                    className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-700"
                   />
                   <div className="ml-3">
-                    <div className="text-sm text-white font-medium">{team.name}</div>
-                    <div className="text-[11px] text-slate-400">Active team</div>
+                    <div className="text-xs text-white font-medium">{team.name}</div>
+                    <div className="text-[10px] text-slate-400">Active team</div>
                   </div>
                 </li>
               ))}
             </ul>
           ) : (
-            <div className="text-sm text-slate-400">No active teams available.</div>
+            <div className="text-xs text-slate-400">No active teams available.</div>
           )}
         </div>
       </div>
