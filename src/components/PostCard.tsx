@@ -118,7 +118,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     userType === 'racer' ||
     postUserType === 'racer' ||
     !!post.racer_profiles?.id ||
-    !!(post as any).racer_id;
+    !!(post as any).racer_id ||
+    post.racer_id === post.user_id; // Ensure consistency for racer posts
 
   // Track comment IDs we've already added to avoid duplicates from
   // optimistic updates racing with realtime INSERT events
@@ -368,12 +369,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     setIsUpvoted(!wasUpvoted);
     setUpvotesCount(prev => prev + (wasUpvoted ? -1 : 1));
     try {
-      const { data, error } = await supabase.rpc('toggle_post_upvote', { p_post_id: post.id });
-      if (error) throw error;
-      // If server result disagrees, reconcile
-      if (typeof data === 'boolean' && data !== !wasUpvoted) {
-        setIsUpvoted(data);
-        setUpvotesCount(prev => prev + (data ? 1 : -1));
+      if (wasUpvoted) {
+        const result = await removeUpvote(post.id, user.id);
+        if (result.error) throw result.error;
+      } else {
+        const result = await upvotePost(post.id, user.id);
+        if (result.error) throw result.error;
       }
     } catch (e) {
       console.error('Error toggling upvote:', e);
@@ -441,6 +442,20 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
           if (updatedPost?.likes_count !== undefined) {
             setLikesCount(updatedPost.likes_count);
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'post_upvotes', filter: `post_id=eq.${post.id}` },
+        () => {
+          setUpvotesCount(prev => prev + 1);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'post_upvotes', filter: `post_id=eq.${post.id}` },
+        () => {
+          setUpvotesCount(prev => Math.max(0, prev - 1));
         }
       )
       .subscribe();
