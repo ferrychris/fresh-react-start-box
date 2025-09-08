@@ -1,40 +1,168 @@
 import React from 'react';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Crown, Star, Trophy, Zap } from 'lucide-react';
 
-interface VerifiedBadgeProps {
+export interface BadgeProps {
+  type?: 'verified' | 'featured' | 'champion' | 'rising' | 'pro';
   size?: 'sm' | 'md' | 'lg';
-  showText?: boolean;
   className?: string;
+  showTooltip?: boolean;
 }
 
-export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({ 
+const badgeConfig = {
+  verified: {
+    icon: CheckCircle,
+    color: 'text-blue-500',
+    bgColor: 'bg-blue-500/10',
+    borderColor: 'border-blue-500/20',
+    label: 'Verified Racer',
+    description: 'Profile complete with 10+ followers'
+  },
+  featured: {
+    icon: Star,
+    color: 'text-yellow-500',
+    bgColor: 'bg-yellow-500/10',
+    borderColor: 'border-yellow-500/20',
+    label: 'Featured Racer',
+    description: 'Highlighted by OnlyRaceFans'
+  },
+  champion: {
+    icon: Trophy,
+    color: 'text-gold-500',
+    bgColor: 'bg-yellow-600/10',
+    borderColor: 'border-yellow-600/20',
+    label: 'Champion',
+    description: 'Championship winner'
+  },
+  rising: {
+    icon: Zap,
+    color: 'text-green-500',
+    bgColor: 'bg-green-500/10',
+    borderColor: 'border-green-500/20',
+    label: 'Rising Star',
+    description: 'Fast-growing racer'
+  },
+  pro: {
+    icon: Crown,
+    color: 'text-purple-500',
+    bgColor: 'bg-purple-500/10',
+    borderColor: 'border-purple-500/20',
+    label: 'Pro Racer',
+    description: 'Professional racing status'
+  }
+};
+
+const sizeConfig = {
+  sm: {
+    iconSize: 'w-3 h-3',
+    padding: 'p-1',
+    text: 'text-xs'
+  },
+  md: {
+    iconSize: 'w-4 h-4',
+    padding: 'p-1.5',
+    text: 'text-sm'
+  },
+  lg: {
+    iconSize: 'w-5 h-5',
+    padding: 'p-2',
+    text: 'text-base'
+  }
+};
+
+export const VerifiedBadge: React.FC<BadgeProps> = ({ 
+  type = 'verified', 
   size = 'md', 
-  showText = true,
-  className = ''
+  className = '',
+  showTooltip = true 
 }) => {
-  // Size mappings
-  const sizeClasses = {
-    sm: {
-      container: 'gap-0.5 px-1 py-0.5 rounded-full text-[10px]',
-      icon: 'w-2.5 h-2.5'
-    },
-    md: {
-      container: 'gap-1 px-2 py-0.5 rounded-full text-xs',
-      icon: 'w-3.5 h-3.5'
-    },
-    lg: {
-      container: 'gap-1.5 px-2.5 py-1 rounded-full text-sm',
-      icon: 'w-4 h-4'
-    }
-  };
-  
-  return (
-    <span 
-      className={`inline-flex items-center ${sizeClasses[size].container} bg-blue-500/15 text-blue-400 border border-blue-500/30 ${className}`}
-      title="Verified racer"
+  const badge = badgeConfig[type];
+  const sizeStyles = sizeConfig[size];
+  const IconComponent = badge.icon;
+
+  const badgeElement = (
+    <div 
+      className={`
+        inline-flex items-center justify-center rounded-full
+        ${badge.bgColor} ${badge.borderColor} border
+        ${sizeStyles.padding} ${className}
+        transition-all duration-200 hover:scale-110
+      `}
+      title={showTooltip ? `${badge.label}: ${badge.description}` : undefined}
     >
-      <CheckCircle className={sizeClasses[size].icon} />
-      {showText && <span>Verified</span>}
-    </span>
+      <IconComponent className={`${sizeStyles.iconSize} ${badge.color}`} />
+    </div>
+  );
+
+  return badgeElement;
+};
+
+// Utility function to determine which badges a racer should have
+export const getRacerBadges = (racer: {
+  is_verified?: boolean;
+  is_featured?: boolean;
+  championships?: number;
+  career_wins?: number;
+  years_racing?: number;
+  follower_count?: number;
+}): BadgeProps['type'][] => {
+  const badges: BadgeProps['type'][] = [];
+
+  // Verified badge - based on database is_verified flag
+  if (racer.is_verified) {
+    badges.push('verified');
+  }
+
+  // Featured badge - based on is_featured flag
+  if (racer.is_featured) {
+    badges.push('featured');
+  }
+
+  // Champion badge - has championships
+  if (racer.championships && racer.championships > 0) {
+    badges.push('champion');
+  }
+
+  // Pro badge - experienced racer with wins
+  if (racer.years_racing && racer.years_racing >= 5 && racer.career_wins && racer.career_wins >= 10) {
+    badges.push('pro');
+  }
+
+  // Rising star - newer racer with good performance
+  if (racer.years_racing && racer.years_racing <= 3 && racer.career_wins && racer.career_wins >= 5) {
+    badges.push('rising');
+  }
+
+  return badges;
+};
+
+// Component to display multiple badges
+export const RacerBadges: React.FC<{
+  racer: {
+    is_verified?: boolean;
+    is_featured?: boolean;
+    championships?: number;
+    career_wins?: number;
+    years_racing?: number;
+    follower_count?: number;
+  };
+  size?: BadgeProps['size'];
+  maxBadges?: number;
+  className?: string;
+}> = ({ racer, size = 'md', maxBadges = 3, className = '' }) => {
+  const badges = getRacerBadges(racer);
+  const displayBadges = badges.slice(0, maxBadges);
+
+  if (displayBadges.length === 0) return null;
+
+  return (
+    <div className={`flex items-center gap-1 ${className}`}>
+      {displayBadges.map((badgeType, index) => (
+        <VerifiedBadge 
+          key={`${badgeType}-${index}`}
+          type={badgeType} 
+          size={size}
+        />
+      ))}
+    </div>
   );
 };

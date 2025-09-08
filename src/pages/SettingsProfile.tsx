@@ -9,6 +9,8 @@ import { Label } from '../components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Camera, User, MapPin, Heart, Trophy, ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import { ProfileCompletionProgress } from '../components/ProfileCompletionProgress';
+import { checkAndUpdateCompletion } from '../utils/profileCompletion';
 
 interface Profile {
   id: string;
@@ -164,6 +166,7 @@ const SettingsProfile: React.FC = () => {
     try {
       setSaving(true);
 
+      // Step 1: Handle file uploads first
       let newAvatarUrl = originalAvatarUrl;
       let newBannerUrl = originalBannerUrl;
 
@@ -179,25 +182,36 @@ const SettingsProfile: React.FC = () => {
         newBannerUrl = await uploadToStorage('avatars', path, bannerFile);
       }
 
-      type ProfileUpdates = { name: string; updated_at: string } & Partial<Pick<Profile, 'avatar' | 'banner_image'>>;
-      const updates: ProfileUpdates = {
+      // Step 2: Prepare profile updates
+      const profileUpdates = {
         name,
         updated_at: new Date().toISOString(),
+        ...(typeof newAvatarUrl === 'string' ? { avatar: newAvatarUrl } : {}),
+        ...(typeof newBannerUrl === 'string' ? { banner_image: newBannerUrl } : {}),
       };
-      if (typeof newAvatarUrl === 'string') updates.avatar = newAvatarUrl;
-      if (typeof newBannerUrl === 'string') updates.banner_image = newBannerUrl;
 
+      // Step 3: Use a transaction to batch all updates together
+      const { error: txnError } = await supabase.rpc('begin_transaction');
+      if (txnError) {
+        console.warn('Transaction not supported, falling back to individual updates');
+      }
+
+      // Step 4: Update profiles table with minimal data
       const { error: updateErr } = await supabase
         .from('profiles')
-        .update(updates)
+        .update({
+          name: name,
+          ...(typeof newAvatarUrl === 'string' ? { avatar: newAvatarUrl } : {}),
+          ...(typeof newBannerUrl === 'string' ? { banner_image: newBannerUrl } : {}),
+        })
         .eq('id', userId);
 
       if (updateErr) throw updateErr;
 
-      // Save type-specific profile
+      // Step 5: Update type-specific profile in a separate operation
       try {
         if (userType === 'fan') {
-          const fanPayload: Record<string, unknown> = {
+          const fanPayload = {
             id: userId,
             location: fanLocation || null,
             favorite_classes: fanFavClasses
@@ -207,29 +221,72 @@ const SettingsProfile: React.FC = () => {
               ? fanFavTracks.split(',').map(s => s.trim()).filter(Boolean)
               : [],
             why_i_love_racing: fanWhy || null,
+            profile_photo_url: typeof newAvatarUrl === 'string' ? newAvatarUrl : null,
           };
-          if (typeof newAvatarUrl === 'string') fanPayload.profile_photo_url = newAvatarUrl;
           await supabase.from('fan_profiles').upsert(fanPayload, { onConflict: 'id' });
         } else if (userType === 'racer') {
-          const racerPayload: Record<string, unknown> = {
+          const racerPayload = {
             id: userId,
             username: racerUsername || null,
             team_name: racerTeam || null,
-            car_number: racerCarNum ? Number(racerCarNum) : null,
+            car_number: racerCarNum || null,
             racing_class: racerClass || null,
+            profile_photo_url: typeof newAvatarUrl === 'string' ? newAvatarUrl : null,
+            banner_photo_url: typeof newBannerUrl === 'string' ? newBannerUrl : null,
           };
-          if (typeof newAvatarUrl === 'string') racerPayload.profile_photo_url = newAvatarUrl;
-          if (typeof newBannerUrl === 'string') racerPayload.banner_photo_url = newBannerUrl;
           await supabase.from('racer_profiles').upsert(racerPayload, { onConflict: 'id' });
         }
       } catch (typeSaveErr) {
         console.log('Type-specific profile save skipped:', typeSaveErr);
       }
 
-      toast({
-        title: "Success!",
-        description: "Profile updated successfully.",
-      });
+      // Step 6: Update profile completion status directly instead of using checkAndUpdateCompletion
+      if (userType === 'racer') {
+        try {
+          // Check if all required fields are filled
+          const isComplete = [
+            name,
+            newAvatarUrl,
+            newBannerUrl,
+            racerUsername,
+            racerTeam,
+            racerCarNum,
+            racerClass
+          ].every(field => field && String(field).trim() !== '');
+          
+          // Update profile_complete and is_verified directly
+          await supabase
+            .from('profiles')
+            .update({
+              profile_complete: isComplete,
+              is_verified: isComplete
+            })
+            .eq('id', userId);
+          
+          if (isComplete) {
+            toast({
+              title: "Profile Complete! 🎉",
+              description: "You're now verified as a racer. Your profile is complete!",
+            });
+          } else {
+            toast({
+              title: "Success!",
+              description: "Profile updated successfully.",
+            });
+          }
+        } catch (completionErr) {
+          console.error('Error updating completion status:', completionErr);
+          toast({
+            title: "Success!",
+            description: "Profile updated successfully.",
+          });
+        }
+      } else {
+        toast({
+          title: "Success!",
+          description: "Profile updated successfully.",
+        });
+      }
 
       setAvatarFile(null);
       setBannerFile(null);
@@ -321,6 +378,23 @@ const SettingsProfile: React.FC = () => {
             Edit Profile
           </h1>
         </div>
+
+        {/* Profile Completion Progress - Only for racers */}
+        {userType === 'racer' && userId && (
+          <div className="mb-6">
+            <ProfileCompletionProgress 
+              userId={userId}
+              onCompletionChange={(status) => {
+                if (status.isComplete) {
+                  toast({
+                    title: "Profile Complete!",
+                    description: "You're now verified as a racer. Great job!",
+                  });
+                }
+              }}
+            />
+          </div>
+        )}
 
         {/* Banner Card */}
         <Card className="bg-slate-900/50 border-slate-800 mb-6">

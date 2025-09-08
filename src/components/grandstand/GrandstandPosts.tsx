@@ -180,7 +180,8 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
               id,
               username,
               display_name,
-              profile_photo_url
+              profile_photo_url,
+              car_number
             )
           `)
           .eq('visibility', 'public')
@@ -195,7 +196,10 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
           const profile = post.profiles;
           const racerProf = Array.isArray(post.racer_profiles) ? post.racer_profiles[0] : post.racer_profiles;
           const typeRaw = (post.user_type || '').toString().toLowerCase();
-          const detectedType: Post['userType'] = (typeRaw === 'racer' || !!post.racer_id)
+          const profileUserTypeRaw = (profile?.user_type || '').toString().toLowerCase();
+          const hasRacerProfile = !!racerProf;
+          const isRacer = (typeRaw === 'racer') || !!post.racer_id || (profileUserTypeRaw === 'racer') || hasRacerProfile;
+          const detectedType: Post['userType'] = isRacer
             ? 'RACER'
             : (typeRaw === 'track' ? 'TRACK' : typeRaw === 'series' ? 'SERIES' : 'FAN');
           const mediaUrls: string[] = Array.isArray(post.media_urls)
@@ -206,14 +210,17 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
             console.error('Racer post without racer profile:', post);
           }
 
+          const carNumber = racerProf?.car_number != null ? String(racerProf.car_number).replace(/^#/, '') : undefined;
+          const userVerified = false;
+
           return {
             id: post.id,
             userId: post.user_id || post.racer_id || 'unknown',
             userType: detectedType,
             userName: detectedType === 'RACER' ? (racerProf?.display_name || racerProf?.username || profile?.name || 'Racer') : (profile?.name || 'Racing Fan'),
-            userAvatar: detectedType === 'RACER' ? (racerProf?.profile_photo_url || profile?.avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&dpr=2') : (profile?.avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&dpr=2'),
-            userVerified: false,
-            carNumber: undefined,
+            userAvatar: detectedType === 'RACER' ? (racerProf?.profile_photo_url || profile?.avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2') : (profile?.avatar || 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=2'),
+            userVerified: userVerified,
+            carNumber: carNumber,
             content: post.content || '',
             mediaUrls,
             mediaType: mediaUrls.length > 0 ? (post.post_type === 'video' ? 'video' as const : 'image' as const) : undefined,
@@ -391,7 +398,7 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
                             </span>
                           )}
                           {post.userVerified && (
-                            <div className="w-4 h-4 bg-orange-500 rounded-full flex items-center justify-center group-hover:bg-orange-400 group-hover:scale-110 transition-all duration-300">
+                            <div className="w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center group-hover:bg-emerald-400 group-hover:scale-110 transition-all duration-300">
                               <span className="text-white text-xs">✓</span>
                             </div>
                           )}
@@ -492,8 +499,11 @@ const GrandstandPosts: React.FC<GrandstandPostsProps> = () => {
                           <DollarSign className="w-4 h-4" />
                         </button>
                         <button 
-                          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm flex items-center space-x-1"
+                          className="relative px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors duration-200 text-sm flex items-center space-x-1 shadow-md hover:shadow-lg"
                         >
+                          {/* Sparkles */}
+                          <span className="pointer-events-none absolute -top-1 -right-1 text-yellow-300 animate-ping">✦</span>
+                          <span className="pointer-events-none absolute -bottom-1 -left-1 text-orange-300 animate-pulse">✧</span>
                           <Crown className="w-3 h-3" />
                           <span>Join the Team</span>
                         </button>

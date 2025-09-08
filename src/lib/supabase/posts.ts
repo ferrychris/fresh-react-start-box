@@ -176,8 +176,8 @@ export const getPostUpvoter = async (
   return data === true ? { data: { user_id: userId }, error: null } : { data: null, error: null };
 };
 
-// Add an upvote
-export const upvotePost = async (postId: string, userId: string): Promise<{ error: any | null }> => {
+// Add an upvote and return updated count
+export const upvotePost = async (postId: string, userId: string): Promise<{ error: any | null; newCount?: number }> => {
   try {
     // Use upsert to avoid duplicate key violations on rapid clicks/race conditions
     const { error } = await supabase
@@ -185,22 +185,36 @@ export const upvotePost = async (postId: string, userId: string): Promise<{ erro
       .upsert({ post_id: postId, user_id: userId }, { onConflict: 'post_id,user_id', ignoreDuplicates: true });
     if (error) throw error;
 
-    // Count is maintained by DB triggers
-    return { error: null };
+    // Fetch the updated count from the database
+    const { data: updatedPost } = await supabase
+      .from('racer_posts')
+      .select('upvotes_count')
+      .eq('id', postId)
+      .single();
+
+    return { error: null, newCount: updatedPost?.upvotes_count || 0 };
   } catch (error) {
     return { error };
   }
 };
 
-// Remove an upvote
-export const removeUpvote = async (postId: string, userId: string): Promise<{ error: any | null }> => {
+// Remove an upvote and return updated count
+export const removeUpvote = async (postId: string, userId: string): Promise<{ error: any | null; newCount?: number }> => {
   try {
     const { error } = await supabase
       .from('post_upvotes')
       .delete()
       .match({ post_id: postId, user_id: userId });
     if (error) throw error;
-    return { error: null };
+
+    // Fetch the updated count from the database
+    const { data: updatedPost } = await supabase
+      .from('racer_posts')
+      .select('upvotes_count')
+      .eq('id', postId)
+      .single();
+
+    return { error: null, newCount: updatedPost?.upvotes_count || 0 };
   } catch (error) {
     return { error };
   }
@@ -813,7 +827,7 @@ export const addCommentToPost = async (
   postId: string,
   userId: string,
   commentText: string
-): Promise<{ data: Comment | null; error: Error | null }> => {
+): Promise<{ data: Comment | null; error: Error | null; newCount?: number }> => {
   if (!postId || !userId || !commentText?.trim()) {
     console.error('addCommentToPost called with invalid parameters', { postId, userId, commentText });
     return { 
@@ -882,8 +896,14 @@ export const addCommentToPost = async (
       }
 
       // The database trigger will automatically handle comment count updates
-      // No manual intervention needed here as the trigger function handles it
       console.log('Comment added successfully, database trigger will update comment count');
+
+      // Fetch the updated comment count from the database
+      const { data: updatedPost } = await supabase
+        .from('racer_posts')
+        .select('comments_count')
+        .eq('id', postId)
+        .single();
 
       // Map the returned data to the PostComment type
       const mappedComment: Comment = {
@@ -906,7 +926,11 @@ export const addCommentToPost = async (
         }
       };
 
-      return { data: mappedComment, error: null };
+      return { 
+        data: mappedComment, 
+        error: null, 
+        newCount: updatedPost?.comments_count || 0 
+      };
     } catch (error) {
       if (retries < maxRetries) {
         console.warn(`Unexpected error adding comment, retrying... (${retries + 1}/${maxRetries})`);
@@ -929,11 +953,11 @@ export const addCommentToPost = async (
   };
 };
 
-// Delete a single comment and decrement the post's comment count by 1.
+// Delete a single comment and return updated count
 export const deleteCommentFromPost = async (
   postId: string,
   commentId: string
-): Promise<{ success: boolean; error: Error | null }> => {
+): Promise<{ success: boolean; error: Error | null; newCount?: number }> => {
   if (!postId || !commentId) {
     return { success: false, error: new Error('Post ID and Comment ID are required') };
   }
@@ -984,43 +1008,21 @@ export const deleteCommentFromPost = async (
         return { success: false, error: new Error(delErr.message) };
       }
 
-      // Decrement the cached comment count on the post
-      try {
-        const { data: currentPost, error: fetchPostErr } = await supabase
-          .from('racer_posts')
-          .select('id, comments_count, comment_count')
-          .eq('id', postId)
-          .maybeSingle();
-        if (fetchPostErr) {
-          console.warn('Failed to fetch post for decrementing comment count:', fetchPostErr);
-        } else if (currentPost) {
-          const hasPlural = typeof (currentPost as any).comments_count === 'number';
-          const hasSingular = typeof (currentPost as any).comment_count === 'number';
-          if (hasPlural) {
-            const cur = (currentPost as any).comments_count || 0;
-            const newVal = cur > 0 ? cur - 1 : 0;
-            const { error: updErr } = await supabase
-              .from('racer_posts')
-              .update({ comments_count: newVal })
-              .eq('id', postId);
-            if (updErr) console.warn('Failed to decrement comments_count:', updErr);
-          } else if (hasSingular) {
-            const cur = (currentPost as any).comment_count || 0;
-            const newVal = cur > 0 ? cur - 1 : 0;
-            const { error: updErr2 } = await supabase
-              .from('racer_posts')
-              .update({ comment_count: newVal })
-              .eq('id', postId);
-            if (updErr2) console.warn('Failed to decrement comment_count:', updErr2);
-          } else {
-            console.warn('No comments_count/comment_count column found on racer_posts');
-          }
-        }
-      } catch (decErr) {
-        console.warn('Exception while decrementing comment count:', decErr);
-      }
+      // The database trigger will automatically handle comment count updates
+      console.log('Comment deleted successfully, database trigger will update comment count');
 
-      return { success: true, error: null };
+      // Fetch the updated comment count from the database
+      const { data: updatedPost } = await supabase
+        .from('racer_posts')
+        .select('comments_count')
+        .eq('id', postId)
+        .single();
+
+      return { 
+        success: true, 
+        error: null, 
+        newCount: updatedPost?.comments_count || 0 
+      };
     } catch (err) {
       if (retries < maxRetries) {
         retries++;
@@ -1709,8 +1711,109 @@ export const getPostLikers = async (postId: string, userId: string): Promise<{ d
     .maybeSingle();
 };
 
-// Adds a like to a post for a user.
-export const likePost = async (postId: string, userId: string): Promise<{ error: any | null }> => {
+// Get current counts for a post from the database
+export const getPostCounts = async (postId: string): Promise<{ 
+  likes_count: number; 
+  upvotes_count: number; 
+  comments_count: number; 
+  error?: any 
+}> => {
+  try {
+    const { data, error } = await supabase
+      .from('racer_posts')
+      .select('likes_count, upvotes_count, comments_count')
+      .eq('id', postId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching post counts:', error);
+      return { likes_count: 0, upvotes_count: 0, comments_count: 0, error };
+    }
+
+    return {
+      likes_count: data?.likes_count || 0,
+      upvotes_count: data?.upvotes_count || 0,
+      comments_count: data?.comments_count || 0
+    };
+  } catch (error) {
+    console.error('Exception fetching post counts:', error);
+    return { likes_count: 0, upvotes_count: 0, comments_count: 0, error };
+  }
+};
+
+// Get racer badge data including verification status and stats
+export const getRacerBadgeData = async (racerId: string): Promise<{
+  is_verified: boolean;
+  is_featured: boolean;
+  championships: number;
+  career_wins: number;
+  years_racing: number;
+  follower_count: number;
+  error?: any;
+}> => {
+  try {
+    // Get racer profile data
+    const { data: racerData, error: racerError } = await supabase
+      .from('racer_profiles')
+      .select(`
+        championships,
+        career_wins,
+        years_racing,
+        is_featured,
+        profiles!racer_profiles_id_fkey (
+          is_verified
+        )
+      `)
+      .eq('id', racerId)
+      .single();
+
+    if (racerError) {
+      console.error('Error fetching racer badge data:', racerError);
+      return {
+        is_verified: false,
+        is_featured: false,
+        championships: 0,
+        career_wins: 0,
+        years_racing: 0,
+        follower_count: 0,
+        error: racerError
+      };
+    }
+
+    // Get follower count
+    const { count: followerCount } = await supabase
+      .from('fan_connections')
+      .select('id', { count: 'exact' })
+      .eq('racer_id', racerId);
+
+    const profileData = Array.isArray(racerData.profiles) 
+      ? racerData.profiles[0] 
+      : racerData.profiles;
+
+    return {
+      is_verified: profileData?.is_verified || false,
+      is_featured: racerData.is_featured || false,
+      championships: racerData.championships || 0,
+      career_wins: racerData.career_wins || 0,
+      years_racing: racerData.years_racing || 0,
+      follower_count: followerCount || 0
+    };
+  } catch (error) {
+    console.error('Exception fetching racer badge data:', error);
+    return {
+      is_verified: false,
+      is_featured: false,
+      championships: 0,
+      career_wins: 0,
+      years_racing: 0,
+      follower_count: 0,
+      error
+    };
+  }
+};
+
+// Adds a like to a post for a user and returns updated count
+export const likePost = async (postId: string, userId: string): Promise<{ error: any | null; newCount?: number }> => {
   try {
     // First check if the like already exists to prevent duplicates
     const { data: existingLike } = await supabase
@@ -1721,10 +1824,16 @@ export const likePost = async (postId: string, userId: string): Promise<{ error:
       .maybeSingle();
 
     if (existingLike) {
-      // Like already exists, no need to add again
-      return { error: null };
+      // Like already exists, get current count
+      const { data: post } = await supabase
+        .from('racer_posts')
+        .select('likes_count')
+        .eq('id', postId)
+        .single();
+      return { error: null, newCount: post?.likes_count || 0 };
     }
 
+    // Insert the like - the database trigger will automatically update the count
     const { error } = await supabase
       .from('post_likes')
       .insert({ post_id: postId, user_id: userId });
@@ -1734,23 +1843,24 @@ export const likePost = async (postId: string, userId: string): Promise<{ error:
       throw error;
     }
 
-    // Increment the likes count on the post using database function
-    try {
-      await supabase.rpc('increment_post_likes', { post_id_param: postId });
-    } catch (rpcError) {
-      console.warn('Failed to increment like count via RPC:', rpcError);
-    }
+    // Fetch the updated count from the database
+    const { data: updatedPost } = await supabase
+      .from('racer_posts')
+      .select('likes_count')
+      .eq('id', postId)
+      .single();
 
-    return { error: null };
+    return { error: null, newCount: updatedPost?.likes_count || 0 };
   } catch (error) {
     console.error('Error in likePost:', error);
     return { error };
   }
 };
 
-// Removes a like from a post for a user.
-export const unlikePost = async (postId: string, userId: string): Promise<{ error: any | null }> => {
+// Removes a like from a post for a user and returns updated count
+export const unlikePost = async (postId: string, userId: string): Promise<{ error: any | null; newCount?: number }> => {
   try {
+    // Delete the like - the database trigger will automatically update the count
     const { error } = await supabase
       .from('post_likes')
       .delete()
@@ -1761,14 +1871,14 @@ export const unlikePost = async (postId: string, userId: string): Promise<{ erro
       throw error;
     }
 
-    // Decrement the likes count on the post using database function
-    try {
-      await supabase.rpc('decrement_post_likes', { post_id_param: postId });
-    } catch (rpcError) {
-      console.warn('Failed to decrement like count via RPC:', rpcError);
-    }
+    // Fetch the updated count from the database
+    const { data: updatedPost } = await supabase
+      .from('racer_posts')
+      .select('likes_count')
+      .eq('id', postId)
+      .single();
 
-    return { error: null };
+    return { error: null, newCount: updatedPost?.likes_count || 0 };
   } catch (error) {
     console.error('Error in unlikePost:', error);
     return { error };

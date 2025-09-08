@@ -8,6 +8,7 @@ import { PostCard, type Post as PostCardType } from '../components/PostCard';
 import { supabase } from '../lib/supabase';
 import { getJSONCookie, setJSONCookie } from '@/lib/cookies';
 import { SuggestionsPanel } from '../components/SuggestionsPanel';
+import { PostCountTester } from '../components/PostCountTester';
 // Sidebars removed for a cleaner single-column layout
 
 // Define proper types for the CreatePost component's return value
@@ -793,6 +794,13 @@ export default function Grandstand() {
             )}
           </div>
         </div>
+        
+        {/* Temporary debugging tool - remove in production */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-8">
+            <PostCountTester />
+          </div>
+        )}
       </div>
       {showCreatePost && (
         <CreatePost

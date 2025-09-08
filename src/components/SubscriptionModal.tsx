@@ -232,91 +232,68 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             </button>
           </div>
         ) : (
-          <div className="space-y-3 md:space-y-0 md:flex md:flex-wrap md:items-stretch md:gap-3">
-            {/* Tier Selection */}
-            {tiers.map(tier => {
-              const TierIcon = getTierIcon(tier.tier_name);
-              const tierColor = getTierColor(tier.tier_name);
-              
-              return (
-                <div
-                  key={tier.id}
-                  onClick={() => setSelectedTier(tier)}
-                  className={`p-2 sm:p-3 rounded-lg border-2 cursor-pointer transition-all md:basis-1/2 lg:basis-1/3 h-full ${
-                    selectedTier?.id === tier.id
-                      ? 'border-fedex-orange bg-fedex-orange/10'
-                      : 'border-gray-700 hover:border-gray-600'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center space-x-3">
-                      <TierIcon className={`h-5 w-5 ${tierColor}`} />
-                      <h4 className="font-semibold text-sm md:text-base">{tier.tier_name}</h4>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-md md:text-lg font-bold text-green-400">
-                        ${(tier.price_cents / 100).toFixed(2)}
-                      </div>
-                      <div className="text-xs text-gray-400">/month</div>
-                    </div>
-                  </div>
-                  {/* Mobile-only details trigger */}
-                  <div className="flex items-center justify-between sm:hidden">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setMobileDetailsFor(mobileDetailsFor === tier.id ? null : tier.id);
-                      }}
-                      className="inline-flex items-center space-x-2 text-xs text-gray-300 hover:text-white px-2 py-1 rounded-md bg-gray-800/60"
-                    >
-                      <Info className="h-4 w-4 text-fedex-orange" />
-                      <span>Plan details</span>
-                    </button>
-                  </div>
-                  
-                  {/* Full details: visible on sm+ */}
-                  <div className="hidden sm:block">
-                    {tier.description && (
-                      <p className="text-gray-400 text-xs md:text-sm mb-2">{tier.description}</p>
-                    )}
-                    <div className="space-y-1">
-                      {tier.benefits.map((benefit, index) => (
-                        <div key={index} className="flex items-center space-x-2 text-xs md:text-sm">
-                          <Star className="h-3 w-3 text-fedex-orange" />
-                          <span className="text-gray-300">{benefit}</span>
+          <>
+            {/* Classic cards grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {tiers.map((tier) => {
+                const TierIcon = getTierIcon(tier.tier_name);
+                const isSelected = selectedTier?.id === tier.id;
+                return (
+                  <div
+                    key={tier.id}
+                    role="button"
+                    aria-selected={isSelected}
+                    onClick={() => setSelectedTier(tier)}
+                    className={`rounded-xl border transition-all bg-gray-900/60 ${
+                      isSelected ? 'border-fedex-orange shadow-[0_0_0_2px_rgba(255,102,0,0.2)]' : 'border-gray-700 hover:border-gray-600 hover:shadow-md'
+                    }`}
+                  >
+                    <div className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <TierIcon className="h-5 w-5 text-fedex-orange" />
+                          <h4 className="text-base font-semibold text-white">{tier.tier_name}</h4>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Mobile tooltip content */}
-                  {mobileDetailsFor === tier.id && (
-                    <div className="sm:hidden mt-2 p-3 bg-gray-800 rounded-lg border border-gray-700">
+                        <div className="text-right">
+                          <div className="text-xl font-bold text-green-400">${(tier.price_cents / 100).toFixed(2)}</div>
+                          <div className="text-xs text-gray-400">/month</div>
+                        </div>
+                      </div>
                       {tier.description && (
-                        <p className="text-gray-300 text-xs mb-2">{tier.description}</p>
+                        <p className="text-gray-400 text-sm mt-2">{tier.description}</p>
                       )}
-                      <div className="space-y-1">
-                        {tier.benefits.map((benefit, index) => (
-                          <div key={index} className="flex items-center space-x-2 text-xs">
-                            <Star className="h-3 w-3 text-fedex-orange" />
+                      <div className="mt-3 space-y-2">
+                        {tier.benefits.map((benefit, idx) => (
+                          <div key={idx} className="flex items-center gap-2 text-sm">
+                            <Star className="h-4 w-4 text-fedex-orange" />
                             <span className="text-gray-300">{benefit}</span>
                           </div>
                         ))}
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                    <div className="px-4 pb-4">
+                      <button
+                        onClick={() => setSelectedTier(tier)}
+                        className={`w-full rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
+                          isSelected
+                            ? 'bg-fedex-orange text-black hover:bg-fedex-orange/90'
+                            : 'bg-gray-800 text-white hover:bg-gray-700'
+                        }`}
+                      >
+                        {isSelected ? 'Selected' : 'Choose'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-            {/* Revenue Split Info */}
+            {/* Summary and actions */}
             {selectedTier && (
-              <div className="bg-gray-800 rounded-lg p-4 text-sm hidden md:block md:basis-full">
-                <div className="flex justify-between text-gray-400 mb-1">
+              <div className="mt-4 rounded-xl border border-gray-700 bg-gray-900/60 p-4 text-sm">
+                <div className="flex justify-between text-gray-300 mb-1">
                   <span>{racerName} receives (80%)</span>
-                  <span className="text-green-400">
-                    ${((selectedTier.price_cents * 0.8) / 100).toFixed(2)}/month
-                  </span>
+                  <span className="text-green-400">${((selectedTier.price_cents * 0.8) / 100).toFixed(2)}/month</span>
                 </div>
                 <div className="flex justify-between text-gray-400">
                   <span>Platform fee (20%)</span>
@@ -325,30 +302,28 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               </div>
             )}
 
-            {/* Error Message */}
             {error && (
-              <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 text-sm">
+              <div className="mt-3 bg-red-900/20 border border-red-500/30 rounded-lg p-3 text-sm">
                 <p className="text-red-400">{error}</p>
               </div>
             )}
 
-            {/* Action Buttons */}
-            <div className="flex space-x-2 pt-3">
+            <div className="mt-4 flex gap-2">
               <button
                 onClick={onClose}
-                className="flex-1 px-2 py-2 sm:px-3 sm:py-2 bg-gray-700 hover:bg-gray-600 rounded-md font-semibold text-xs sm:text-sm transition-colors"
+                className="flex-1 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-md font-semibold text-sm transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubscribe}
                 disabled={!selectedTier || isLoading}
-                className="flex-1 px-2 py-2 sm:px-3 sm:py-2 bg-fedex-orange hover:bg-fedex-orange-dark disabled:bg-gray-600 disabled:cursor-not-allowed rounded-md font-semibold text-xs sm:text-sm transition-colors"
+                className="flex-1 px-3 py-2 bg-fedex-orange hover:bg-fedex-orange-dark disabled:bg-gray-600 disabled:cursor-not-allowed rounded-md font-semibold text-sm transition-colors"
               >
-                {isLoading ? 'Processing...' : `Subscribe ${selectedTier ? `$${(selectedTier.price_cents / 100).toFixed(2)}/mo` : ''}`}
+                {isLoading ? 'Processing...' : `Subscribe $${(selectedTier?.price_cents ?? 0) / 100}/mo`}
               </button>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>

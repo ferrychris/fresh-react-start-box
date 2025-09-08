@@ -13,6 +13,7 @@ import {
   BarChart3,
   Calendar
 } from 'lucide-react';
+import { ProfileCompletionTester } from '../components/ProfileCompletionTester';
 
 export const Admin: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -134,7 +135,7 @@ export const Admin: React.FC = () => {
 
         {/* Tabs */}
         <div className="flex space-x-1 mb-8 bg-gray-900 p-1 rounded-lg">
-          {['overview', 'approvals', 'content', 'users', 'analytics'].map(tab => (
+          {['overview', 'approvals', 'content', 'users', 'profiles', 'analytics'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -311,6 +312,12 @@ export const Admin: React.FC = () => {
                     ))}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'profiles' && (
+              <div className="space-y-6">
+                <ProfileCompletionTester />
               </div>
             )}
           </div>

@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Flame, Users, Crown, DollarSign, Pencil, Eye, Camera, CheckCircle, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../../integrations/supabase/client';
 import { recordActivityForStreak } from '../../../integrations/supabase/streaks';
+import { 
+  fetchProfileCompletionData, 
+  analyzeProfileCompletion, 
+  getMissingFieldLabels 
+} from '../../../utils/profileCompletion';
 
 interface ProfileHeaderProps {
   userId: string;
@@ -281,18 +286,42 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
           },
         });
 
-        // Compute racer profile completion and missing fields
-        const checklist: Array<{ key: string; ok: boolean; label: string }> = [
-          { key: 'profile_photo_url', ok: !!racerProfile?.profile_photo_url, label: 'Profile photo' },
-          { key: 'banner_photo_url', ok: !!racerProfile?.banner_photo_url, label: 'Banner photo' },
-          { key: 'car_number', ok: !!racerProfile?.car_number, label: 'Car number' },
-          { key: 'racing_class', ok: !!racerProfile?.racing_class, label: 'Racing class' },
-          { key: 'team_name', ok: !!racerProfile?.team_name, label: 'Team name' },
-        ];
-        const total = checklist.length;
-        const done = checklist.filter(c => c.ok).length;
-        setCompletionPct(Math.round((done / total) * 100));
-        setMissingFields(checklist.filter(c => !c.ok).map(c => c.label));
+        // Use our comprehensive profile completion system
+        try {
+          const completionData = await fetchProfileCompletionData(resolvedUserId);
+          if (completionData) {
+            const completionStatus = analyzeProfileCompletion(completionData);
+            setCompletionPct(completionStatus.completionPercentage);
+            setMissingFields(getMissingFieldLabels(completionStatus.missingFields));
+          } else {
+            // Fallback to old system if new system fails
+            const checklist: Array<{ key: string; ok: boolean; label: string }> = [
+              { key: 'profile_photo_url', ok: !!racerProfile?.profile_photo_url, label: 'Profile photo' },
+              { key: 'banner_photo_url', ok: !!racerProfile?.banner_photo_url, label: 'Banner photo' },
+              { key: 'car_number', ok: !!racerProfile?.car_number, label: 'Car number' },
+              { key: 'racing_class', ok: !!racerProfile?.racing_class, label: 'Racing class' },
+              { key: 'team_name', ok: !!racerProfile?.team_name, label: 'Team name' },
+            ];
+            const total = checklist.length;
+            const done = checklist.filter(c => c.ok).length;
+            setCompletionPct(Math.round((done / total) * 100));
+            setMissingFields(checklist.filter(c => !c.ok).map(c => c.label));
+          }
+        } catch (completionError) {
+          console.warn('Profile completion check failed, using fallback:', completionError);
+          // Fallback to old system
+          const checklist: Array<{ key: string; ok: boolean; label: string }> = [
+            { key: 'profile_photo_url', ok: !!racerProfile?.profile_photo_url, label: 'Profile photo' },
+            { key: 'banner_photo_url', ok: !!racerProfile?.banner_photo_url, label: 'Banner photo' },
+            { key: 'car_number', ok: !!racerProfile?.car_number, label: 'Car number' },
+            { key: 'racing_class', ok: !!racerProfile?.racing_class, label: 'Racing class' },
+            { key: 'team_name', ok: !!racerProfile?.team_name, label: 'Team name' },
+          ];
+          const total = checklist.length;
+          const done = checklist.filter(c => c.ok).length;
+          setCompletionPct(Math.round((done / total) * 100));
+          setMissingFields(checklist.filter(c => !c.ok).map(c => c.label));
+        }
       } catch (error) {
         console.error('Error fetching profile data:', error);
       } finally {

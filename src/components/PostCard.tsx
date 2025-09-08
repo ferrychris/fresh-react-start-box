@@ -24,8 +24,10 @@ import { useUser } from '@/contexts/UserContext';
 import { PostComment } from '@/types';
 import type { Post as PostType } from '@/types';
 import { formatTimeAgo } from '@/lib/utils';
-import { getPostLikers, likePost, unlikePost, addCommentToPost, getPostComments, deletePost, updatePost, getPostUpvoter, upvotePost, removeUpvote } from '@/lib/supabase/posts';
+import { getPostLikers, likePost, unlikePost, addCommentToPost, getPostComments, deletePost, updatePost, getPostUpvoter, upvotePost, removeUpvote, getPostCounts, deleteCommentFromPost, getRacerBadgeData } from '@/lib/supabase/posts';
+// Removed RacerBadges to avoid duplicate racer badge next to the RACER tag
 import { createPaymentSession } from '@/lib/supabase/payments'; // Verified path
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
@@ -100,6 +102,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [showTipModal, setShowTipModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [tipAmount, setTipAmount] = useState(5);
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -108,6 +111,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [editedContent, setEditedContent] = useState('');
   const [isDeleted, setIsDeleted] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
+  const [racerBadgeData, setRacerBadgeData] = useState<{
+    is_verified: boolean;
+    is_featured: boolean;
+    championships: number;
+    career_wins: number;
+    years_racing: number;
+    follower_count: number;
+  } | null>(null);
 
   // Normalize profiles access early for dependent logic
   const profile = Array.isArray(post.profiles) ? post.profiles[0] : post.profiles;
@@ -120,6 +131,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     !!post.racer_profiles?.id ||
     !!(post as any).racer_id ||
     post.racer_id === post.user_id; // Ensure consistency for racer posts
+  const displayUserType = isRacer ? 'RACER' : userType.toUpperCase();
 
   // Track comment IDs we've already added to avoid duplicates from
   // optimistic updates racing with realtime INSERT events
@@ -222,10 +234,25 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
   const [authorUserType, setAuthorUserType] = useState<string | null>(null);
   
-  // Check if racer is verified
+  // Check if racer is verified and fetch badge data
   useEffect(() => {
     setIsVerified(!!post.racer_profiles?.profiles?.is_verified);
-  }, [post.racer_profiles?.profiles?.is_verified]);
+    
+    // Fetch racer badge data if this is a racer post
+    const fetchRacerBadges = async () => {
+      if (isRacer && racerProfileId) {
+        try {
+          const badgeData = await getRacerBadgeData(racerProfileId);
+          setRacerBadgeData(badgeData);
+          console.log('Fetched racer badge data:', badgeData);
+        } catch (error) {
+          console.error('Error fetching racer badge data:', error);
+        }
+      }
+    };
+
+    fetchRacerBadges();
+  }, [post.racer_profiles?.profiles?.is_verified, isRacer, racerProfileId]);
 
   // Get display name - prefer profile.name -> racer username -> email username -> role-based generic
   const emailUsername = profile?.email?.split('@')[0];
@@ -235,7 +262,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const displayName = authorName || profile?.name || racerName || emailUsername || roleGeneric;
   
   // Get racer details
-  const carNumber = post.racer_profiles?.car_number;
+  const carNumber = post.racer_profiles?.car_number?.replace(/^#/, '');
   const racingClass = post.racer_profiles?.racing_class;
   const teamName = post.racer_profiles?.team_name;
 
@@ -326,6 +353,28 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     }
   };
 
+  // Initialize counts from database on mount
+  useEffect(() => {
+    const initializeCounts = async () => {
+      try {
+        // Get actual counts from database
+        const counts = await getPostCounts(post.id);
+        setLikesCount(counts.likes_count);
+        setUpvotesCount(counts.upvotes_count);
+        setCommentsCount(counts.comments_count);
+        console.log('Initialized counts from database:', counts);
+      } catch (error) {
+        console.error('Error initializing counts:', error);
+        // Fallback to post object counts
+        setLikesCount(post.likes_count || 0);
+        setUpvotesCount((post as any).upvotes_count || 0);
+        setCommentsCount(post.comments_count || 0);
+      }
+    };
+
+    initializeCounts();
+  }, [post.id]);
+
   useEffect(() => {
     const checkLike = async () => {
       if (!user) {
@@ -341,10 +390,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     };
 
     checkLike();
-    setLikesCount(post.likes_count || 0);
-  }, [post.id, user, post.likes_count]);
+  }, [post.id, user]);
 
-  // Upvote: check user upvote status and initialize count
+  // Upvote: check user upvote status (count is initialized from database in the main useEffect)
   useEffect(() => {
     const checkUpvote = async () => {
       if (!user) {
@@ -356,26 +404,40 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
         console.error('Error checking post upvote:', error);
       }
       setIsUpvoted(!!data);
-      setUpvotesCount((post as any).upvotes_count || 0);
     };
     checkUpvote();
-  }, [post.id, user, (post as any).upvotes_count]);
+  }, [post.id, user]);
 
   const handleUpvoteToggle = async () => {
     if (!user) { setShowAuthModal(true); return; }
     const wasUpvoted = isUpvoted;
     const prevCount = upvotesCount;
-    // Optimistic UI
+    
+    // Optimistic UI update
     setIsUpvoted(!wasUpvoted);
     setUpvotesCount(prev => prev + (wasUpvoted ? -1 : 1));
+    
     try {
+      let result;
       if (wasUpvoted) {
-        const result = await removeUpvote(post.id, user.id);
-        if (result.error) throw result.error;
+        result = await removeUpvote(post.id, user.id);
+        if (result.error) {
+          throw result.error;
+        }
+        console.log('Post upvote removed successfully - new count:', result.newCount);
       } else {
-        const result = await upvotePost(post.id, user.id);
-        if (result.error) throw result.error;
+        result = await upvotePost(post.id, user.id);
+        if (result.error) {
+          throw result.error;
+        }
+        console.log('Post upvoted successfully - new count:', result.newCount);
       }
+
+      // Update with actual count from database
+      if (typeof result.newCount === 'number') {
+        setUpvotesCount(result.newCount);
+      }
+      
     } catch (e) {
       console.error('Error toggling upvote:', e);
       setIsUpvoted(wasUpvoted);
@@ -444,20 +506,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
           }
         }
       )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'post_upvotes', filter: `post_id=eq.${post.id}` },
-        () => {
-          setUpvotesCount(prev => prev + 1);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'post_upvotes', filter: `post_id=eq.${post.id}` },
-        () => {
-          setUpvotesCount(prev => Math.max(0, prev - 1));
-        }
-      )
       .subscribe();
 
     return () => {
@@ -481,27 +529,29 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     setLikesCount(prev => prev + (wasLiked ? -1 : 1));
     
     try {
+      let result;
       if (wasLiked) {
-        const result = await unlikePost(post.id, user.id);
+        result = await unlikePost(post.id, user.id);
         if (result.error) {
           throw result.error;
         }
+        console.log('Post unliked successfully - new count:', result.newCount);
       } else {
-        const result = await likePost(post.id, user.id);
+        result = await likePost(post.id, user.id);
         if (result.error) {
           throw result.error;
         }
+        console.log('Post liked successfully - new count:', result.newCount);
+      }
+
+      // Update with actual count from database
+      if (typeof result.newCount === 'number') {
+        setLikesCount(result.newCount);
       }
 
       // Call parent update callback
       onPostUpdate?.();
       
-      // Show success feedback
-      if (wasLiked) {
-        console.log('Post unliked successfully');
-      } else {
-        console.log('Post liked successfully');
-      }
     } catch (error) {
       console.error('Error toggling like:', error);
       // Revert optimistic update on error
@@ -559,10 +609,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     if (!newComment.trim()) return;
     try {
       setCommentsLoading(true);
-      const { data: created, error } = await addCommentToPost(post.id, user.id, newComment.trim());
+      const { data: created, error, newCount } = await addCommentToPost(post.id, user.id, newComment.trim());
       if (error) {
         console.error('Error adding comment:', error);
         return;
+      }
+
+      // Update with actual count from database
+      if (typeof newCount === 'number') {
+        setCommentsCount(newCount);
+        console.log('Comment added successfully - new count:', newCount);
       }
 
       // Optimistically update UI only if not already present
@@ -570,18 +626,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
         const cid = String(created.id);
         if (!commentIdsRef.current.has(cid)) {
           commentIdsRef.current.add(cid);
-        setComments(prev => [
-          {
-            id: cid,
-            post_id: created.post_id,
-            user_id: created.user_id,
-            content: created.content,
-            created_at: created.created_at,
-            user: created.user
-          },
-          ...prev
-        ]);
-        setCommentsCount((c) => c + 1);
+          setComments(prev => [
+            {
+              id: cid,
+              post_id: created.post_id,
+              user_id: created.user_id,
+              content: created.content,
+              created_at: created.created_at,
+              user: created.user
+            },
+            ...prev
+          ]);
         }
       }
       setNewComment('');
@@ -788,19 +843,19 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                     {displayName}
                   </button>
                 </span>
-                {/* Verified badge */}
-                {isRacerEffective && isVerified && (
-                  <div className="w-4 h-4 bg-orange-500 rounded-full flex items-center justify-center group-hover:bg-orange-400 group-hover:scale-110 transition-all duration-300">
-                    <span className="text-white text-xs">✓</span>
-                  </div>
+                {isRacerEffective && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/30">
+                    🏎️ Racer
+                  </span>
                 )}
+                {/* Racer badges removed to prevent duplication with the RACER tag */}
                 {carNumber && (
                   <span className="text-orange-500 text-sm group-hover:text-orange-300 group-hover:font-bold transition-all duration-300">#{carNumber}</span>
                 )}
               </div>
               <div className="flex items-center space-x-2 text-sm">
-                <span className={`font-medium ${getUserTypeColor(userType.toUpperCase())} group-hover:brightness-110 transition-all duration-300`}>
-                  {getUserTypeIcon(userType.toUpperCase())} {userType.toUpperCase()}
+                <span className={`font-medium ${getUserTypeColor(displayUserType)} group-hover:brightness-110 transition-all duration-300`}>
+                  {getUserTypeIcon(displayUserType)} {displayUserType}
                 </span>
                 <span className="text-gray-500">•</span>
                 <span className="text-gray-400 group-hover:text-gray-300 transition-colors duration-300">{formatTimeAgo(post.created_at)}</span>
@@ -973,8 +1028,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
               <DollarSign className="w-4 h-4" />
             </button>
             <button 
-              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm flex items-center space-x-1"
+              onClick={() => setShowSubscribeModal(true)}
+              className="relative px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors duration-200 text-sm flex items-center space-x-1 shadow-md hover:shadow-lg"
             >
+              {/* Sparkles */}
+              <span className="pointer-events-none absolute -top-1 -right-1 text-yellow-300 animate-ping">✦</span>
+              <span className="pointer-events-none absolute -bottom-1 -left-1 text-orange-300 animate-pulse">✧</span>
               <Crown className="w-3 h-3" />
               <span>Join the Team</span>
             </button>
@@ -990,7 +1049,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
             </button>
           </div>
         )}
-        </div>
 
         {/* Comments Section */}
         {showComments && (
@@ -1002,108 +1060,38 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
               {Array.from(new Map(comments.map(c => [c.id, c])).values()).map((comment) => (
                 <div key={comment.id} className="flex items-start gap-3 mt-3">
                   <img
-                    src={comment.user.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user.name || 'User'}`}
-                    alt={comment.user.name || 'User'}
+                    src={comment.user?.avatar || dicebearUrl}
+                    alt={comment.user?.name || 'User'}
                     className="w-8 h-8 rounded-full object-cover"
                   />
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">{comment.user.name}</span>
-                      <span className="text-xs text-gray-400">{formatTimeAgo(comment.created_at)}</span>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="font-semibold text-white">{comment.user?.name || 'User'}</span>
+                      <span className="text-gray-500">•</span>
+                      <span className="text-gray-400 text-xs">{formatTimeAgo(comment.created_at)}</span>
                     </div>
-                    <p className="text-sm mt-1">{comment.content}</p>
+                    <p className="text-gray-300 text-sm mt-1">{comment.content}</p>
                   </div>
                 </div>
               ))}
-              {commentsLoading && <div className="text-center text-gray-400">Loading...</div>}
-              {hasMoreComments && !commentsLoading && (
-                <button 
-                  onClick={() => setComments([])} // Placeholder for load more
-                  className="w-full text-center text-fedex-purple font-semibold py-2"
-                >
-                  View more comments
-                </button>
-              )}
             </div>
-            
-            {user && (
-              <div className="relative mt-3">
-                <input
-                  type="text"
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Write a comment..."
-                  className="w-full bg-gray-800 border border-gray-700 rounded-full pl-4 pr-10 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-fedex-orange focus:border-fedex-orange transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddComment}
-                  disabled={!newComment.trim()}
-                  className={`absolute right-2 top-1/2 transform -translate-y-1/2 p-1 rounded-full ${newComment.trim() ? 'text-fedex-orange hover:bg-fedex-orange/10' : 'text-gray-500'}`}
-                >
-                  <Send className="h-5 w-5" />
-                </button>
-              </div>
-            )}
           </div>
         )}
-      </div>
 
-      {/* Tip Modal */}
-      {showTipModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 rounded-3xl p-6 max-w-xs w-full">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Send a Tip</h3>
-              <button
-                onClick={() => setShowTipModal(false)}
-                className="p-2 hover:bg-gray-800 rounded-full transition-colors"
-              >
-                <X className="h-4 w-4 text-gray-400" />
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-2">
-                {[5, 10, 25].map(amount => (
-                  <button
-                    key={amount}
-                    onClick={() => setTipAmount(amount)}
-                    className={`p-2 rounded-xl font-semibold transition-colors ${
-                      tipAmount === amount
-                        ? 'bg-fedex-orange text-white'
-                        : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
-                    }`}
-                  >
-                    ${amount}
-                  </button>
-                ))}
-              </div>
-              
-              <input
-                type="number"
-                value={tipAmount}
-                onChange={(e) => setTipAmount(Number(e.target.value))}
-                min="1"
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-fedex-orange"
-                placeholder="Custom amount"
-              />
-              
-              <button
-                onClick={handleTip}
-                disabled={loading || tipAmount <= 0}
-                className="w-full px-4 py-3 !bg-fedex-orange hover:!bg-fedex-orange/90 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-xl font-semibold text-white transition-colors"
-              >
-                {loading ? 'Sending...' : `Send $${tipAmount} Tip`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {showAuthModal && (
-        <AuthModal onClose={() => setShowAuthModal(false)} />
-      )}
+        {/* Auth and Subscription Modals */}
+        {showAuthModal && (
+          <AuthModal onClose={() => setShowAuthModal(false)} />
+        )}
+        {showSubscribeModal && (
+          <SubscriptionModal
+            racerId={racerProfileId || ''}
+            racerName={displayName}
+            onClose={() => setShowSubscribeModal(false)}
+            onSuccess={() => setShowSubscribeModal(false)}
+          />
+        )}
+      </div>
     </div>
+  </div>
   );
 };

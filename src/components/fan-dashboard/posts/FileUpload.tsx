@@ -9,30 +9,30 @@ interface FileUploadProps {
 const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, mediaType, isUploading = false }) => {
   const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     // Create a preview
     const reader = new FileReader();
     reader.onloadend = () => {
       setPreview(reader.result as string);
     };
     reader.readAsDataURL(file);
-    
+
     // Pass the file to the parent component
     onFileSelect(file);
   };
-  
+
   const handleClick = () => {
     fileInputRef.current?.click();
   };
-  
-  const acceptTypes = mediaType === 'photo' 
-    ? 'image/jpeg,image/png,image/jpg,image/webp' 
+
+  const acceptTypes = mediaType === 'photo'
+    ? 'image/jpeg,image/png,image/jpg,image/webp'
     : 'video/mp4,video/webm,video/ogg,video/quicktime';
-  
+
   return (
     <div className="w-full">
       <input
@@ -43,8 +43,8 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, mediaType, isUplo
         className="hidden"
         disabled={isUploading}
       />
-      
-      <div 
+
+      <div
         onClick={handleClick}
         className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer
           ${isUploading ? 'bg-gray-100 cursor-not-allowed' : 'hover:bg-gray-50'} 
