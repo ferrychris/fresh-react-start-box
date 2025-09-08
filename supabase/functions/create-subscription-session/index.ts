@@ -13,13 +13,56 @@ serve(async (req) => {
   }
 
   try {
-    const { customer_id, price_id, metadata = {} } = await req.json()
+    const { customer_id, price_id, metadata = {}, success_url, cancel_url } = await req.json()
 
     if (!customer_id || !price_id) {
       throw new Error('Customer ID and Price ID are required')
     }
 
-    // Create subscription with Stripe
+    // If success/cancel URLs provided, create a Checkout Session for subscription mode
+    if (success_url && cancel_url) {
+      const checkoutRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Deno.env.get('STRIPE_SECRET_KEY')}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          mode: 'subscription',
+          customer: customer_id,
+          'line_items[0][price]': price_id,
+          'line_items[0][quantity]': '1',
+          success_url,
+          cancel_url,
+          'subscription_data[metadata][racer_id]': metadata.racer_id || '',
+          'subscription_data[metadata][user_id]': metadata.user_id || '',
+          'subscription_data[metadata][tier_id]': metadata.tier_id || '',
+          allow_promotion_codes: 'true'
+        }),
+      })
+
+      if (!checkoutRes.ok) {
+        const error = await checkoutRes.text()
+        console.error('Stripe Checkout API error:', error)
+        throw new Error(`Stripe Checkout API error: ${error}`)
+      }
+
+      const session = await checkoutRes.json()
+
+      return new Response(
+        JSON.stringify({
+          url: session.url,
+          id: session.id,
+          type: 'checkout_session'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      )
+    }
+
+    // Otherwise create subscription directly and return client_secret for in-app confirmation
     const stripeResponse = await fetch('https://api.stripe.com/v1/subscriptions', {
       method: 'POST',
       headers: {

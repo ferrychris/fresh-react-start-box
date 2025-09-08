@@ -29,7 +29,7 @@ export const createCheckoutSession = async (payload: any) => {
     throw new Error(error.error || 'Failed to create checkout session');
   }
 
-  return response.json();
+  return response.json(); // can be { url, id, type } or { subscription_id, client_secret, status }
 };
 
 // Stripe API helpers for frontend
@@ -55,18 +55,27 @@ export const createPaymentIntent = async (amount: number, currency = 'usd', meta
   return response.json();
 };
 
-export const createSubscription = async (customerId: string, priceId: string, metadata = {}) => {
-  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-subscription`, {
+export const createSubscription = async (
+  customerId: string,
+  priceId: string,
+  metadata: Record<string, any> = {},
+  options?: { success_url?: string; cancel_url?: string }
+) => {
+  const payload: any = {
+    customer_id: customerId,
+    price_id: priceId,
+    metadata,
+  };
+  if (options?.success_url) payload.success_url = options.success_url;
+  if (options?.cancel_url) payload.cancel_url = options.cancel_url;
+
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-subscription-session`, {
     method: 'POST',
     headers: {
       // Authorization header removed per request
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      customer_id: customerId,
-      price_id: priceId,
-      metadata
-    })
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Star, X, Crown, Users, Zap, Info } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { supabase } from '../lib/supabase';
-import { createCheckoutSession } from '../lib/stripe';
+import { createStripeCustomer, createSubscription } from '../lib/stripe';
+import { StripeCheckout } from './StripeCheckout';
 
 interface SubscriptionModalProps {
   racerId: string;
@@ -17,7 +18,7 @@ const STATIC_SUBSCRIPTION_TIERS = [
     id: 'fan-tier',
     racer_id: '',
     tier_name: 'Fan',
-    price_cents: 999, // $9.99
+    price_cents: 1500, // $15.00 (mapped to existing recurring price)
     description: 'Basic fan support with exclusive content access',
     benefits: [
       'Exclusive behind-the-scenes content',
@@ -26,14 +27,14 @@ const STATIC_SUBSCRIPTION_TIERS = [
       'Support your favorite racer'
     ],
     is_active: true,
-    // stripe_price_id: 'price_1RsnL1CTmVSqVkGZF3AGyY3S'
-    stripe_price_id: 'price_1RsoF4CTmVSqVkGZnoORXBmr'
+    // Existing recurring price ID (Option A)
+    stripe_price_id: 'price_1RsPsqHF5unOiVE9cqp68m1B'
   },
   {
     id: 'supporter-tier',
     racer_id: '',
     tier_name: 'Supporter',
-    price_cents: 1999, 
+    price_cents: 4500, // $45.00 (mapped to existing recurring price)
     description: 'Enhanced supporter experience with premium benefits',
     benefits: [
       'All Fan tier benefits',
@@ -43,14 +44,14 @@ const STATIC_SUBSCRIPTION_TIERS = [
       'Exclusive race day content'
     ],
     is_active: true,
-    // stripe_price_id: 'price_1RsnLjCTmVSqVkGZSsx2kkw9'
-    stripe_price_id: 'price_1RsoFhCTmVSqVkGZGP8Xt9n0'
+    // Existing recurring price ID (Option A)
+    stripe_price_id: 'price_1RsQUmHF5unOiVE9ZA5CLd3K'
   },
   {
     id: 'vip-tier',
     racer_id: '',
     tier_name: 'VIP',
-    price_cents: 3999, // $39.99
+    price_cents: 9900, // $99.00 (mapped to existing recurring price)
     description: 'Premium VIP experience with maximum benefits',
     benefits: [
       'All Supporter tier benefits',
@@ -61,7 +62,8 @@ const STATIC_SUBSCRIPTION_TIERS = [
       'VIP-only live streams'
     ],
     is_active: true,
-    stripe_price_id: 'price_1RsoG5CTmVSqVkGZDCPhgTM6'
+    // Existing recurring price ID (Option A)
+    stripe_price_id: 'price_1RygD6HF5unOiVE9QKpnkmmr'
   }
 ];
 
@@ -79,6 +81,9 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mobileDetailsFor, setMobileDetailsFor] = useState<string | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [showStripeOverlay, setShowStripeOverlay] = useState(false);
+  const [billingEmailState, setBillingEmailState] = useState<string>('');
 
   const getTierIcon = (tierName: string) => {
     const name = tierName.toLowerCase();
@@ -109,58 +114,53 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     setError(null);
 
     try {
-      // Get user profile and auth user for email
+      // Fetch user email for billing details
       const { data: userProfile } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .maybeSingle();
-
       const { data: { user: authUser } } = await supabase.auth.getUser();
+      const billingEmail = authUser?.email || userProfile?.email || user.email || '';
+      setBillingEmailState(billingEmail);
 
-      console.log('🌐 Making API call to create checkout session...');
-      console.log({
-        priceId: selectedTier.stripe_price_id || 'price_default',
-        uid: user.id,
-        racerId: racerId,
-        tierName: selectedTier.tier_name,
-        priceCents: selectedTier.price_cents
-      });
-
-      // Create checkout session via Supabase Edge Function
-      const response = await createCheckoutSession({
-        mode: 'subscription',
-        priceId: selectedTier.stripe_price_id,
+      // 1) Ensure Stripe customer
+      const customer = await createStripeCustomer(billingEmail, user.name || billingEmail.split('@')[0] || 'Fan', {
         user_id: user.id,
-        racerId: racerId,
-        tierName: selectedTier.tier_name,
-        priceCents: selectedTier.price_cents,
-        customerEmail: authUser?.email || userProfile?.email || user.email,
-        description: `Subscription (${selectedTier.tier_name}) for ${racerName}`,
-        type: 'subscription',
-        success_url: `${window.location.origin}/payment/success?session_id={CHECKOUT_SESSION_ID}&racer=${encodeURIComponent(racerName)}&tier=${encodeURIComponent(selectedTier.tier_name)}`,
-        cancel_url: `${window.location.origin}/racer/${racerId}`
+        user_type: 'fan'
       });
 
-      // Store subscription data for success page processing
-      localStorage.setItem('pendingSubscriptionSuccess', JSON.stringify({
-        racerId: racerId,
-        racerName: racerName,
-        tierName: selectedTier.tier_name,
-        fanId: user.id,
-        fanName: user.name,
-        onSuccessAction: 'create_superfan_notification'
-      }));
+      // 2) Create subscription via Edge Function.
+      // Prefer Checkout Session if URLs are provided; fallback to direct subscription.
+      const successUrl = `${window.location.origin}/payment/success?type=subscription&racer=${encodeURIComponent(racerName)}&tier=${encodeURIComponent(selectedTier.tier_name)}`;
+      const cancelUrl = `${window.location.origin}/racer/${racerId}`;
 
-      // Notify parent that subscription flow started (optional UX hook)
-      if (onSuccess) onSuccess();
+      const sub = await createSubscription(
+        customer.customer_id,
+        selectedTier.stripe_price_id,
+        {
+          racer_id: racerId,
+          user_id: user.id,
+          tier_id: selectedTier.id,
+          tier_name: selectedTier.tier_name
+        },
+        { success_url: successUrl, cancel_url: cancelUrl }
+      );
 
-      if (response?.url) {
-        // Redirect to Stripe Checkout
-        window.location.href = response.url;
-      } else {
-        throw new Error('Failed to create checkout session');
+      // If Edge Function returned a Checkout Session URL, redirect
+      if (sub?.url) {
+        window.location.href = sub.url as string;
+        return;
       }
+
+      // Otherwise expect client_secret for in-app confirmation
+      if (sub?.client_secret) {
+        setClientSecret(sub.client_secret as string);
+        setShowStripeOverlay(true);
+      } else {
+        throw new Error('Subscription response missing url and client_secret');
+      }
+
     } catch (error) {
       console.error('❌ Subscription error:', error);
       setError('Failed to process subscription. Please try again.');
@@ -209,6 +209,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
       <div className="bg-gray-900 rounded-xl p-6 max-w-xl md:max-w-3xl lg:max-w-5xl xl:max-w-6xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
@@ -327,5 +328,25 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         )}
       </div>
     </div>
+
+      {showStripeOverlay && clientSecret && user && (
+        <StripeCheckout
+          type="subscription"
+          amount={selectedTier?.price_cents || 0}
+          racerId={racerId}
+          userId={user.id}
+          userEmail={billingEmailState}
+          userName={user.name || 'Fan'}
+          description={`Subscription (${selectedTier?.tier_name}) for ${racerName}`}
+          metadata={{ racer_id: racerId, user_id: user.id, tier_id: selectedTier?.id }}
+          clientSecret={clientSecret}
+          onSuccess={() => {
+            setShowStripeOverlay(false);
+            onSuccess?.();
+          }}
+          onCancel={() => setShowStripeOverlay(false)}
+        />
+      )}
+    </>
   );
 };

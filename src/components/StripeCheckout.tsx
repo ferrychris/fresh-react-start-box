@@ -29,6 +29,8 @@ interface StripeCheckoutProps {
   onSuccess: () => void;
   onCancel: () => void;
   metadata?: Record<string, any>;
+  // If provided, we will confirm this client secret directly (used for create-subscription flow)
+  clientSecret?: string;
 }
 
 const CheckoutForm: React.FC<StripeCheckoutProps> = ({
@@ -41,7 +43,8 @@ const CheckoutForm: React.FC<StripeCheckoutProps> = ({
   description,
   onSuccess,
   onCancel,
-  metadata = {}
+  metadata = {},
+  clientSecret
 }) => {
   const stripe = useStripe();
   const elements = useElements();
@@ -60,24 +63,27 @@ const CheckoutForm: React.FC<StripeCheckoutProps> = ({
     setError(null);
 
     try {
-      // Create customer if needed
-      const customer = await createStripeCustomer(userEmail, userName, {
-        user_id: userId,
-        user_type: 'fan'
-      });
+      let effectiveClientSecret = clientSecret;
+      if (!effectiveClientSecret) {
+        // Fallback legacy path: create customer + intent (tips/sponsorship or old subscription path)
+        const customer = await createStripeCustomer(userEmail, userName, {
+          user_id: userId,
+          user_type: 'fan'
+        });
 
-      // Create payment intent
-      const { client_secret } = await createPaymentIntent(amount, 'usd', {
-        racer_id: racerId,
-        user_id: userId,
-        type,
-        customer_id: customer.customer_id,
-        description,
-        ...metadata
-      });
+        const { client_secret } = await createPaymentIntent(amount, 'usd', {
+          racer_id: racerId,
+          user_id: userId,
+          type,
+          customer_id: customer.customer_id,
+          description,
+          ...metadata
+        });
+        effectiveClientSecret = client_secret;
+      }
 
       // Confirm payment
-      const result = await stripe.confirmCardPayment(client_secret, {
+      const result = await stripe.confirmCardPayment(effectiveClientSecret!, {
         payment_method: {
           card: elements.getElement(CardElement)!,
           billing_details: {
