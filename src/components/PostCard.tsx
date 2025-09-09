@@ -1016,38 +1016,39 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
           </button>
         </div>
 
-        {/* Tip/Subscribe Actions for Racers */}
-        {isRacerEffective && !isOwner && (
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => alert('Tip coming soon!')}
-                aria-label="Tip"
-                className={`w-9 h-9 rounded-full transition-colors duration-200 flex items-center justify-center bg-green-700 cursor-not-allowed opacity-90 text-white`}
-                disabled
-                title="Tip – coming soon"
-              >
-                <DollarSign className="w-4 h-4" />
-              </button>
-              <span className="text-[10px] px-2 py-0.5 rounded-full border border-green-500/30 text-green-300/90 bg-green-500/10">Coming soon</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => alert('Join Team coming soon!')}
-                className="relative px-3 py-1.5 bg-orange-700 cursor-not-allowed opacity-90 text-white rounded-lg transition-colors duration-200 text-sm flex items-center space-x-1 shadow-md"
-                disabled
-                title="Join the Team – coming soon"
-              >
-                {/* Sparkles */}
-                <span className="pointer-events-none absolute -top-1 -right-1 text-yellow-300 animate-ping">✦</span>
-                <span className="pointer-events-none absolute -bottom-1 -left-1 text-orange-300 animate-pulse">✧</span>
-                <Crown className="w-3 h-3" />
-                <span>Join the Team</span>
-              </button>
-              <span className="text-[10px] px-2 py-0.5 rounded-full border border-orange-500/30 text-orange-300/90 bg-orange-500/10">Coming soon</span>
-            </div>
-          </div>
-        )}
+        {/* Tip/Subscribe Actions for Racers – temporarily disabled */}
+        {/**
+         * {isRacerEffective && !isOwner && (
+         *   <div className="flex items-center space-x-3">
+         *     <div className="flex items-center space-x-2">
+         *       <button
+         *         onClick={() => alert('Tip coming soon!')}
+         *         aria-label="Tip"
+         *         className={`w-9 h-9 rounded-full transition-colors duration-200 flex items-center justify-center bg-green-700 cursor-not-allowed opacity-90 text-white`}
+         *         disabled
+         *         title="Tip – coming soon"
+         *       >
+         *         <DollarSign className="w-4 h-4" />
+         *       </button>
+         *       <span className="text-[10px] px-2 py-0.5 rounded-full border border-green-500/30 text-green-300/90 bg-green-500/10">Coming soon</span>
+         *     </div>
+         *     <div className="flex items-center space-x-2">
+         *       <button
+         *         onClick={() => alert('Join Team coming soon!')}
+         *         className="relative px-3 py-1.5 bg-orange-700 cursor-not-allowed opacity-90 text-white rounded-lg transition-colors duration-200 text-sm flex items-center space-x-1 shadow-md"
+         *         disabled
+         *         title="Join the Team – coming soon"
+         *       >
+         *         <span className="pointer-events-none absolute -top-1 -right-1 text-yellow-300 animate-ping">✦</span>
+         *         <span className="pointer-events-none absolute -bottom-1 -left-1 text-orange-300 animate-pulse">✧</span>
+         *         <Crown className="w-3 h-3" />
+         *         <span>Join the Team</span>
+         *       </button>
+         *       <span className="text-[10px] px-2 py-0.5 rounded-full border border-orange-500/30 text-orange-300/90 bg-orange-500/10">Coming soon</span>
+         *     </div>
+         *   </div>
+         * )}
+         */}
 
         {/* Follow Actions for Tracks/Series */}
         {(userType === 'track' || userType === 'series') && !isOwner && (

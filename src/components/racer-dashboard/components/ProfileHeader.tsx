@@ -92,20 +92,23 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
     }
   };
 
-  // Resolve current user id if requested
+  // Resolve current user and viewer in a single auth call to avoid double round-trip
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // Determine the racer being viewed
-      if (userId && userId !== 'current-user') {
-        if (!cancelled) setResolvedUserId(userId);
-      } else {
+      try {
         const { data } = await supabase.auth.getUser();
-        if (!cancelled) setResolvedUserId(data?.user?.id ?? null);
+        const authedUserId = data?.user?.id ?? null;
+        if (!cancelled) {
+          setViewerId(authedUserId);
+          setResolvedUserId(userId && userId !== 'current-user' ? userId : authedUserId);
+        }
+      } catch {
+        if (!cancelled) {
+          setViewerId(null);
+          setResolvedUserId(userId && userId !== 'current-user' ? userId : null);
+        }
       }
-      // Determine the viewer (logged-in user)
-      const { data: viewer } = await supabase.auth.getUser();
-      if (!cancelled) setViewerId(viewer?.user?.id ?? null);
     })();
     return () => { cancelled = true; };
   }, [userId]);
@@ -206,116 +209,93 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
   useEffect(() => {
     const fetchProfileData = async () => {
       if (!resolvedUserId) return;
-      
       setLoading(true);
       try {
-        // Fetch basic profile data
-        const { data: profileData, error: profileError } = await supabase
+        // Kick off all requests in parallel to reduce total load time
+        const profileQuery = supabase
           .from('profiles')
-          .select(`
-            id,
-            name,
-            email,
-            user_type,
-            avatar,
-            banner_image,
-            is_verified
-          `)
+          .select(`id, name, email, user_type, avatar, banner_image, is_verified`)
           .eq('id', resolvedUserId)
           .single();
-          
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
-          return;
-        }
-        
-        // Create a username from email if not available
-        const username = (profileData.email || '')?.split('@')[0] || 'racer';
-        setIsVerified(!!profileData.is_verified);
-        
-        // Fetch follower count
-        const { count: followerCount, error: followerError } = await supabase
+
+        const followersQuery = supabase
           .from('fan_connections')
           .select('id', { count: 'exact', head: true })
           .eq('racer_id', resolvedUserId);
-          
-        if (followerError) {
-          console.error('Error fetching follower count:', followerError);
-        }
-        
-        // Fetch streak days (activity streak)
-        const { data: streakData, error: streakError } = await supabase
+
+        const streakQuery = supabase
           .from('fan_streaks')
           .select('current_streak')
           .eq('fan_id', resolvedUserId)
           .maybeSingle();
-          
-        if (streakError && streakError.code !== 'PGRST116') {
-          console.error('Error fetching streak data:', streakError);
-        }
 
-        // Fetch profile views for this user
-        const { data: viewData, error: viewError } = await supabase
+        const viewsQuery = supabase
           .from('profile_views')
           .select('view_count')
           .eq('profile_id', resolvedUserId)
           .maybeSingle();
 
-        if (viewError && viewError.code !== 'PGRST116') {
-          console.error('Error fetching view data:', viewError);
-        }
-        
-        // Fetch subscribers count
-        const { count: subscribersCount, error: subsError } = await supabase
+        const subsQuery = supabase
           .from('user_subscriptions')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', resolvedUserId)
           .eq('status', 'active');
-        if (subsError) {
-          console.error('Error fetching subscribers count:', subsError);
-        }
 
-        // Fetch total tips from transactions table
-        let totalTipsCents = 0;
-        const { data: tipsSum, error: tipsErr } = await supabase
+        const tipsQuery = supabase
           .from('transactions')
           .select('total_amount_cents')
           .eq('racer_id', resolvedUserId)
           .eq('transaction_type', 'tip')
           .eq('status', 'completed');
-        if (!tipsErr && Array.isArray(tipsSum)) {
-          totalTipsCents = tipsSum.reduce((acc: number, r: { total_amount_cents?: number | null }) => acc + (r?.total_amount_cents || 0), 0);
-        }
 
-        // Get racer profile data if available
-        const { data: racerProfile, error: racerError } = await supabase
+        const racerProfileQuery = supabase
           .from('racer_profiles')
           .select('profile_photo_url, banner_photo_url, car_number, racing_class, team_name')
           .eq('id', resolvedUserId)
           .maybeSingle();
-        
-        if (racerError && racerError.code !== 'PGRST116') {
-          console.error('Error fetching racer profile:', racerError);
+
+        const [profileRes, followersRes, streakRes, viewsRes, subsRes, tipsRes, racerRes] = await Promise.all([
+          profileQuery, followersQuery, streakQuery, viewsQuery, subsQuery, tipsQuery, racerProfileQuery
+        ]);
+
+        if (profileRes.error) {
+          console.error('Error fetching profile:', profileRes.error);
+          return;
         }
 
-        // Combine all data
+        const profileRow = profileRes.data as any;
+        const username = (profileRow?.email || '')?.split('@')[0] || 'racer';
+        setIsVerified(!!profileRow?.is_verified);
+
+        const followerCount = followersRes.count || 0;
+        const streakDays = (streakRes.data as any)?.current_streak || 0;
+        // viewsRes currently unused in header UI but left fetched for future quick use
+        const subscribersCount = subsRes.count || 0;
+
+        let totalTipsCents = 0;
+        if (!tipsRes.error && Array.isArray(tipsRes.data)) {
+          totalTipsCents = tipsRes.data.reduce((acc: number, r: { total_amount_cents?: number | null }) => acc + (r?.total_amount_cents || 0), 0);
+        }
+
+        const racerProfile = racerRes.data as any;
+
         setProfileData({
-          id: profileData.id,
-          name: profileData.name || 'Racer',
-          username: username,
-          avatar: profileData.avatar || racerProfile?.profile_photo_url || '',
-          bio: `${profileData.user_type || 'racer'} profile`,
+          id: profileRow.id,
+          name: profileRow.name || 'Racer',
+          username,
+          avatar: profileRow.avatar || racerProfile?.profile_photo_url || '',
+          bio: `${profileRow.user_type || 'racer'} profile`,
           car_number: racerProfile?.car_number || '00',
           racing_class: racerProfile?.racing_class || 'Open Class',
           team: racerProfile?.team_name || 'Independent',
-          followers_count: followerCount || 0,
-          streak_days: streakData?.current_streak || 0,
-          subscribers_count: subscribersCount || 0,
-          total_tips_cents: totalTipsCents || 0,
+          followers_count: followerCount,
+          streak_days: streakDays,
+          subscribers_count: subscribersCount,
+          total_tips_cents: totalTipsCents,
           _media: {
             profile_photo_url: racerProfile?.profile_photo_url || null,
-            avatar: profileData.avatar || null,
-            banner_image: profileData.banner_image || null,
+            avatar: profileRow.avatar || null,
+            banner_image: profileRow.banner_image || null,
             racer_banner: racerProfile?.banner_photo_url || null,
           },
         });
@@ -437,6 +417,12 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                 src={bannerUrl}
                 alt="Profile banner"
                 className="w-full h-full object-cover"
+                loading="eager"
+                decoding="async"
+                // @ts-expect-error: experimental property widely supported in modern browsers
+                fetchpriority="high"
+                width={1920}
+                height={320}
               />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-gray-900 via-gray-800 to-black" />
@@ -504,6 +490,12 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                       src={avatarUrl}
                       alt={displayUser.name}
                       className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-full object-cover ring-4 ring-primary"
+                      loading="eager"
+                      decoding="async"
+                      // @ts-expect-error: experimental property widely supported in modern browsers
+                      fetchpriority="high"
+                      width={112}
+                      height={112}
                     />
                   ) : (
                     <div className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-full ring-4 ring-primary bg-gray-800 flex items-center justify-center">
