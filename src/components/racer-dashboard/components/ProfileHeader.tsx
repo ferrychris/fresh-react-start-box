@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Flame, Users, Crown, DollarSign, Pencil, Eye, Camera, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Flame, Users, Crown, DollarSign, Pencil, Eye, Camera, CheckCircle, AlertTriangle, Share2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Helmet } from 'react-helmet';
 import { supabase } from '../../../integrations/supabase/client';
 import { recordActivityForStreak } from '../../../integrations/supabase/streaks';
 import { 
@@ -73,6 +75,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
   const [completionPct, setCompletionPct] = useState<number>(0);
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [showMissing, setShowMissing] = useState<boolean>(false);
+  const [copiedTooltip, setCopiedTooltip] = useState<boolean>(false);
 
   // Helpers: detect if a string is already a URL and resolve storage paths to public URLs
   const isHttpUrl = (val?: string | null) => !!val && /^(https?:)?\/\//i.test(val);
@@ -162,6 +165,37 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
       }
     } catch (e) {
       console.warn('follow toggle failed', e);
+    }
+  };
+  
+  const handleShareProfile = async () => {
+    try {
+      const targetId = resolvedUserId || userId;
+      const shareUrl = `${window.location.origin}/racer/${targetId ?? ''}`;
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Check out this racer on OnlyRaceFans',
+          text: 'Follow this racer and stay updated on their latest posts and schedule.',
+          url: shareUrl,
+        });
+        toast.success('Share sheet opened');
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Profile link copied');
+        setCopiedTooltip(true);
+        window.setTimeout(() => setCopiedTooltip(false), 1500);
+      }
+    } catch (err) {
+      console.warn('Failed to share profile', err);
+      try {
+        const fallback = `${window.location.origin}/racer/${resolvedUserId || userId || ''}`;
+        await navigator.clipboard.writeText(fallback);
+        toast.success('Profile link copied');
+        setCopiedTooltip(true);
+        window.setTimeout(() => setCopiedTooltip(false), 1500);
+      } catch {
+        toast.error('Unable to share this profile');
+      }
     }
   };
   
@@ -363,12 +397,35 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
     || '';
   const bannerUrl = toPublicUrl(bannerRaw);
 
+  // Resolve avatar for meta tags
+  const avatarForMetaRaw = profileData?._media?.avatar
+    || (profileData as any)?._media?.avatar_url
+    || displayUser.avatar
+    || profileData?._media?.profile_photo_url
+    || '';
+  const avatarForMeta = toPublicUrl(avatarForMetaRaw);
+
   // Compute verified display: backend flag OR (profile complete AND >=10 followers)
   const followersForDisplay = (profileData?.followers_count ?? 0);
   const computedVerified = isVerified || (completionPct >= 100 && followersForDisplay >= 10);
 
   return (
-    <div className="relative border-b border-border h-64 sm:h-72 lg:h-80">
+    <>
+      {/* SEO: Open Graph & Twitter meta for racer profiles */}
+      <Helmet>
+        <title>{`${displayUser.name} (@${displayUser.username}) | OnlyRaceFans`}</title>
+        <meta property="og:type" content="profile" />
+        <meta property="og:title" content={`${displayUser.name} • Racer on OnlyRaceFans`} />
+        <meta property="og:description" content={`Follow ${displayUser.name} to see posts, schedule and more.`} />
+        <meta property="og:url" content={`${typeof window !== 'undefined' ? window.location.origin : ''}/racer/${resolvedUserId || userId}`} />
+        <meta property="og:image" content={bannerUrl || avatarForMeta} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`${displayUser.name} • Racer on OnlyRaceFans`} />
+        <meta name="twitter:description" content={`Follow ${displayUser.name} to see posts, schedule and more.`} />
+        <meta name="twitter:image" content={bannerUrl || avatarForMeta} />
+      </Helmet>
+
+      <div className="relative border-b border-border h-64 sm:h-72 lg:h-80">
       {/* Full-bleed banner background */}
       <div className="absolute inset-0">
         {loading ? (
@@ -553,7 +610,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                     </div>
                     {/* Follow/Unfollow button for non-owners */}
                     {!isOwner && viewerId && viewerId !== resolvedUserId && (
-                      <div className="mt-3">
+                      <div className="mt-3 flex items-center gap-2">
                         <button
                           onClick={toggleFollow}
                           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -562,6 +619,40 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                         >
                           {isFollowing ? 'Unfollow' : 'Follow'}
                         </button>
+                        <div className="relative">
+                          <button
+                            onClick={handleShareProfile}
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 transition"
+                            title="Share profile"
+                          >
+                            <Share2 className="w-4 h-4" />
+                            <span>Share</span>
+                          </button>
+                          {copiedTooltip && (
+                            <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap px-2 py-1 text-[10px] rounded bg-slate-800 border border-slate-700 text-slate-200 shadow">
+                              Link copied
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {(!viewerId || isOwner || (viewerId && viewerId === resolvedUserId)) && (
+                      <div className="mt-3">
+                        <div className="relative inline-block">
+                          <button
+                            onClick={handleShareProfile}
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 transition"
+                            title="Share profile"
+                          >
+                            <Share2 className="w-4 h-4" />
+                            <span>Share</span>
+                          </button>
+                          {copiedTooltip && (
+                            <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap px-2 py-1 text-[10px] rounded bg-slate-800 border border-slate-700 text-slate-200 shadow">
+                              Link copied
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </>
@@ -576,5 +667,6 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
         {/* Metrics rendered inside the identity block above */}
       </div>
     </div>
+    </>
   );
 };

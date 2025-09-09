@@ -17,8 +17,10 @@ export const createCheckoutSession = async (payload: any) => {
   const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout-session`, {
     method: 'POST',
     headers: {
-      // Authorization header with anon key removed per request to avoid exposing token in client headers
       'Content-Type': 'application/json',
+      // Supabase Edge Functions require an anon key in client-side requests
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
     },
     body: JSON.stringify(payload)
   });
@@ -37,8 +39,9 @@ export const createPaymentIntent = async (amount: number, currency = 'usd', meta
   const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-payment-intent`, {
     method: 'POST',
     headers: {
-      // Authorization header removed per request
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
     },
     body: JSON.stringify({
       amount,
@@ -72,8 +75,9 @@ export const createSubscription = async (
   const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-subscription-session`, {
     method: 'POST',
     headers: {
-      // Authorization header removed per request
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
     },
     body: JSON.stringify(payload)
   });
@@ -90,8 +94,9 @@ export const createStripePrice = async (productId: string, amount: number, inter
   const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-stripe-price`, {
     method: 'POST',
     headers: {
-      // Authorization header removed per request
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
     },
     body: JSON.stringify({
       product_id: productId,
@@ -112,8 +117,9 @@ export const createStripeCustomer = async (email: string, name: string, metadata
   const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-customer`, {
     method: 'POST',
     headers: {
-      // Authorization header removed per request
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
     },
     body: JSON.stringify({
       email,
@@ -134,8 +140,9 @@ export const createConnectAccount = async (racerId: string, email: string) => {
   const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-connect-account`, {
     method: 'POST',
     headers: {
-      // Authorization header removed per request
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
     },
     body: JSON.stringify({
       racer_id: racerId,

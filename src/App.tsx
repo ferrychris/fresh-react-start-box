@@ -49,6 +49,7 @@ import { AppProvider, useApp } from './contexts/AppContext';
 import { Toaster } from 'react-hot-toast';
 import Fanheader from './components/fan-dashboard/Fanheader'; // Import Fanheader component
 import FanProfileNew from './pages/FanProfileNew';
+import PostPage from './pages/PostPage';
 
 // Component to handle scroll to top on route changes
 const ScrollToTop: React.FC = () => {
@@ -123,6 +124,16 @@ const HeaderGate: React.FC = () => {
   if (location.pathname === '/') {
     return (
       <Header 
+        currentView={'landing'}
+        onViewChange={onViewChange}
+      />
+    );
+  }
+
+  // Show main header on share page for unauthenticated users
+  if (!user && location.pathname.startsWith('/post/')) {
+    return (
+      <Header
         currentView={'landing'}
         onViewChange={onViewChange}
       />
@@ -227,6 +238,8 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
         <Route path="/coming-soon" element={<ComingSoon />} />
         <Route path="/settings/profile" element={<SettingsProfile />} />
         <Route path="/test-posts" element={<TestRunner />} />
+        {/* Post detail route for shared links */}
+        <Route path="/post/:id" element={<PostPage />} />
         <Route
           path="/grandstand"
           element={authUser ? <Grandstand /> : <Navigate to="/" replace />}

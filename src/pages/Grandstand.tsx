@@ -83,6 +83,7 @@ export default function Grandstand() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const mountIdRef = useRef<string>(Math.random().toString(36).slice(2));
   const [bgLoading, setBgLoading] = useState<boolean>(false);
+  const [showComingSoonNotice, setShowComingSoonNotice] = useState<boolean>(true);
 
   // Log component mount/unmount
   useEffect(() => {
@@ -636,6 +637,25 @@ export default function Grandstand() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black">
+      {/* Coming Soon Notice Bar */}
+      {showComingSoonNotice && (
+        <div className="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-slate-900/60 bg-slate-900 border-b border-slate-800">
+          <div className="max-w-3xl mx-auto px-4 py-2 flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2 text-slate-300">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-500/10 text-green-300 border border-green-500/30">Tip</span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/10 text-orange-300 border border-orange-500/30">Join Team</span>
+              <span className="text-slate-400">features are coming soon</span>
+            </div>
+            <button
+              onClick={() => setShowComingSoonNotice(false)}
+              className="text-slate-400 hover:text-slate-200 text-xs"
+              aria-label="Dismiss coming soon notice"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
       {/* Modern Header Section */}
       {!user && (
         <div className="relative overflow-hidden">

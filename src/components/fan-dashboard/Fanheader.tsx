@@ -292,13 +292,7 @@ const Fanheader = () => {
         {/* Right: Create Post + Notification + user controls */}
         <div className="flex items-center space-x-3 shrink-0">
           {/* Create Post */}
-          <button
-            onClick={() => setShowCreatePost(true)}
-            className="hidden md:inline-flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors bg-fedex-orange hover:bg-fedex-orange-dark text-white"
-          >
-            <Upload className="h-4 w-4" />
-            <span>Create Post</span>
-          </button>
+          
           {/* Notification bell */}
           <button 
             className={`p-2 relative rounded-md transition-colors ${

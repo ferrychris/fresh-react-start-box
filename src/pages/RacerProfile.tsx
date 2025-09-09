@@ -6,45 +6,38 @@ import { useUser } from '../contexts/UserContext';
 import { ProfileHeader } from '../components/racer-dashboard/components/ProfileHeader';
 // Tabs + sections
 import NavigationTabs from '../components/fan-dashboard/NavigationTabs';
-import { StatsCards } from '../components/racer-dashboard/components/StatsCards';
-import { RecentActivity } from '../components/racer-dashboard/components/RecentActivity';
 import { UpcomingRaces } from '../components/racer-dashboard/components/UpcomingRaces';
 import { RacerPostsList } from '../components/racer-dashboard/components/RacerPostsList';
-import { MonetizationPanel } from '../components/racer-dashboard/components/MonetizationPanel';
 import { PostCreator } from '../components/PostCreator';
 import { TeamsPanel } from '../components/racer-dashboard/components/TeamsPanel';
+import { AuthModal } from '@/components/auth/AuthModal';
 
 const RacerProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useUser();
-  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'feeds' | 'monetization' | 'racing-info' | 'schedule' | 'teams' | 'sponsorship-slots'>('overview');
+  const [activeTab, setActiveTab] = useState<'activity' | 'feeds' | 'racing-info' | 'schedule' | 'teams'>('feeds');
   const [reloadToken, setReloadToken] = useState(0);
   const [headerLoading, setHeaderLoading] = useState<boolean>(true);
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
 
   // Tabs configuration matching FanDashboard style
   const tabs = [
-    { id: 'overview', label: 'Overview' },
     { id: 'activity', label: 'Activity' },
     { id: 'feeds', label: 'Feeds' },
-    { id: 'monetization', label: 'Monetization' },
     { id: 'racing-info', label: 'Racing Info' },
     { id: 'schedule', label: 'Schedule' },
-    { id: 'teams', label: 'Teams' },
-    { id: 'sponsorship-slots', label: 'Sponsorship Slots' }
+    { id: 'teams', label: 'Teams' }
   ];
 
   const handleTabChange = (tabId: string) => {
     // Narrow the type from string to our union
     if (
-      tabId === 'overview' ||
       tabId === 'activity' ||
       tabId === 'feeds' ||
-      tabId === 'monetization' ||
       tabId === 'racing-info' ||
       tabId === 'schedule' ||
-      tabId === 'teams' ||
-      tabId === 'sponsorship-slots'
+      tabId === 'teams'
     ) {
       setActiveTab(tabId);
     }
@@ -67,6 +60,18 @@ const RacerProfile: React.FC = () => {
       {/* Content */}
       <div className="p-6">
         <div className="max-w-6xl mx-auto">
+          {/* Guest banner: encourage sign-in for engagement actions */}
+          {!user && (
+            <div className="mb-4 px-4 py-2 rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur flex items-center justify-between text-sm">
+              <p className="text-slate-300">Viewing a shared profile — sign in to tip, comment, or follow.</p>
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="ml-3 inline-flex items-center px-3 py-1.5 rounded-lg bg-fedex-orange hover:bg-fedex-orange-dark text-white font-medium"
+              >
+                Sign In
+              </button>
+            </div>
+          )}
           {/* Owner actions are now shown inside the header */}
           {/* Navigation Tabs (Fan Dashboard style) */}
           <div className="mb-6">
@@ -74,16 +79,6 @@ const RacerProfile: React.FC = () => {
           </div>
 
           {/* Tab Content */}
-          {activeTab === 'overview' && (
-            <div className="space-y-8">
-              <StatsCards userId={userId} />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <RecentActivity userId={userId} />
-                <UpcomingRaces userId={userId} />
-              </div>
-            </div>
-          )}
-
           {activeTab === 'activity' && (
             <div className="bg-card rounded-2xl p-6 border border-border">
               <h3 className="text-xl font-bold text-foreground mb-4">Activity Feed</h3>
@@ -107,8 +102,6 @@ const RacerProfile: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'monetization' && <MonetizationPanel userId={userId} />}
-
           {activeTab === 'racing-info' && (
             <div className="bg-card rounded-2xl p-6 border border-border">
               <h3 className="text-xl font-bold text-foreground mb-4">Racing Info</h3>
@@ -130,30 +123,12 @@ const RacerProfile: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'sponsorship-slots' && (
-            <div className="bg-card rounded-2xl p-6 border border-border">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-xl font-bold text-foreground">Sponsorship Slots</h3>
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-md bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">Coming Soon</span>
-                </div>
-                <button
-                  onClick={() => navigate('/sponsorships')}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-orange-500 hover:bg-orange-600 text-white transition-colors"
-                >
-                  Browse Sponsors
-                </button>
-              </div>
-              <div className="rounded-xl border border-border bg-muted/30 p-5">
-                <p className="text-muted-foreground">
-                  We’re building a streamlined way to create and manage sponsorship placements on your profile and content. 
-                  Set packages, inventory, and pricing, and let sponsors book directly. This feature will be available soon.
-                </p>
-              </div>
-            </div>
-          )}
+          {/* Removed Sponsorship Slots section as requested */}
         </div>
       </div>
+      {showAuthModal && (
+        <AuthModal onClose={() => setShowAuthModal(false)} />
+      )}
     </div>
   );
 };
