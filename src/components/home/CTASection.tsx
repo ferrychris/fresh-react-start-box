@@ -27,7 +27,7 @@ export const CallToActionSection: React.FC<CallToActionSectionProps> = ({ onGetS
         
         <button
           onClick={onGetStarted}
-          className={`${primaryButton} space-x-3 text-sm md:text-base px-4 py-2`}
+          className={`${primaryButton} !bg-gradient-to-r !from-black !to-orange-500 !hover:from-black !hover:to-orange-600 space-x-3 text-sm md:text-base px-4 py-2`}
         >
           <Crown className="w-6 h-6" />
           <span>Get Your Pit Pass</span>

@@ -23,7 +23,7 @@ const HowItWorksSection: React.FC<HowItWorksSectionProps> = ({ theme }) => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="text-center">
+          <div className="text-center bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
             <div className="w-14 h-14 bg-fedex-orange rounded-full flex items-center justify-center mx-auto mb-3.5">
               <Users className="h-7 w-7 text-white" />
             </div>
@@ -36,7 +36,7 @@ const HowItWorksSection: React.FC<HowItWorksSectionProps> = ({ theme }) => {
               Browse through verified racers from various classes and locations
             </p>
           </div>
-          <div className="text-center">
+          <div className="text-center bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
             <div className="w-14 h-14 bg-fedex-orange rounded-full flex items-center justify-center mx-auto mb-3.5">
               <Heart className="h-7 w-7 text-white" />
             </div>
@@ -49,7 +49,7 @@ const HowItWorksSection: React.FC<HowItWorksSectionProps> = ({ theme }) => {
               Choose a subscription tier and support your favorite racers
             </p>
           </div>
-          <div className="text-center">
+          <div className="text-center bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
             <div className="w-14 h-14 bg-fedex-orange rounded-full flex items-center justify-center mx-auto mb-3.5">
               <Trophy className="h-7 w-7 text-white" />
             </div>

@@ -237,16 +237,11 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
           : 'bg-white/95 border-gray-200/50 shadow-gray-200/20'
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-24">
             {/* Logo (match Fanheader style) */}
-            <div onClick={() => onViewChange('home')} className="flex items-center gap-3 group flex-shrink-0 cursor-pointer">
-              <div className="w-9 h-7 lg:w-11 lg:h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-pink-500 via-pink-400 to-orange-500 shadow-md group-hover:scale-110 transition-transform duration-300">
-                <span className="text-white font-bold text-lg">🏁</span>
-              </div>
-              <div className="block">
-                <h1 className={`text-lg lg:text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} racing-number`}>
-                  OnlyRace<span className="text-orange-500">Fans</span>
-                </h1>
+            <div onClick={() => onViewChange('home')} className="group flex-shrink-0 cursor-pointer">
+              <div className="w-[160px] h-[160px] lg:w-[224px] lg:h-[224px] rounded-full flex items-center justify-center overflow-hidden shadow-md group-hover:scale-110 transition-transform duration-300">
+                <img src="/onlyracefanlogo.png" alt="OnlyRaceFan Logo" className="w-full h-full object-contain p-1" />
               </div>
             </div>
 
@@ -693,7 +688,7 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
               {/* Mobile Search Toggle */}
               <button
                 onClick={() => setShowSearch(!showSearch)}
-                className={`p-2.5 rounded-xl transition-all duration-200 ${
+                className={`p-2.5 rounded-xl transition-all duration-200 hidden ${
                   theme === 'dark' ? 'text-gray-400 hover:text-white hover:bg-gray-800/80' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'
                 }`}
               >

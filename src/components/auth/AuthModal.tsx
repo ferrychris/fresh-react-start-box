@@ -550,53 +550,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             )}
           </form>
 
-          {/* Debug Section - Remove this in production */}
-          {mode === 'login' && (
-            <div className="mt-4 p-2 bg-blue-500/10 border border-blue-500/30 rounded-md">
-              <p className="text-blue-200 text-xs mb-2">
-                🔧 Debug: If you're having login issues, try these test accounts:
-              </p>
-              <div className="space-y-1 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, email: 'test@example.com', password: 'password123' })}
-                  className="block text-blue-300 hover:text-blue-100 underline rounded-[20px]"
-                >
-                  Use test@example.com / password123
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, email: 'admin@onlyracefans.com', password: 'admin123' })}
-                  className="block text-blue-300 hover:text-blue-100 underline rounded-[20px]"
-                >
-                  Use admin@onlyracefans.com / admin123
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      console.log('🔧 Creating test user...');
-                      await register({
-                        email: 'test@example.com',
-                        password: 'password123',
-                        name: 'Test User',
-                        username: 'testuser',
-                        role: 'FAN'
-                      });
-                      setFormData({ ...formData, email: 'test@example.com', password: 'password123' });
-                      setErrorMsg('✅ Test user created! You can now login.');
-                    } catch (err) {
-                      console.error('Failed to create test user:', err);
-                      setErrorMsg('Failed to create test user. Try registering manually.');
-                    }
-                  }}
-                  className="block text-green-300 hover:text-green-100 underline rounded-[20px]"
-                >
-                  🔧 Create test user (test@example.com)
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Debug section removed for production */}
         </div>
       </div>
 

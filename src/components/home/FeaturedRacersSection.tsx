@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Users, MapPin, ArrowRight, Heart } from 'lucide-react';
+import { Users, MapPin, ArrowRight, Heart, Star } from 'lucide-react';
 import { cardPrimaryButton, iconButton } from '../../styles/buttons';
 
 interface Racer {
@@ -47,77 +47,89 @@ const FeaturedRacersSection: React.FC<FeaturedRacersSectionProps> = ({ theme, ra
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {racers.map(racer => (
-            <div
-              key={racer.id}
-              className={`rounded-xl overflow-hidden group hover:scale-105 transition-all duration-300 ${
-                theme === 'dark' ? 'bg-gray-900' : 'bg-white'
-              } shadow-lg hover:shadow-xl`}
-            >
-              {/* Header Photo */}
-              <div className="relative h-28 bg-gradient-to-r from-fedex-purple to-fedex-orange">
-                {racer.bannerImage ? (
-                  <div 
-                    className="absolute inset-0 bg-cover bg-center"
-                    style={{ backgroundImage: `url(${racer.bannerImage})` }}
-                  />
-                ) : (
-                  <div className="absolute inset-0 bg-[url('https://images.pexels.com/photos/2449543/pexels-photo-2449543.jpeg?auto=compress&cs=tinysrgb&w=800')] bg-cover bg-center opacity-30" />
-                )}
-                <div className="absolute top-4 right-4 bg-green-600 text-white px-2 py-1 rounded-full text-xs font-semibold">
-                  VERIFIED RACER
-                </div>
-                <div className="absolute bottom-0 left-4 transform translate-y-1/2">
-                  <img
-                    src={racer.profilePicture}
-                    alt={racer.name}
-                    className="h-14 w-14 rounded-full object-cover border-4 border-white shadow-lg hover:border-fedex-orange transition-colors cursor-pointer"
-                  />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {racers.map((racer) => (
+            <div className={`relative rounded-xl border transition-all duration-200 ${theme === 'dark' ? 'bg-gray-950/80 border-gray-800 hover:border-gray-700 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]' : 'bg-white border-gray-200 hover:border-gray-300 shadow-sm'} hover:shadow-md`}>
+              {/* Featured Badge */}
+              <div className={`relative`}> {/* wrapper for sparkles */}
+                <div className={`absolute top-3 right-3 z-10 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${theme === 'dark' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30' : 'bg-orange-100 text-orange-700 border border-orange-200'}`}>
+                  <Star className="w-3 h-3 fill-current" />
+                  <span>Featured</span>
+                  {/* Sparkles */}
+                  <span className="absolute -top-2 -right-2 text-yellow-300 text-xs animate-ping opacity-75">✨</span>
+                  <span className="absolute -top-3 -right-4 text-yellow-200 text-xs animate-pulse" style={{animationDelay: '0.5s'}}>✦</span>
+                  <span className="absolute -top-1 -right-5 text-yellow-100 text-xs animate-bounce" style={{animationDelay: '0.3s'}}>✧</span>
+                  <span className="absolute -bottom-2 -right-1 text-yellow-300 text-xs animate-ping" style={{animationDelay: '0.7s'}}>✧</span>
+                  <span className="absolute -bottom-3 -right-3 text-yellow-200 text-xs animate-pulse" style={{animationDelay: '1s'}}>✦</span>
                 </div>
               </div>
-
-              {/* Content */}
-              <div className="p-5 pt-9">
-                <div className="mb-4">
-                  <Link to={`/racer/${racer.id}`}>
-                    <h3 className={`text-lg md:text-xl font-bold mb-1 hover:text-fedex-orange transition-colors cursor-pointer ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>{racer.name}</h3>
+              <div className="p-5">
+                {/* Top: Avatar + Basic Info */}
+                <div className="flex items-center gap-4">
+                  <Link to={`/racer/${racer.id}`} className="shrink-0">
+                    <img
+                      src={racer.profilePicture}
+                      alt={racer.name}
+                      className={`w-14 h-14 rounded-full object-cover ring-2 ${
+                        theme === 'dark' ? 'ring-gray-800' : 'ring-gray-200'
+                      }`}
+                    />
                   </Link>
-                  <p className="text-fedex-orange font-semibold mb-2">{racer.class}</p>
-                  <div className={`flex items-center text-xs md:text-sm mb-3 ${
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    <MapPin className="h-4 w-4 mr-1" />
-                    <span>{racer.location}</span>
+                  <div className="min-w-0">
+                    <Link to={`/racer/${racer.id}`}>
+                      <h3
+                        className={`text-base md:text-lg font-semibold truncate ${
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        } hover:text-fedex-orange transition-colors`}
+                        title={racer.name}
+                      >
+                        {racer.name}
+                      </h3>
+                    </Link>
+                    <div className="flex items-center gap-2 text-xs md:text-sm">
+                      <span className="text-fedex-orange font-medium">{racer.class}</span>
+                      <span className={theme === 'dark' ? 'text-gray-700' : 'text-gray-300'}>•</span>
+                      <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+                        <span className="inline-flex items-center">
+                          <MapPin className="h-4 w-4 mr-1 opacity-80" /> {racer.location}
+                        </span>
+                      </span>
+                    </div>
                   </div>
-                  <p className={`text-xs md:text-sm line-clamp-2 ${
+                </div>
+
+                {/* Bio */}
+                <p
+                  className={`mt-4 text-sm line-clamp-3 ${
                     theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>{racer.bio}</p>
-                </div>
+                  }`}
+                >
+                  {racer.bio}
+                </p>
 
-                {/* Stats */}
-                <div className="flex items-center justify-between text-xs md:text-sm mb-4">
-                  <div className={`flex items-center ${
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    <Users className="h-4 w-4 mr-1" />
-                    <span>{racer.fanCount || 0} {racer.fanCount === 1 ? 'fan' : 'fans'}</span>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex space-x-2">
-                  <Link 
-                    to={`/racer/${racer.id}`}
-                    className={`${cardPrimaryButton} text-center text-sm py-2 px-3`}
+                {/* Footer: Stats + Actions */}
+                <div className="mt-5 flex items-center justify-between">
+                  <div
+                    className={`inline-flex items-center text-xs md:text-sm ${
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                    }`}
                   >
-                    View Profile
-                  </Link>
-                  <button className={`${iconButton} p-2`}>
-                    <Heart className="h-3.5 w-3.5" />
-                  </button>
+                    <Users className="h-4 w-4 mr-1" />
+                    <span>
+                      {racer.fanCount || 0} {racer.fanCount === 1 ? 'fan' : 'fans'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      to={`/racer/${racer.id}`}
+                      className={`inline-flex items-center justify-center px-4 py-2 rounded-[20px] text-sm font-bold text-orange-500 hover:text-orange-600 transition-all duration-200 hover:bg-orange-50 dark:hover:bg-orange-950/20`}
+                    >
+                      View Profile
+                    </Link>
+                    <button className={`p-2 rounded-[20px] text-fedex-orange hover:text-fedex-orange-dark transition-colors bg-transparent`} aria-label="Like racer">
+                      <Heart className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
