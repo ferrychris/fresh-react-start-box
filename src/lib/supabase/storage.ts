@@ -90,6 +90,29 @@ export const deleteFile = async (bucket: string, path: string) => {
   }
 };
 
+// Generate a signed URL as a fallback for private buckets or restricted objects
+export const getSignedUrl = async (bucketOrPath: string, maybePath?: string, expiresInSeconds: number = 3600) => {
+  try {
+    let bucket = bucketOrPath;
+    let objectPath = maybePath || '';
+    if (!maybePath) {
+      // Caller passed a single path which may include a bucket or be a full URL
+      const r = resolveBucketAndPath(BUCKET_NAME, bucketOrPath);
+      bucket = r.bucket;
+      objectPath = r.objectPath;
+    }
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(objectPath, expiresInSeconds);
+    if (error) {
+      console.error('[DEBUG] getSignedUrl error:', error);
+      return null;
+    }
+    return data?.signedUrl || null;
+  } catch (err) {
+    console.error('[DEBUG] getSignedUrl exception:', err);
+    return null;
+  }
+};
+
 // Specific upload functions
 export const uploadRacerProfilePhoto = async (racerId: string, file: File) => {
   const path = `${racerId}/profile/${file.name}`;

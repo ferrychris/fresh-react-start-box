@@ -516,10 +516,12 @@ export default function Grandstand() {
     if (isFetchingRef.current || now - lastFetchAtRef.current < 300) return;
     isFetchingRef.current = true;
     lastFetchAtRef.current = now;
-    console.time('grandstand:loadMore');
+    const timeLabel = `grandstand:loadMore:${now}`;
+    console.time(timeLabel);
     if (!opts?.silent) setLoadingMore(true);
     try {
-      const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit, cursor: nextCursor });
+      // Keep pagination queries lean to avoid server statement timeouts
+      const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit, cursor: nextCursor, includeProfiles: false });
       if (error) throw error;
       const mapped: PostCardType[] = (rows || []).map((r: PostCardType) => {
         const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
@@ -528,7 +530,7 @@ export default function Grandstand() {
       console.debug('[Grandstand] loadMore fetched:', { count: mapped.length, hasNext: !!cursor });
       setPosts(prev => [...prev, ...mapped]);
       setNextCursor(cursor || null);
-      console.timeEnd('grandstand:loadMore');
+      console.timeEnd(timeLabel);
     } catch (e) {
       console.error('[Grandstand] Failed to load more posts', e);
     } finally {

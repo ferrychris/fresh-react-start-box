@@ -31,7 +31,7 @@ import { SubscriptionModal } from '@/components/SubscriptionModal';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
-import { getPostPublicUrl, getFanPostPublicUrl, getPublicUrl } from '@/lib/supabase/storage';
+import { getPostPublicUrl, getFanPostPublicUrl, getPublicUrl, getSignedUrl } from '@/lib/supabase/storage';
 
 // Helper functions for user type styling
 const getUserTypeColor = (userType: string) => {
@@ -105,6 +105,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [tipAmount, setTipAmount] = useState(5);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [fallbackUrls, setFallbackUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -741,7 +742,20 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   // Normalize media URLs to handle any malformed concatenations (e.g., two URLs jammed together)
   const normalizedMediaUrls = useMemo(() => {
     try {
-      const items = Array.isArray(post.media_urls) ? post.media_urls : [];
+      let items: string[] = [];
+      if (Array.isArray(post.media_urls)) {
+        items = post.media_urls as string[];
+      } else if (typeof (post as any).media_urls === 'string') {
+        const raw = (post as any).media_urls as string;
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) items = parsed as string[];
+          else if (typeof parsed === 'string') items = [parsed];
+        } catch {
+          // Not JSON; if it's a single path/url string, wrap it
+          if (raw.trim().length > 0) items = [raw.trim()];
+        }
+      }
       const out: string[] = [];
       for (const raw of items) {
         if (typeof raw !== 'string') continue;
@@ -810,6 +824,25 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     return resolved;
   }, [normalizedMediaUrls, post.user_type, post.id, post.media_urls]);
 
+  const getEffectiveUrl = (u: string) => fallbackUrls[u] || u;
+
+  const handleMediaError = async (originalUrl: string) => {
+    try {
+      // Avoid loops: if already using a fallback, skip
+      if (fallbackUrls[originalUrl]) return;
+      // Try to generate a signed URL for this media
+      const signed = await getSignedUrl(originalUrl);
+      if (signed) {
+        setFallbackUrls(prev => ({ ...prev, [originalUrl]: signed }));
+        console.log(`[DEBUG] Generated signed URL fallback: ${originalUrl} → ${signed}`);
+      } else {
+        console.warn('[DEBUG] Failed to generate signed URL for', originalUrl);
+      }
+    } catch (e) {
+      console.warn('[DEBUG] Exception generating signed URL', e);
+    }
+  };
+
   const PostMedia: React.FC = () => {
     if (post.post_type === 'video' && resolvedMediaUrls.length > 0) {
       if (isDeleted) return null;
@@ -818,16 +851,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
         <div className="relative -mx-4 lg:-mx-6 mb-4">
           <div className="relative">
             <video
-              src={resolvedMediaUrls[0]}
+              src={getEffectiveUrl(resolvedMediaUrls[0])}
               className="w-full h-64 lg:h-80 object-cover"
               poster={resolvedMediaUrls[0] + '#t=0.1'}
               controls
               preload="metadata"
               playsInline
+              onError={() => handleMediaError(resolvedMediaUrls[0])}
             >
-              <source src={resolvedMediaUrls[0]} type="video/mp4" />
-              <source src={resolvedMediaUrls[0]} type="video/webm" />
-              <source src={resolvedMediaUrls[0]} type="video/ogg" />
+              <source src={getEffectiveUrl(resolvedMediaUrls[0])} type="video/mp4" />
+              <source src={getEffectiveUrl(resolvedMediaUrls[0])} type="video/webm" />
+              <source src={getEffectiveUrl(resolvedMediaUrls[0])} type="video/ogg" />
               Your browser does not support the video tag.
             </video>
           </div>
@@ -844,21 +878,23 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
              resolvedMediaUrls[currentImageIndex]?.includes('.webm') ||
              resolvedMediaUrls[currentImageIndex]?.includes('.ogg') ? (
               <video
-                src={resolvedMediaUrls[currentImageIndex]}
+                src={getEffectiveUrl(resolvedMediaUrls[currentImageIndex])}
                 className="w-full h-64 lg:h-80 object-cover"
                 controls
                 preload="metadata"
+                onError={() => handleMediaError(resolvedMediaUrls[currentImageIndex])}
               >
                 Your browser does not support the video tag.
               </video>
             ) : (
               <img
-                src={resolvedMediaUrls[currentImageIndex]}
+                src={getEffectiveUrl(resolvedMediaUrls[currentImageIndex])}
                 alt={`Post image ${currentImageIndex + 1}`}
                 className="w-full h-64 lg:h-80 object-cover"
                 loading="lazy"
                 decoding="async"
                 sizes="(max-width: 640px) 100vw, 640px"
+                onError={() => handleMediaError(resolvedMediaUrls[currentImageIndex])}
               />
             )}
             {resolvedMediaUrls.length > 1 && (

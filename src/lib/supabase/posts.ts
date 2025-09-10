@@ -136,12 +136,23 @@ export const getPublicPostsPage = async (options: {
       return { data: null, nextCursor: null, error };
     }
 
-    const nextCursor = data && data.length === limit && data.length > 0
-      ? { created_at: data[data.length - 1].created_at, id: data[data.length - 1].id }
+    // Normalize media_urls to array of strings
+    const normalized = (data || []).map((row: any) => {
+      let media: string[] = [];
+      const raw = (row as any).media_urls;
+      if (Array.isArray(raw)) media = raw as string[];
+      else if (typeof raw === 'string') {
+        try { media = JSON.parse(raw); } catch { media = []; }
+      }
+      return { ...row, media_urls: media };
+    });
+
+    const nextCursor = normalized && normalized.length === limit && normalized.length > 0
+      ? { created_at: normalized[normalized.length - 1].created_at, id: normalized[normalized.length - 1].id }
       : null;
 
-    console.log('[DEBUG] getPublicPostsPage success:', { count: data?.length, nextCursor });
-    return { data: data || [], nextCursor, error: null };
+    console.log('[DEBUG] getPublicPostsPage success:', { count: normalized?.length, nextCursor });
+    return { data: normalized || [], nextCursor, error: null };
   } catch (e) {
     console.error('[DEBUG] getPublicPostsPage exception:', e);
     return { data: null, nextCursor: null, error: { message: e instanceof Error ? e.message : 'Unknown error' } };
@@ -180,7 +191,17 @@ export const getAllPublicPosts = async () => {
       return null;
     }
 
-    return data || [];
+    const normalized = (data || []).map((row: any) => {
+      let media: string[] = [];
+      const raw = (row as any).media_urls;
+      if (Array.isArray(raw)) media = raw as string[];
+      else if (typeof raw === 'string') {
+        try { media = JSON.parse(raw); } catch { media = []; }
+      }
+      return { ...row, media_urls: media };
+    });
+
+    return normalized || [];
   } catch (e) {
     console.error('[DEBUG] getAllPublicPosts exception:', e);
     return null;
@@ -210,7 +231,17 @@ export const getPostsForFan = async (fanId: string) => {
       return null;
     }
 
-    return data || [];
+    const normalized = (data || []).map((row: any) => {
+      let media: string[] = [];
+      const raw = (row as any).media_urls;
+      if (Array.isArray(raw)) media = raw as string[];
+      else if (typeof raw === 'string') {
+        try { media = JSON.parse(raw); } catch { media = []; }
+      }
+      return { ...row, media_urls: media };
+    });
+
+    return normalized || [];
   } catch (e) {
     console.error('[DEBUG] getPostsForFan exception:', e);
     return null;
