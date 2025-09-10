@@ -757,9 +757,9 @@ export default function Grandstand() {
             {error && (
               <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 text-red-400">{error}</div>
             )}
-            {!loading && !error && posts.map((post) => (
+            {!loading && !error && posts.map((post, index) => (
               <PostCard 
-                key={post.id} 
+                key={`${post.id}-${index}`} 
                 post={post} 
                 onPostUpdate={handlePostUpdate} 
                 onPostDeleted={() => handlePostDeleted(post.id)}

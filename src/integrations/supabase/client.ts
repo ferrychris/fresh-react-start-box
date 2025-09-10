@@ -2,16 +2,21 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://jcepxnjdvsgxsraaxcyb.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjZXB4bmpkdnNneHNyYWF4Y3liIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NDgzNDAsImV4cCI6MjA2OTMyNDM0MH0.LglTu4WZWdKZztGZOSwFGq8M2NVfnBU_3i5MotkqiwM";
+// Centralized Supabase browser client. Uses Vite env vars.
+const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+if (!url || !anonKey) {
+  // Non-fatal warning so local dev without DB still works
+  console.warn(
+    '[supabase] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Database features will be disabled until you set them.'
+  );
+}
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+export const supabase = createClient<Database>(url || '', anonKey || '', {
   auth: {
-    storage: localStorage,
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     persistSession: true,
     autoRefreshToken: true,
-  }
+  },
 });

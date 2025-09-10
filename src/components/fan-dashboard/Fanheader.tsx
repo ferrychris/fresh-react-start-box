@@ -109,18 +109,20 @@ const Fanheader = () => {
   return (
     <>
     <header
-      className={`fixed top-0 inset-x-0 z-50 pt-3 pb-3 px-6 backdrop-blur-xl border-b shadow-lg transition-all duration-300 ${
+      className={`fixed top-0 inset-x-0 z-50 h-16 border-b shadow-sm transition-all duration-300 ${
         theme === 'dark'
-          ? 'bg-black/95 border-gray-800/50 shadow-black/20'
-          : 'bg-white/95 border-gray-200/50 shadow-gray-200/20'
+          ? 'bg-gray-900 border-gray-800'
+          : 'bg-white border-gray-200'
       }`}
     >
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
         {/* Left: Logo + Racers search */}
         <div className="flex items-center gap-4 min-w-0">
           <Link to="/" className="shrink-0 flex items-center gap-3 group" aria-label="OnlyRaceFans Home">
-            <div className="w-12 h-12 lg:w-14 lg:h-14 rounded-full flex items-center justify-center overflow-hidden shadow-md group-hover:scale-110 transition-transform duration-300">
-              <img src="/onlyracefanlogo.png" alt="OnlyRaceFan Logo" className="w-[40px] h-full object-contain p-1" />
+          <div className="group flex-shrink-0 cursor-pointer">
+              <div className="h-[50px] flex items-center justify-center overflow-hidden transition-transform duration-300">
+                <img src="/onlyracefanlogo.png" alt="OnlyRaceFan Logo" className="h-[200px] w-[250px] object-contain" />
+              </div>
             </div>
           </Link>
           <div className="relative hidden md:block w-full max-w-md" ref={inputWrapperRef}>

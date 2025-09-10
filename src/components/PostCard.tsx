@@ -1,5 +1,5 @@
 import toast from 'react-hot-toast';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -31,6 +31,7 @@ import { SubscriptionModal } from '@/components/SubscriptionModal';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { getPostPublicUrl, getFanPostPublicUrl, getPublicUrl } from '@/lib/supabase/storage';
 
 // Helper functions for user type styling
 const getUserTypeColor = (userType: string) => {
@@ -737,24 +738,87 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     }
   };
 
+  // Normalize media URLs to handle any malformed concatenations (e.g., two URLs jammed together)
+  const normalizedMediaUrls = useMemo(() => {
+    try {
+      const items = Array.isArray(post.media_urls) ? post.media_urls : [];
+      const out: string[] = [];
+      for (const raw of items) {
+        if (typeof raw !== 'string') continue;
+        const matches = raw.match(/https?:\/\/[^\s"']+/g);
+        if (matches && matches.length > 0) {
+          for (const m of matches) out.push(m);
+        } else {
+          out.push(raw);
+        }
+      }
+      // Dedupe while preserving order
+      const seen = new Set<string>();
+      return out.filter((u) => {
+        if (seen.has(u)) return false;
+        seen.add(u);
+        return true;
+      });
+    } catch {
+      return Array.isArray(post.media_urls) ? (post.media_urls as string[]) : [];
+    }
+  }, [post.media_urls]);
+
+  // Resolve storage paths to public URLs using our storage helpers
+  const resolvedMediaUrls = useMemo(() => {
+    console.log(`[DEBUG] PostCard processing media_urls for post ${post.id}:`, post.media_urls);
+    console.log(`[DEBUG] Normalized media URLs:`, normalizedMediaUrls);
+    
+    const isFan = (post.user_type || '').toString().toLowerCase() === 'fan';
+    console.log(`[DEBUG] Post user_type: ${post.user_type}, isFan: ${isFan}`);
+    
+    const resolved = normalizedMediaUrls
+      .map((u) => {
+        if (!u || typeof u !== 'string') return '';
+        // If it's a full Supabase storage URL, regenerate a public URL from bucket/object
+        const supa = u.match(/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/([^?]+)(?:\?|$)/i);
+        if (/^https?:/i.test(u) && supa && supa[1] && supa[2]) {
+          const bucket = supa[1];
+          const objectPath = supa[2];
+          const regenerated = getPublicUrl(bucket, objectPath) || u;
+          console.log(`[DEBUG] Regenerated public URL from storage href: ${u} → ${regenerated}`);
+          return regenerated;
+        }
+        // Keep other public/data/blob URLs
+        if (/^(https?:|data:|blob:)/i.test(u)) {
+          console.log(`[DEBUG] URL already public, keeping as-is: ${u}`);
+          return u;
+        }
+        // Otherwise resolve via storage
+        const resolver = isFan ? getFanPostPublicUrl : getPostPublicUrl;
+        const resolvedUrl = resolver(u) || u;
+        console.log(`[DEBUG] Resolved storage path: ${u} → ${resolvedUrl}`);
+        return resolvedUrl;
+      })
+      .filter((u) => typeof u === 'string' && u.length > 0);
+      
+    console.log(`[DEBUG] Final resolved URLs:`, resolved);
+    return resolved;
+  }, [normalizedMediaUrls, post.user_type, post.id, post.media_urls]);
+
   const PostMedia: React.FC = () => {
-    if (post.post_type === 'video' && post.media_urls.length > 0) {
+    if (post.post_type === 'video' && resolvedMediaUrls.length > 0) {
       if (isDeleted) return null;
 
       return (
         <div className="relative -mx-4 lg:-mx-6 mb-4">
           <div className="relative">
             <video
-              src={post.media_urls[0]}
+              src={resolvedMediaUrls[0]}
               className="w-full h-64 lg:h-80 object-cover"
-              poster={post.media_urls[0] + '#t=0.1'}
+              poster={resolvedMediaUrls[0] + '#t=0.1'}
               controls
               preload="metadata"
               playsInline
             >
-              <source src={post.media_urls[0]} type="video/mp4" />
-              <source src={post.media_urls[0]} type="video/webm" />
-              <source src={post.media_urls[0]} type="video/ogg" />
+              <source src={resolvedMediaUrls[0]} type="video/mp4" />
+              <source src={resolvedMediaUrls[0]} type="video/webm" />
+              <source src={resolvedMediaUrls[0]} type="video/ogg" />
               Your browser does not support the video tag.
             </video>
           </div>
@@ -762,16 +826,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
       );
     }
 
-    if ((post.post_type === 'gallery' || post.post_type === 'photo') && post.media_urls.length > 0) {
+    if ((post.post_type === 'gallery' || post.post_type === 'photo') && resolvedMediaUrls.length > 0) {
       return (
         <div className="relative -mx-4 lg:-mx-6 mb-4">
           <div className="relative">
-            {post.media_urls[currentImageIndex]?.startsWith('data:video/') || 
-             post.media_urls[currentImageIndex]?.includes('.mp4') ||
-             post.media_urls[currentImageIndex]?.includes('.webm') ||
-             post.media_urls[currentImageIndex]?.includes('.ogg') ? (
+            {resolvedMediaUrls[currentImageIndex]?.startsWith('data:video/') || 
+             resolvedMediaUrls[currentImageIndex]?.includes('.mp4') ||
+             resolvedMediaUrls[currentImageIndex]?.includes('.webm') ||
+             resolvedMediaUrls[currentImageIndex]?.includes('.ogg') ? (
               <video
-                src={post.media_urls[currentImageIndex]}
+                src={resolvedMediaUrls[currentImageIndex]}
                 className="w-full h-64 lg:h-80 object-cover"
                 controls
                 preload="metadata"
@@ -780,7 +844,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
               </video>
             ) : (
               <img
-                src={post.media_urls[currentImageIndex]}
+                src={resolvedMediaUrls[currentImageIndex]}
                 alt={`Post image ${currentImageIndex + 1}`}
                 className="w-full h-64 lg:h-80 object-cover"
                 loading="lazy"
@@ -788,11 +852,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                 sizes="(max-width: 640px) 100vw, 640px"
               />
             )}
-            {post.media_urls.length > 1 && (
+            {resolvedMediaUrls.length > 1 && (
               <>
                 <button
                   onClick={() => setCurrentImageIndex(prev => 
-                    prev > 0 ? prev - 1 : post.media_urls.length - 1
+                    prev > 0 ? prev - 1 : resolvedMediaUrls.length - 1
                   )}
                   className="absolute left-4 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-colors"
                 >
@@ -800,14 +864,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                 </button>
                 <button
                   onClick={() => setCurrentImageIndex(prev => 
-                    prev < post.media_urls.length - 1 ? prev + 1 : 0
+                    prev < resolvedMediaUrls.length - 1 ? prev + 1 : 0
                   )}
                   className="absolute right-4 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-colors"
                 >
                   <ChevronRight className="h-5 w-5 text-white" />
                 </button>
                 <div className="absolute bottom-4 right-4 bg-black/80 px-2 py-1 rounded text-sm text-white">
-                  {currentImageIndex + 1} / {post.media_urls.length}
+                  {currentImageIndex + 1} / {resolvedMediaUrls.length}
                 </div>
               </>
             )}

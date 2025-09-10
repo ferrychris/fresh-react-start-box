@@ -1,10 +1,12 @@
 import { supabase } from './client';
 
 const BUCKET_NAME = 'racer-photos';
-const FAN_POST_BUCKET = 'new_post';
+// Use a single bucket for all post uploads (fans and racers)
+const FAN_POST_BUCKET = BUCKET_NAME;
 
 // Generic file upload with retry logic
 export const uploadFile = async (bucket: string, path: string, file: File) => {
+  console.log(`[DEBUG] uploadFile - Starting upload to bucket: ${bucket}, path: ${path}, file: ${file.name} (${file.size} bytes)`);
   const maxRetries = 3;
   let retries = 0;
   
@@ -13,9 +15,10 @@ export const uploadFile = async (bucket: string, path: string, file: File) => {
       // Check if we have a valid session first
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        console.error('Error uploading file: No active session');
+        console.error('[DEBUG] uploadFile - Error: No active session');
         return { error: new Error('Authentication required to upload files') };
       }
+      console.log(`[DEBUG] uploadFile - Session found for user: ${session.user.id}`);
       
       const { data, error } = await supabase.storage.from(bucket).upload(path, file, {
         cacheControl: '3600',
@@ -25,38 +28,40 @@ export const uploadFile = async (bucket: string, path: string, file: File) => {
       if (error) {
         // Check for specific error types
         if (error.message?.includes('storage/object-not-found') && retries < maxRetries - 1) {
-          console.warn(`Bucket ${bucket} might not exist, retrying... (${retries + 1}/${maxRetries})`);
+          console.warn(`[DEBUG] uploadFile - Bucket ${bucket} might not exist, retrying... (${retries + 1}/${maxRetries})`);
           retries++;
           await new Promise(resolve => setTimeout(resolve, 1000 * retries));
           continue;
         }
         
         if (error.message?.includes('Permission denied') || error.message?.includes('policy')) {
-          console.error(`Storage permission error: ${error.message}`);
+          console.error(`[DEBUG] uploadFile - Storage permission error: ${error.message}`);
           return { error: new Error(`Permission denied. Make sure you're logged in and have access to this bucket.`) };
         }
         
         if (error.message?.includes('Failed to fetch') && retries < maxRetries - 1) {
-          console.warn(`Network error, retrying... (${retries + 1}/${maxRetries})`);
+          console.warn(`[DEBUG] uploadFile - Network error, retrying... (${retries + 1}/${maxRetries})`);
           retries++;
           await new Promise(resolve => setTimeout(resolve, 1000 * retries));
           continue;
         }
         
-        console.error(`Error uploading file to ${bucket}/${path}:`, error);
+        console.error(`[DEBUG] uploadFile - Error uploading file to ${bucket}/${path}:`, error);
         return { error };
       }
       
-      return data;
+      console.log(`[DEBUG] uploadFile - Upload successful! Bucket: ${bucket}, path: ${path}`);
+      return { path };
     } catch (err) {
       if (retries < maxRetries - 1) {
-        console.warn(`Unexpected error, retrying... (${retries + 1}/${maxRetries})`);
+        console.warn(`[DEBUG] uploadFile - Unexpected error uploading file, retrying... (${retries + 1}/${maxRetries})`);
         retries++;
         await new Promise(resolve => setTimeout(resolve, 1000 * retries));
         continue;
       }
-      console.error('Exception during file upload:', err);
-      return { error: err };
+      
+      console.error('[DEBUG] uploadFile - Exception uploading file:', err);
+      return { error: err instanceof Error ? err : new Error('Unknown error uploading file') };
     }
   }
   
@@ -236,10 +241,69 @@ export const saveImageToAvatarsTable = async (
   }
 };
 
+// Helper: resolve bucket and object path from a possibly-prefixed path
+// Supports: "bucket/object", legacy prefixes like "postimage/...", "new_post/...", "racer-photos/..."
+const resolveBucketAndPath = (defaultBucket: string, rawPath: string): { bucket: string; objectPath: string } => {
+  console.log(`[DEBUG] Resolving path: '${rawPath}' with default bucket: '${defaultBucket}'`);
+  
+  let p = rawPath.trim();
+  // If it's a full URL, try to parse Supabase storage pattern; otherwise return as-is later
+  if (/^https?:\/\//i.test(p)) {
+    // Example: https://<project>.supabase.co/storage/v1/object/public/<bucket>/<objectPath>?token=...
+    const m = p.match(/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/([^?]+)(?:\?|$)/i);
+    if (m && m[1] && m[2]) {
+      const bucket = m[1];
+      const objectPath = m[2];
+      console.log(`[DEBUG] Parsed Supabase storage URL. bucket='${bucket}', object='${objectPath}'`);
+      return { bucket, objectPath };
+    }
+    console.log(`[DEBUG] Path is a non-storage URL, returning as-is`);
+    return { bucket: defaultBucket, objectPath: p };
+  }
+
+  // Remove any leading slashes
+  p = p.replace(/^\/+/, '');
+
+  // If path includes an explicit bucket prefix, split it
+  // Known fan buckets
+  if (p.startsWith('postimage/')) {
+    console.log(`[DEBUG] Detected 'postimage/' prefix, using postimage bucket`);
+    return { bucket: 'postimage', objectPath: p.substring('postimage/'.length) };
+  }
+  if (p.startsWith('new_post/')) {
+    console.log(`[DEBUG] Detected 'new_post/' prefix, using new_post bucket`);
+    return { bucket: 'new_post', objectPath: p.substring('new_post/'.length) };
+  }
+  // Known racer bucket
+  if (p.startsWith('racer-photos/')) {
+    console.log(`[DEBUG] Detected 'racer-photos/' prefix, using racer-photos bucket`);
+    return { bucket: 'racer-photos', objectPath: p.substring('racer-photos/'.length) };
+  }
+
+  // Generic "bucket/object" form
+  const firstSlash = p.indexOf('/');
+  if (firstSlash > 0) {
+    const maybeBucket = p.slice(0, firstSlash);
+    const rest = p.slice(firstSlash + 1);
+    // Heuristic: if bucket-like (no dots/spaces and reasonable length), treat as bucket
+    if (/^[a-z0-9-_]+$/i.test(maybeBucket) && rest.length > 0) {
+      console.log(`[DEBUG] Detected generic bucket/object pattern: bucket='${maybeBucket}', object='${rest}'`);
+      return { bucket: maybeBucket, objectPath: rest };
+    }
+  }
+
+  // Fallback: use provided default bucket
+  console.log(`[DEBUG] No bucket prefix detected, using default bucket: '${defaultBucket}' with full path: '${p}'`);
+  return { bucket: defaultBucket, objectPath: p };
+};
+
 export const getPublicUrl = (bucket: string, path: string) => {
   if (!path) return null;
   try {
-    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+    // Allow callers to pass either just object path or "bucket/object"
+    const { bucket: b, objectPath } = resolveBucketAndPath(bucket, path);
+    if (/^https?:\/\//i.test(objectPath)) return objectPath; // already a URL
+    const { data } = supabase.storage.from(b).getPublicUrl(objectPath);
     return data.publicUrl;
   } catch (err) {
     console.error(`Error getting public URL for ${bucket}/${path}:`, err);
@@ -250,7 +314,14 @@ export const getPublicUrl = (bucket: string, path: string) => {
 export const getPostPublicUrl = (path: string) => {
   if (!path) return null;
   try {
-    const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
+    console.log(`[DEBUG] getPostPublicUrl called with path: '${path}'`);
+    const { bucket, objectPath } = resolveBucketAndPath(BUCKET_NAME, path);
+    if (/^https?:\/\//i.test(objectPath)) {
+      console.log(`[DEBUG] Path is already a URL, returning as-is: ${objectPath}`);
+      return objectPath;
+    }
+    const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+    console.log(`[DEBUG] Generated public URL: ${data.publicUrl} from bucket: ${bucket}, path: ${objectPath}`);
     return data.publicUrl;
   } catch (err) {
     console.error(`Error getting public URL for ${BUCKET_NAME}/${path}:`, err);
@@ -261,7 +332,14 @@ export const getPostPublicUrl = (path: string) => {
 export const getFanPostPublicUrl = (path: string) => {
   if (!path) return null;
   try {
-    const { data } = supabase.storage.from(FAN_POST_BUCKET).getPublicUrl(path);
+    console.log(`[DEBUG] getFanPostPublicUrl called with path: '${path}'`);
+    const { bucket, objectPath } = resolveBucketAndPath(FAN_POST_BUCKET, path);
+    if (/^https?:\/\//i.test(objectPath)) {
+      console.log(`[DEBUG] Path is already a URL, returning as-is: ${objectPath}`);
+      return objectPath;
+    }
+    const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+    console.log(`[DEBUG] Generated public URL: ${data.publicUrl} from bucket: ${bucket}, path: ${objectPath}`);
     return data.publicUrl;
   } catch (err) {
     console.error(`Error getting public URL for ${FAN_POST_BUCKET}/${path}:`, err);

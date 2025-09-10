@@ -133,11 +133,10 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
           break;
         }
 
+        // Store the path, not the public URL - this ensures proper resolution when displayed
         if (result?.path) {
-          const publicUrl = (isFan ? getFanPostPublicUrl : getPostPublicUrl)(result.path);
-          if (publicUrl) {
-            uploadedUrls.push(publicUrl);
-          }
+          console.log(`[DEBUG] Upload success - storing path: ${result.path}`);
+          uploadedUrls.push(result.path);
         }
       }
 
@@ -145,6 +144,33 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
         setIsSubmitting(false);
         return;
       }
+
+      // Normalize any malformed/concatenated URLs (e.g., two https URLs jammed together)
+      const normalizeMediaUrls = (items: string[]): string[] => {
+        try {
+          const out: string[] = [];
+          for (const raw of items) {
+            if (typeof raw !== 'string') continue;
+            const matches = raw.match(/https?:\/\/[^\s"']+/g);
+            if (matches && matches.length > 0) {
+              for (const m of matches) out.push(m);
+            } else {
+              out.push(raw);
+            }
+          }
+          // Dedupe while preserving order
+          const seen = new Set<string>();
+          return out.filter((u) => {
+            if (seen.has(u)) return false;
+            seen.add(u);
+            return true;
+          });
+        } catch {
+          return items;
+        }
+      };
+
+      const cleanUploadedUrls = normalizeMediaUrls(uploadedUrls);
 
       // Determine post type
       let postType = 'text';
@@ -172,7 +198,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
         const { data, error } = await createRacerPost({
           racer_id: user.id,
           content: composedContent,
-          media_urls: uploadedUrls,
+          media_urls: cleanUploadedUrls,
           post_type: postType,
           visibility,
           allow_tips: false,
@@ -184,7 +210,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
         const { data, error } = await createFanPost({
           fan_id: user.id,
           content: composedContent,
-          media_urls: uploadedUrls,
+          media_urls: cleanUploadedUrls,
           post_type: postType,
           visibility,
         });
@@ -208,7 +234,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
         userType: userType === 'racer' ? 'RACER' : 'FAN',
         userVerified: false,
         content: composedContent,
-        mediaUrls: uploadedUrls,
+        mediaUrls: cleanUploadedUrls,
         timestamp: new Date().toLocaleDateString(),
         likes: 0,
         comments: 0,

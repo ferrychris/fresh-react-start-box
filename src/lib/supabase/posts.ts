@@ -1247,9 +1247,42 @@ export const createRacerPost = async (post: {
       // Continue; insert may still succeed if profile exists
     }
     
+    // Normalize media URLs to handle accidental concatenations
+    const normalizeMediaUrls = (items: string[]): string[] => {
+      try {
+        const out: string[] = [];
+        for (const raw of (items || [])) {
+          if (typeof raw !== 'string') continue;
+          const matches = raw.match(/https?:\/\/[^\s"']+/g);
+          if (matches && matches.length > 0) {
+            for (const m of matches) out.push(m);
+          } else {
+            out.push(raw);
+          }
+        }
+        const seen = new Set<string>();
+        return out.filter((u) => { if (seen.has(u)) return false; seen.add(u); return true; });
+      } catch {
+        return items || [];
+      }
+    };
+
+    // First normalize any concatenated entries
+    const normalized = normalizeMediaUrls(post.media_urls || []);
+    // Then sanitize to store compact storage paths (strip Supabase URL prefixes), but keep data: URIs
+    const cleanMedia = normalized.map((u) => {
+      if (typeof u !== 'string') return u as unknown as string;
+      // Preserve data URLs for backward compatibility (renderer already supports them)
+      if (/^data:/i.test(u)) return u;
+      // Strip any Supabase storage public or signed URL down to the object path after the bucket name
+      const m = u.match(/storage\/v1\/object\/(?:public|sign)\/[^/]+\/([^?]+)(?:\?|$)/i);
+      if (m && m[1]) return m[1];
+      return u; // Already a path or some other URL we don't recognize
+    });
+
     const { data, error } = await supabase.from('racer_posts').insert([{
       content: post.content,
-      media_urls: post.media_urls || [],
+      media_urls: cleanMedia,
       post_type: post.post_type || 'text',
       visibility: visibilityValue,
       allow_tips: !!post.allow_tips,
@@ -1319,10 +1352,39 @@ export const createFanPost = async (post: {
       visibilityValue = 'public';
     }
 
+    // Normalize and sanitize media URLs similarly to racer create flow
+    const normalizeMediaUrls = (items: string[]): string[] => {
+      try {
+        const out: string[] = [];
+        for (const raw of (items || [])) {
+          if (typeof raw !== 'string') continue;
+          const matches = raw.match(/https?:\/\/[^\s"']+/g);
+          if (matches && matches.length > 0) {
+            for (const m of matches) out.push(m);
+          } else {
+            out.push(raw);
+          }
+        }
+        const seen = new Set<string>();
+        return out.filter((u) => { if (seen.has(u)) return false; seen.add(u); return true; });
+      } catch {
+        return items || [];
+      }
+    };
+
+    const normalized = normalizeMediaUrls(post.media_urls || []);
+    const cleanMedia = normalized.map((u) => {
+      if (typeof u !== 'string') return u as unknown as string;
+      if (/^data:/i.test(u)) return u; // preserve data URLs
+      const m = u.match(/storage\/v1\/object\/(?:public|sign)\/[^/]+\/([^?]+)(?:\?|$)/i);
+      if (m && m[1]) return m[1];
+      return u;
+    });
+
     // Calculate payload size to detect QUIC issues
     const payloadSize = JSON.stringify({
       content: post.content,
-      media_urls: post.media_urls || [],
+      media_urls: cleanMedia || [],
       post_type: post.post_type || 'text',
       visibility: visibilityValue,
       user_id: post.fan_id,
@@ -1333,7 +1395,7 @@ export const createFanPost = async (post: {
 
     console.log('Creating fan post with data:', {
       content: post.content.substring(0, 50) + '...',
-      media_urls_count: post.media_urls?.length || 0,
+      media_urls_count: cleanMedia?.length || 0,
       post_type: post.post_type,
       visibility: post.visibility,
       user_id: post.fan_id,
@@ -1346,9 +1408,11 @@ export const createFanPost = async (post: {
       return await createLargePost(post);
     }
     
+    // Media URLs already normalized and sanitized above into `cleanMedia`
+
     const { data, error } = await supabase.from('racer_posts').insert([{
       content: post.content,
-      media_urls: post.media_urls || [],
+      media_urls: cleanMedia,
       post_type: post.post_type || 'text',
       visibility: visibilityValue,
       user_id: post.fan_id,

@@ -236,12 +236,12 @@ export const Header: React.FC<HeaderProps> = ({ onViewChange, currentView }) => 
           ? 'bg-black/95 border-gray-800/50 shadow-black/20' 
           : 'bg-white/95 border-gray-200/50 shadow-gray-200/20'
       }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-24">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
+          <div className="flex items-center justify-between h-20">
             {/* Logo (match Fanheader style) */}
             <div onClick={() => onViewChange('home')} className="group flex-shrink-0 cursor-pointer">
               <div className="w-[160px] h-[160px] lg:w-[224px] lg:h-[224px] rounded-full flex items-center justify-center overflow-hidden shadow-md group-hover:scale-110 transition-transform duration-300">
-                <img src="/onlyracefanlogo.png" alt="OnlyRaceFan Logo" className="w-full h-full object-contain p-1" />
+                <img src="/onlyracefanlogo.png" alt="OnlyRaceFan Logo" className="w-full h-full object-contain p-0" />
               </div>
             </div>
 
