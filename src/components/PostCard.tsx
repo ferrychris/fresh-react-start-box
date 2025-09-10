@@ -786,6 +786,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     const isFan = (post.user_type || '').toString().toLowerCase() === 'fan';
     console.log(`[DEBUG] Post user_type: ${post.user_type}, isFan: ${isFan}`);
     
+    // Try all buckets if we have issues with the default one
+    const buckets = ['racer-photos', 'postimage', 'new_post'];
+    
     const resolved = normalizedMediaUrls
       .map((u) => {
         if (!u || typeof u !== 'string') return '';
@@ -830,8 +833,40 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     try {
       // Avoid loops: if already using a fallback, skip
       if (fallbackUrls[originalUrl]) return;
+      
       // Try to generate a signed URL for this media
-      const signed = await getSignedUrl(originalUrl);
+      console.log(`[DEBUG] Media load error, trying to generate signed URL for: ${originalUrl}`);
+      
+      // Try all possible buckets if needed
+      const buckets = ['racer-photos', 'postimage', 'new_post'];
+      let signed = null;
+      
+      // First try with the original URL
+      signed = await getSignedUrl(originalUrl);
+      
+      // If that fails, try explicit bucket+path combinations
+      if (!signed) {
+        // Extract the path part if it's a URL
+        let path = originalUrl;
+        if (originalUrl.includes('/')) {
+          // Get the last part after the last slash
+          const parts = originalUrl.split('/');
+          if (parts.length >= 2) {
+            // Try with just the filename
+            path = parts[parts.length - 1];
+          }
+        }
+        
+        // Try each bucket with the extracted path
+        for (const bucket of buckets) {
+          if (!signed) {
+            console.log(`[DEBUG] Trying bucket ${bucket} with path ${path}`);
+            signed = await getSignedUrl(bucket, path);
+            if (signed) break;
+          }
+        }
+      }
+      
       if (signed) {
         setFallbackUrls(prev => ({ ...prev, [originalUrl]: signed }));
         console.log(`[DEBUG] Generated signed URL fallback: ${originalUrl} → ${signed}`);

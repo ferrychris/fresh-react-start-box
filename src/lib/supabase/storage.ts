@@ -1,6 +1,11 @@
 import { supabase } from './client';
 
+// Main bucket for all media
 const BUCKET_NAME = 'racer-photos';
+
+// Legacy bucket names for backward compatibility
+const LEGACY_BUCKETS = ['postimage', 'new_post', 'racer-photos'];
+
 // Use a single bucket for all post uploads (fans and racers)
 const FAN_POST_BUCKET = BUCKET_NAME;
 
@@ -101,14 +106,31 @@ export const getSignedUrl = async (bucketOrPath: string, maybePath?: string, exp
       bucket = r.bucket;
       objectPath = r.objectPath;
     }
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(objectPath, expiresInSeconds);
-    if (error) {
-      console.error('[DEBUG] getSignedUrl error:', error);
-      return null;
+    
+    // Ensure the path is clean
+    objectPath = objectPath.replace(/^\/|\/$/g, '');
+    
+    // Try all possible buckets if the first one fails
+    const buckets = [bucket, ...LEGACY_BUCKETS.filter(b => b !== bucket)];
+    
+    for (const currentBucket of buckets) {
+      try {
+        console.log(`[DEBUG] Attempting to get signed URL for ${currentBucket}/${objectPath}`);
+        const { data, error } = await supabase.storage.from(currentBucket).createSignedUrl(objectPath, expiresInSeconds);
+        if (!error && data?.signedUrl) {
+          console.log(`[DEBUG] Successfully generated signed URL for ${currentBucket}/${objectPath}`);
+          return data.signedUrl;
+        }
+      } catch (innerError) {
+        console.log(`[DEBUG] Failed to get signed URL from bucket ${currentBucket}:`, innerError);
+        // Continue to next bucket
+      }
     }
-    return data?.signedUrl || null;
-  } catch (err) {
-    console.error('[DEBUG] getSignedUrl exception:', err);
+    
+    console.error(`[DEBUG] Could not generate signed URL for ${bucket}/${objectPath} in any bucket`);
+    return null;
+  } catch (error) {
+    console.error('[DEBUG] getSignedUrl exception:', error);
     return null;
   }
 };
@@ -293,9 +315,9 @@ export const saveImageToAvatarsTable = async (
   try {
     const { error } = await supabase.from('avatars').insert({
       user_id: userId,
-      url,
-      type,
-      original_name: originalName ?? null,
+      image_url: url,
+      image_type: type,
+      file_name: originalName ?? 'uploaded_image',
     });
     return { error };
   } catch (err) {
@@ -305,18 +327,23 @@ export const saveImageToAvatarsTable = async (
 };
 
 // Helper: resolve bucket and object path from a possibly-prefixed path
-// Supports: "bucket/object", legacy prefixes like "postimage/...", "new_post/...", "racer-photos/..."
+// Supports: "bucket/object", legacy prefixes, and full URLs
 const resolveBucketAndPath = (defaultBucket: string, rawPath: string): { bucket: string; objectPath: string } => {
-  console.log(`[DEBUG] Resolving path: '${rawPath}' with default bucket: '${defaultBucket}'`);
+  if (!rawPath || typeof rawPath !== 'string') {
+    console.warn(`[DEBUG] Invalid path provided to resolveBucketAndPath:`, rawPath);
+    return { bucket: defaultBucket, objectPath: '' };
+  }
   
   let p = rawPath.trim();
-  // If it's a full URL, try to parse Supabase storage pattern; otherwise return as-is later
+  console.log(`[DEBUG] Resolving path: '${p}' with default bucket: '${defaultBucket}'`);
+  
+  // If it's a full URL, try to parse Supabase storage pattern
   if (/^https?:\/\//i.test(p)) {
-    // Example: https://<project>.supabase.co/storage/v1/object/public/<bucket>/<objectPath>?token=...
+    // Match Supabase storage URL pattern
     const m = p.match(/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/([^?]+)(?:\?|$)/i);
     if (m && m[1] && m[2]) {
       const bucket = m[1];
-      const objectPath = m[2];
+      const objectPath = decodeURIComponent(m[2]);
       console.log(`[DEBUG] Parsed Supabase storage URL. bucket='${bucket}', object='${objectPath}'`);
       return { bucket, objectPath };
     }
@@ -325,51 +352,50 @@ const resolveBucketAndPath = (defaultBucket: string, rawPath: string): { bucket:
   }
 
   // Remove any leading slashes
-  p = p.replace(/^\/+/, '');
-
-  // If path includes an explicit bucket prefix, split it
-  // Known fan buckets
-  if (p.startsWith('postimage/')) {
-    console.log(`[DEBUG] Detected 'postimage/' prefix, using postimage bucket`);
-    return { bucket: 'postimage', objectPath: p.substring('postimage/'.length) };
-  }
-  if (p.startsWith('new_post/')) {
-    console.log(`[DEBUG] Detected 'new_post/' prefix, using new_post bucket`);
-    return { bucket: 'new_post', objectPath: p.substring('new_post/'.length) };
-  }
-  // Known racer bucket
-  if (p.startsWith('racer-photos/')) {
-    console.log(`[DEBUG] Detected 'racer-photos/' prefix, using racer-photos bucket`);
-    return { bucket: 'racer-photos', objectPath: p.substring('racer-photos/'.length) };
-  }
-
-  // Generic "bucket/object" form
-  const firstSlash = p.indexOf('/');
-  if (firstSlash > 0) {
-    const maybeBucket = p.slice(0, firstSlash);
-    const rest = p.slice(firstSlash + 1);
-    // Heuristic: if bucket-like (no dots/spaces and reasonable length), treat as bucket
-    if (/^[a-z0-9-_]+$/i.test(maybeBucket) && rest.length > 0) {
-      console.log(`[DEBUG] Detected generic bucket/object pattern: bucket='${maybeBucket}', object='${rest}'`);
-      return { bucket: maybeBucket, objectPath: rest };
+  p = p.replace(/^\/+/g, '');
+  
+  // Check for any legacy bucket prefixes first
+  for (const bucket of [...LEGACY_BUCKETS, defaultBucket]) {
+    if (p.startsWith(`${bucket}/`)) {
+      console.log(`[DEBUG] Detected bucket prefix '${bucket}/'`);
+      return { 
+        bucket, 
+        objectPath: p.substring(bucket.length + 1).replace(/^\/+/, '') 
+      };
     }
   }
-
-  // Fallback: use provided default bucket
-  console.log(`[DEBUG] No bucket prefix detected, using default bucket: '${defaultBucket}' with full path: '${p}'`);
-  return { bucket: defaultBucket, objectPath: p };
+  
+  // Check for UUID-like patterns that might be user directories
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
+  if (uuidPattern.test(p.split('/')[0])) {
+    console.log(`[DEBUG] Detected UUID-like prefix, using default bucket`);
+    return { bucket: defaultBucket, objectPath: p };
+  }
+  
+  // Default case: use the provided default bucket but clean up the path
+  console.log(`[DEBUG] Using default bucket '${defaultBucket}' for path '${p}'`);
+  return { 
+    bucket: defaultBucket, 
+    objectPath: p.replace(/^\/+/g, '') 
+  };
 };
 
 export const getPublicUrl = (bucket: string, path: string) => {
-  if (!path) return null;
+  if (!path) {
+    console.warn(`[DEBUG] getPublicUrl called with empty path for bucket: ${bucket}`);
+    return null;
+  }
   try {
-    // Allow callers to pass either just object path or "bucket/object"
-    const { bucket: b, objectPath } = resolveBucketAndPath(bucket, path);
-    if (/^https?:\/\//i.test(objectPath)) return objectPath; // already a URL
-    const { data } = supabase.storage.from(b).getPublicUrl(objectPath);
-    return data.publicUrl;
-  } catch (err) {
-    console.error(`Error getting public URL for ${bucket}/${path}:`, err);
+    const cleanPath = path.replace(/^\/|\/$/g, ''); // Remove leading/trailing slashes
+    const { data } = supabase.storage.from(bucket).getPublicUrl(cleanPath);
+    
+    // Note: getPublicUrl doesn't return an error in the current Supabase version
+    
+    const url = data?.publicUrl || null;
+    console.log(`[DEBUG] Generated public URL: ${bucket}/${cleanPath} → ${url}`);
+    return url;
+  } catch (error) {
+    console.error(`[DEBUG] Exception in getPublicUrl for ${bucket}/${path}:`, error);
     return null;
   }
 };
