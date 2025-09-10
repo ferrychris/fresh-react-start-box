@@ -68,10 +68,6 @@ const SettingsProfile: React.FC = () => {
   const [careerHistory, setCareerHistory] = useState<string>('');
   const [highlights, setHighlights] = useState<string>('');
   const [achievements, setAchievements] = useState<string>('');
-  const [achievementOne, setAchievementOne] = useState<string>('');
-  const [achievementTwo, setAchievementTwo] = useState<string>('');
-  const [achievementsList, setAchievementsList] = useState<string[]>([]);
-  const [newAchievement, setNewAchievement] = useState<string>('');
   // Monetization & Fan Support (new)
   const [monetizationEnabled, setMonetizationEnabled] = useState<boolean>(false);
   const [supportTiers, setSupportTiers] = useState<Array<{ name: string; price: number; description: string }>>([]);
@@ -159,19 +155,7 @@ const SettingsProfile: React.FC = () => {
               setYearsRacing(typeof racer.years_racing === 'number' ? racer.years_racing : 0);
               setCareerHistory(racer.career_history || '');
               setHighlights(racer.highlights || '');
-              const ach = (racer.achievements as string) || '';
-              if (ach) {
-                const parts = ach.split(/\r?\n|,\s*/).filter(Boolean);
-                setAchievementOne(parts[0] || '');
-                setAchievementTwo(parts[1] || '');
-                setAchievements(ach);
-                setAchievementsList(parts);
-              } else {
-                setAchievementOne('');
-                setAchievementTwo('');
-                setAchievements('');
-                setAchievementsList([]);
-              }
+              setAchievements(racer.achievements || '');
               // Load Monetization & Social
               setMonetizationEnabled(!!racer.monetization_enabled);
               setSupportTiers(Array.isArray(racer.support_tiers)
@@ -298,14 +282,7 @@ const SettingsProfile: React.FC = () => {
             why_i_love_racing: fanWhy || null,
             profile_photo_url: typeof newAvatarUrl === 'string' ? newAvatarUrl : null,
           };
-          const { error: fanUpsertError } = await supabase.from('fan_profiles').upsert(fanPayload, { onConflict: 'id' });
-          if (fanUpsertError) throw fanUpsertError;
-          // Early success toast (sooner feedback)
-          toast({
-            title: 'Settings Saved ✅',
-            description: 'Your profile changes have been saved.',
-            duration: 3000,
-          });
+          await supabase.from('fan_profiles').upsert(fanPayload, { onConflict: 'id' });
         } else if (userType === 'racer') {
           // Compute car photos: keep existing remote URLs that are still shown, and add newly uploaded files
           const keptRemoteUrls = (carPhotoPreviews || []).filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u));
@@ -320,19 +297,6 @@ const SettingsProfile: React.FC = () => {
           }
           const carPhotoUrls = [...keptRemoteUrls, ...uploadedCarUrls];
 
-          // Normalize support tiers to safe JSON objects for PostgREST
-          const normalizedSupportTiers = Array.isArray(supportTiers)
-            ? supportTiers.map((t) => {
-                const rawPrice = (t as { price?: number | string }).price;
-                const priceNum = typeof rawPrice === 'number' ? rawPrice : (parseFloat(String(rawPrice ?? '')) || 0);
-                return {
-                  name: typeof t?.name === 'string' ? t.name : '',
-                  price: priceNum,
-                  description: typeof t?.description === 'string' ? t.description : ''
-                };
-              })
-            : [];
-
           const racerPayload = {
             id: userId,
             username: racerUsername || null,
@@ -344,8 +308,7 @@ const SettingsProfile: React.FC = () => {
             // New basic identity fields
             bio: bio || null,
             hometown: hometown || null,
-            // phone is NOT NULL in DB, provide empty string if missing
-            phone: (typeof phone === 'string' && phone.trim().length > 0) ? phone : '',
+            phone: phone || null,
             // Visual branding (Main Sponsor Logo removed)
             car_photos: carPhotoUrls,
             // Career & Stats
@@ -355,10 +318,10 @@ const SettingsProfile: React.FC = () => {
             years_racing: yearsRacing,
             career_history: careerHistory || null,
             highlights: highlights || null,
-            achievements: (achievementsList.filter(Boolean).join('\n')) || null,
+            achievements: achievements || null,
             // Monetization & Fan Support
             monetization_enabled: monetizationEnabled,
-            support_tiers: normalizedSupportTiers,
+            support_tiers: supportTiers,
             thank_you_message: thankYouMessage || null,
             // Social Links
             instagram_url: instagramUrl || null,
@@ -367,46 +330,17 @@ const SettingsProfile: React.FC = () => {
             youtube_url: youtubeUrl || null,
             social_links: otherSocials,
           };
-          const { data: racerUpsertData, error: racerUpsertError, status: racerUpsertStatus } = await supabase
-            .from('racer_profiles')
-            .upsert(racerPayload, { onConflict: 'id' })
-            .select();
-          if (racerUpsertError) {
-            console.error('racer_profiles upsert error:', {
-              message: racerUpsertError.message,
-              details: racerUpsertError.details,
-              hint: racerUpsertError.hint,
-              code: racerUpsertError.code,
-              status: racerUpsertStatus,
-              payload: racerPayload,
-            });
-            throw new Error(`racer_profiles save failed: ${racerUpsertError.message}`);
-          }
-          // Early success toast (sooner feedback)
-          toast({
-            title: 'Settings Saved ✅',
-            description: 'Your racer profile has been saved.',
-            duration: 3000,
-          });
+          await supabase.from('racer_profiles').upsert(racerPayload, { onConflict: 'id' });
         }
       } catch (typeSaveErr) {
-        console.error('Type-specific profile save error:', typeSaveErr);
-        toast({
-          title: 'Save Error',
-          description: typeSaveErr instanceof Error ? typeSaveErr.message : 'Failed to save type-specific profile data',
-          variant: 'destructive',
-        });
+        console.log('Type-specific profile save skipped:', typeSaveErr);
       }
 
       // Step 6: Update profile completion status directly instead of using checkAndUpdateCompletion
       if (userType === 'racer') {
         try {
           // Check if all required fields are filled
-          const hasCarPhoto = Array.isArray(carPhotoPreviews) && carPhotoPreviews.length > 0;
-          const hasAnySocial = [instagramUrl, facebookUrl, tiktokUrl, youtubeUrl]
-            .some(u => typeof u === 'string' && u.trim() !== '');
-          const hasBio = typeof bio === 'string' && bio.trim() !== '';
-          const baseFieldsFilled = [
+          const isComplete = [
             name,
             newAvatarUrl,
             newBannerUrl,
@@ -415,7 +349,6 @@ const SettingsProfile: React.FC = () => {
             racerCarNum,
             racerClass
           ].every(field => field && String(field).trim() !== '');
-          const isComplete = baseFieldsFilled && hasCarPhoto && hasAnySocial && hasBio;
           
           // Update profile_complete and is_verified directly
           await supabase
@@ -430,15 +363,25 @@ const SettingsProfile: React.FC = () => {
             toast({
               title: "Profile Complete! 🎉",
               description: "You're now verified as a racer. Your profile is complete!",
-              duration: 5000,
             });
-          } 
+          } else {
+            toast({
+              title: "Success!",
+              description: "Profile updated successfully.",
+            });
+          }
         } catch (completionErr) {
           console.error('Error updating completion status:', completionErr);
-          // Completion update failed but save already succeeded; keep page with earlier success toast.
+          toast({
+            title: "Success!",
+            description: "Profile updated successfully.",
+          });
         }
       } else {
-        // Non-racer: early success toast already shown above
+        toast({
+          title: "Success!",
+          description: "Profile updated successfully.",
+        });
       }
 
       setAvatarFile(null);
@@ -446,7 +389,8 @@ const SettingsProfile: React.FC = () => {
       setOriginalAvatarUrl(newAvatarUrl || null);
       setOriginalBannerUrl(newBannerUrl || null);
 
-      // Stay on the settings page after saving
+      // Navigate back after short delay
+      setTimeout(() => navigate(-1), 800);
     } catch (e: unknown) {
       console.error(e);
       const msg = e instanceof Error ? e.message : 'Failed to save profile';
@@ -580,8 +524,6 @@ const SettingsProfile: React.FC = () => {
             />
           </div>
         )}
-
-        
 
         {/* Banner Card */}
         <Card className="bg-slate-900/60 border-slate-800/80 rounded-2xl shadow-[0_0_0_1px_rgba(255,255,255,0.02)] mb-6">
@@ -727,443 +669,186 @@ const SettingsProfile: React.FC = () => {
 
             {userType === 'racer' && (
               <div className="space-y-8">
-                <div>
-                  <div className="flex items-center gap-2 text-orange-400 font-semibold">
-                    <Trophy className="w-5 h-5" />
-                    Racer Profile
+                <div className="flex items-center gap-2 text-orange-400 font-semibold">
+                  <Trophy className="w-5 h-5" />
+                  Racer Profile
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="username" className="text-slate-300">Username</Label>
+                    <Input
+                      id="username"
+                      value={racerUsername}
+                      onChange={(e) => setRacerUsername(e.target.value)}
+                      placeholder="racer123"
+                      className="bg-slate-800 border-slate-700 text-white rounded-lg"
+                    />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <Label htmlFor="username" className="text-slate-300">Username</Label>
-                      <Input
-                        id="username"
-                        value={racerUsername}
-                        onChange={(e) => setRacerUsername(e.target.value)}
-                        placeholder="racer123"
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="team" className="text-slate-300">Team Name</Label>
-                      <Input
-                        id="team"
-                        value={racerTeam}
-                        onChange={(e) => setRacerTeam(e.target.value)}
-                        placeholder="Team Lightning"
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="hometown" className="text-slate-300">Hometown</Label>
-                      <Input
-                        id="hometown"
-                        value={hometown}
-                        onChange={(e) => setHometown(e.target.value)}
-                        placeholder="City, Country"
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="phone" className="text-slate-300">Phone Number</Label>
-                      <Input
-                        id="phone"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+1 (555) 123-4567"
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200 w-full sm:w-48 md:w-52"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="car-number" className="text-slate-300">Car Number</Label>
-                      <Input
-                        id="car-number"
-                        value={racerCarNum}
-                        onChange={(e) => setRacerCarNum(e.target.value)}
-                        placeholder="#24"
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200 w-full sm:w-28 md:w-32"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="racing-class" className="text-slate-300">Racing Class</Label>
-                      <Input
-                        id="racing-class"
-                        value={racerClass}
-                        onChange={(e) => setRacerClass(e.target.value)}
-                        placeholder="Late Model"
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label htmlFor="bio" className="text-slate-300">Bio</Label>
-                      <Textarea
-                        id="bio"
-                        value={bio}
-                        onChange={(e) => setBio(e.target.value)}
-                        placeholder="Tell us about yourself..."
-                        className="bg-slate-800/80 border border-slate-600/50 text-white min-h-[100px] rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200 resize-none"
-                      />
-                    </div>
+                  <div>
+                    <Label htmlFor="team" className="text-slate-300">Team Name</Label>
+                    <Input
+                      id="team"
+                      value={racerTeam}
+                      onChange={(e) => setRacerTeam(e.target.value)}
+                      placeholder="Team Lightning"
+                      className="bg-slate-800 border-slate-700 text-white rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="hometown" className="text-slate-300">Hometown</Label>
+                    <Input
+                      id="hometown"
+                      value={hometown}
+                      onChange={(e) => setHometown(e.target.value)}
+                      placeholder="City, Country"
+                      className="bg-slate-800 border-slate-700 text-white rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="phone" className="text-slate-300">Phone Number</Label>
+                    <Input
+                      id="phone"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+1 (555) 123-4567"
+                      className="bg-slate-800 border-slate-700 text-white rounded-lg w-44 md:w-52"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="car-number" className="text-slate-300">Car Number</Label>
+                    <Input
+                      id="car-number"
+                      value={racerCarNum}
+                      onChange={(e) => setRacerCarNum(e.target.value)}
+                      placeholder="#24"
+                      className="bg-slate-800 border-slate-700 text-white rounded-lg w-28 md:w-32"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="racing-class" className="text-slate-300">Racing Class</Label>
+                    <Input
+                      id="racing-class"
+                      value={racerClass}
+                      onChange={(e) => setRacerClass(e.target.value)}
+                      placeholder="Late Model"
+                      className="bg-slate-800 border-slate-700 text-white rounded-lg"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label htmlFor="bio" className="text-slate-300">Bio</Label>
+                    <Textarea
+                      id="bio"
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      placeholder="Tell us about yourself..."
+                      className="bg-slate-800 border-slate-700 text-white min-h-[100px] rounded-lg"
+                    />
                   </div>
                 </div>
 
-                {/* Visual Branding */}
-                <div>
-                  <div className="flex items-center gap-2 text-orange-400 font-semibold">
-                    <Camera className="w-5 h-5" />
-                    Visual Branding
-                  </div>
-                  <div className="mt-4">
-                    <div>
-                      <Label className="text-slate-300 block mb-2">Car Photos</Label>
-                      <div className="flex flex-wrap gap-3">
-                        {carPhotoPreviews.map((url, idx) => (
-                          <div key={idx} className="relative group">
-                            <img src={url} alt={`Car ${idx+1}`} className="h-20 w-20 object-cover rounded-lg" />
-                            <button
-                              type="button"
-                              className="absolute top-1 right-1 bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => {
-                                setCarPhotoPreviews(prev => prev.filter((_, i) => i !== idx));
-                                // If this was a file upload (not a URL), also remove from files array
-                                if (!url.startsWith('http')) {
-                                  setCarPhotoFiles(prev => prev.filter((_, i) => i !== idx));
-                                }
-                              }}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <line x1="18" y1="6" x2="6" y2="18"></line>
-                                <line x1="6" y1="6" x2="18" y2="18"></line>
-                              </svg>
-                            </button>
-                          </div>
-                        ))}
-                        <Label htmlFor="car-photos-upload" className="h-20 w-20 border-2 border-dashed border-slate-700 rounded-lg flex items-center justify-center cursor-pointer hover:border-orange-500 transition-colors">
-                          <div className="text-center">
-                            <Camera className="h-6 w-6 mx-auto text-slate-500" />
-                            <span className="text-xs text-slate-500 mt-1">Add</span>
-                          </div>
-                          <input
-                            id="car-photos-upload"
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            className="hidden"
-                            onChange={(e) => {
-                              const files = Array.from(e.target.files || []);
-                              if (files.length > 0) {
-                                setCarPhotoFiles(prev => [...prev, ...files]);
-                                const urls = files.map(f => URL.createObjectURL(f));
-                                setCarPhotoPreviews(prev => [...prev, ...urls]);
-                              }
-                            }}
-                          />
-                        </Label>
-                      </div>
-                      <p className="text-xs text-slate-400 mt-1">Upload multiple photos showcasing your car.</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
+                <div className="space-y-4">
                   <div className="flex items-center gap-2 text-orange-400 font-semibold">
                     <Trophy className="w-5 h-5" />
                     Career & Stats
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="career-wins" className="text-slate-300">Career Wins</Label>
-                      <select
+                      <Input
                         id="career-wins"
+                        type="number"
+                        min={0}
                         value={careerWins}
                         onChange={(e) => setCareerWins(parseInt(e.target.value) || 0)}
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200 h-10 text-sm w-full sm:w-28 md:w-32"
-                      >
-                        {[...Array(11)].map((_, i) => (
-                          <option key={i} value={i}>{i}</option>
-                        ))}
-                      </select>
+                        className="bg-slate-800 border-slate-700 text-white rounded-lg h-9 text-sm w-28 md:w-32"
+                      />
                     </div>
                     <div>
                       <Label htmlFor="podiums" className="text-slate-300">Podiums</Label>
-                      <select
+                      <Input
                         id="podiums"
+                        type="number"
+                        min={0}
                         value={podiums}
                         onChange={(e) => setPodiums(parseInt(e.target.value) || 0)}
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200 h-10 text-sm w-full sm:w-28 md:w-32"
-                      >
-                        {[...Array(11)].map((_, i) => (
-                          <option key={i} value={i}>{i}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <Label htmlFor="championships" className="text-slate-300">Championships</Label>
-                      <select
-                        id="championships"
-                        value={championships}
-                        onChange={(e) => setChampionships(parseInt(e.target.value) || 0)}
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200 h-10 text-sm w-full sm:w-28 md:w-32"
-                      >
-                        {[...Array(11)].map((_, i) => (
-                          <option key={i} value={i}>{i}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <Label htmlFor="years-racing" className="text-slate-300">Years Racing</Label>
-                      <select
-                        id="years-racing"
-                        value={yearsRacing}
-                        onChange={(e) => setYearsRacing(parseInt(e.target.value) || 0)}
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200 h-10 text-sm w-full sm:w-28 md:w-32"
-                      >
-                        {[...Array(11)].map((_, i) => (
-                          <option key={i} value={i}>{i}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label htmlFor="career-history" className="text-slate-300">Career History</Label>
-                      <Textarea
-                        id="career-history"
-                        value={careerHistory}
-                        onChange={(e) => setCareerHistory(e.target.value)}
-                        placeholder="Describe your racing career history..."
-                        className="bg-slate-800/80 border border-slate-600/50 text-white min-h-[100px] rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200 resize-none"
+                        className="bg-slate-800 border-slate-700 text-white rounded-lg h-9 text-sm w-28 md:w-32"
                       />
+                        <Label className="text-slate-300" htmlFor="facebook">Facebook</Label>
+                        <Input id="facebook" value={facebookUrl} onChange={(e) => setFacebookUrl(e.target.value)} placeholder="https://facebook.com/username" className="bg-slate-800 border-slate-700 text-white rounded-lg" />
+                      </div>
+                      <div>
+                        <Label className="text-slate-300" htmlFor="tiktok">TikTok</Label>
+                        <Input id="tiktok" value={tiktokUrl} onChange={(e) => setTiktokUrl(e.target.value)} placeholder="https://tiktok.com/@username" className="bg-slate-800 border-slate-700 text-white rounded-lg" />
+                      </div>
+                      <div>
+                        <Label className="text-slate-300" htmlFor="youtube">YouTube</Label>
+                        <Input id="youtube" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="https://youtube.com/@channel" className="bg-slate-800 border-slate-700 text-white rounded-lg" />
+                      </div>
                     </div>
-                    <div className="md:col-span-2">
-                      <Label htmlFor="highlights" className="text-slate-300">Highlights</Label>
-                      <Textarea
-                        id="highlights"
-                        value={highlights}
-                        onChange={(e) => setHighlights(e.target.value)}
-                        placeholder="List your career highlights..."
-                        className="bg-slate-800/80 border border-slate-600/50 text-white min-h-[100px] rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200 resize-none"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label className="text-slate-300">Achievements</Label>
-                      <div className="mt-2 flex flex-col gap-3">
-                        <div className="flex gap-2 items-center">
-                          <Input
-                            id="achievement-new"
-                            value={newAchievement}
-                            onChange={(e) => setNewAchievement(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                const v = newAchievement.trim();
-                                if (v) {
-                                  setAchievementsList(prev => [...prev, v]);
-                                  setNewAchievement('');
-                                }
-                              }
-                            }}
-                            placeholder="Add an achievement (press Enter or click Add)"
-                            className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200 flex-1"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="border-slate-600/50 text-slate-300 hover:bg-slate-800/60 rounded-xl shadow-md backdrop-blur-sm transition-all duration-200 hover:border-orange-400/40"
-                            onClick={() => {
-                              const v = newAchievement.trim();
-                              if (v) {
-                                setAchievementsList(prev => [...prev, v]);
-                                setNewAchievement('');
-                              }
-                            }}
-                          >
-                            Add
-                          </Button>
-                        </div>
-                        <div className="space-y-2">
-                          {achievementsList.map((item, idx) => (
-                            <div key={idx} className="flex items-center gap-2">
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-slate-300">Other Socials</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                          onClick={() => setOtherSocials(prev => ({ ...prev, '': '' }))}
+                        >
+                          Add Link
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {Object.entries(otherSocials).map(([key, value], idx) => (
+                          <div key={`${key}-${idx}`} className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
+                            <Input
+                              placeholder="platform (e.g., twitter)"
+                              value={key}
+                              onChange={(e) => {
+                                const newKey = e.target.value;
+                                setOtherSocials(prev => {
+                                  const entries = Object.entries(prev);
+                                  entries[idx][0] = newKey;
+                                  return Object.fromEntries(entries);
+                                });
+                              }}
+                              className="bg-slate-800 border-slate-700 text-white rounded-lg"
+                            />
+                            <div className="md:col-span-2 flex gap-2">
                               <Input
-                                value={item}
+                                placeholder="https://..."
+                                value={value}
                                 onChange={(e) => {
-                                  const next = [...achievementsList];
-                                  next[idx] = e.target.value;
-                                  setAchievementsList(next);
+                                  const newVal = e.target.value;
+                                  setOtherSocials(prev => {
+                                    const entries = Object.entries(prev);
+                                    entries[idx][1] = newVal;
+                                    return Object.fromEntries(entries);
+                                  });
                                 }}
-                                className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200 flex-1"
+                                className="bg-slate-800 border-slate-700 text-white rounded-lg flex-1"
                               />
                               <Button
                                 type="button"
                                 variant="ghost"
                                 className="text-red-400 hover:text-red-300"
-                                onClick={() => setAchievementsList(prev => prev.filter((_, i) => i !== idx))}
+                                onClick={() => {
+                                  setOtherSocials(prev => {
+                                    const entries = Object.entries(prev);
+                                    entries.splice(idx, 1);
+                                    return Object.fromEntries(entries);
+                                  });
+                                }}
                               >
                                 Remove
                               </Button>
                             </div>
-                          ))}
-                          {achievementsList.length === 0 && (
-                            <p className="text-xs text-slate-500">No achievements yet. Add your first one above.</p>
-                          )}
-                        </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
                 </div>
-
-                <div>
-                  <div className="flex items-center gap-2 text-orange-400 font-semibold">
-                    <span className="w-5 h-5 inline-flex items-center justify-center">$</span>
-                    Monetization & Fan Support
-                  </div>
-                  <div className="space-y-4 mt-4">
-                    <div className="flex items-center justify-between p-3 border border-slate-800 rounded-lg bg-slate-900/40">
-                      <div>
-                        <Label className="text-slate-300">Enable Monetization</Label>
-                        <p className="text-sm text-slate-400">Allow fans to support you with tiers and tips</p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={monetizationEnabled}
-                        onChange={(e) => setMonetizationEnabled(e.target.checked)}
-                        className="h-5 w-5 accent-orange-500"
-                      />
-                    </div>
-
-                    {monetizationEnabled && (
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-slate-300">Support Tiers</Label>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="border-slate-600/50 text-slate-300 hover:bg-slate-800/60 rounded-xl shadow-md backdrop-blur-sm transition-all duration-200 hover:border-orange-400/40"
-                            onClick={() => setSupportTiers(prev => ([...prev, { name: '', price: 0, description: '' }]))}
-                          >
-                            Add Tier
-                          </Button>
-                        </div>
-                        <div className="space-y-3">
-                          {supportTiers.map((tier, idx) => (
-                            <div key={idx} className="p-4 bg-slate-900/50 rounded-lg border border-slate-800 space-y-3">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <Label className="text-slate-400 text-sm">Tier Name</Label>
-                                  <Input
-                                    value={tier.name}
-                                    onChange={(e) => {
-                                      const next = [...supportTiers];
-                                      next[idx] = { ...next[idx], name: e.target.value };
-                                      setSupportTiers(next);
-                                    }}
-                                    className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-slate-400 text-sm">Monthly Price (USD)</Label>
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    step={1}
-                                    value={tier.price}
-                                    onChange={(e) => {
-                                      const next = [...supportTiers];
-                                      next[idx] = { ...next[idx], price: parseFloat(e.target.value) || 0 };
-                                      setSupportTiers(next);
-                                    }}
-                                    className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200"
-                                  />
-                                </div>
-                                <div className="md:col-span-2">
-                                  <Label className="text-slate-400 text-sm">Description</Label>
-                                  <Textarea
-                                    value={tier.description}
-                                    onChange={(e) => {
-                                      const next = [...supportTiers];
-                                      next[idx] = { ...next[idx], description: e.target.value };
-                                      setSupportTiers(next);
-                                    }}
-                                    placeholder="What fans get at this tier..."
-                                    className="bg-slate-800/80 border border-slate-600/50 text-white min-h-[80px] rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200 resize-none"
-                                  />
-                                </div>
-                              </div>
-                              <div className="flex justify-end">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  className="text-red-400 hover:text-red-300"
-                                  onClick={() => setSupportTiers(prev => prev.filter((_, i) => i !== idx))}
-                                >
-                                  Remove
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div>
-                          <Label htmlFor="thank-you" className="text-slate-300">Thank You Message</Label>
-                          <Textarea
-                            id="thank-you"
-                            value={thankYouMessage}
-                            onChange={(e) => setThankYouMessage(e.target.value)}
-                            placeholder="Shown after a fan donates or subscribes"
-                            className="bg-slate-800/80 border border-slate-600/50 text-white min-h-[80px] rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200 resize-none"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Social Links */}
-                <div>
-                  <div className="flex items-center gap-2 text-orange-400 font-semibold">
-                    <User className="w-5 h-5" />
-                    Social Links
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <Label className="text-slate-300" htmlFor="instagram">Instagram</Label>
-                      <Input 
-                        id="instagram" 
-                        value={instagramUrl} 
-                        onChange={(e) => setInstagramUrl(e.target.value)} 
-                        placeholder="https://instagram.com/username" 
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200" 
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-slate-300" htmlFor="facebook">Facebook</Label>
-                      <Input 
-                        id="facebook" 
-                        value={facebookUrl} 
-                        onChange={(e) => setFacebookUrl(e.target.value)} 
-                        placeholder="https://facebook.com/username" 
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200" 
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-slate-300" htmlFor="tiktok">TikTok</Label>
-                      <Input 
-                        id="tiktok" 
-                        value={tiktokUrl} 
-                        onChange={(e) => setTiktokUrl(e.target.value)} 
-                        placeholder="https://tiktok.com/@username" 
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200" 
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-slate-300" htmlFor="youtube">YouTube</Label>
-                      <Input 
-                        id="youtube" 
-                        value={youtubeUrl} 
-                        onChange={(e) => setYoutubeUrl(e.target.value)} 
-                        placeholder="https://youtube.com/@channel" 
-                        className="bg-slate-800/80 border border-slate-600/50 text-white rounded-xl shadow-lg backdrop-blur-sm focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/20 transition-all duration-200" 
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
             )}
 
             {/* Action Buttons */}
@@ -1172,7 +857,7 @@ const SettingsProfile: React.FC = () => {
                 variant="outline"
                 onClick={() => navigate(-1)}
                 disabled={saving}
-                className="border-slate-600/50 text-slate-300 hover:bg-slate-800/60 rounded-xl shadow-md backdrop-blur-sm transition-all duration-200 hover:border-orange-400/40"
+                className="border-slate-700 text-slate-300 hover:bg-slate-800"
               >
                 Cancel
               </Button>

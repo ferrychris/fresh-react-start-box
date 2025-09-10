@@ -111,40 +111,30 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
     setIsSubmitting(true);
 
     try {
-      // Upload media files first
-      const uploadedUrls: string[] = [];
-      let uploadError = false;
-
-      for (const file of selectedFiles) {
-        const isVideo = file.type.startsWith('video/');
-        const isFan = (user?.user_type || '').toString().toLowerCase() === 'fan';
-
-        let result;
-        if (isVideo) {
-          result = isFan ? await uploadFanPostVideo(user.id, file) : await uploadPostVideo(user.id, file);
-        } else {
-          result = isFan ? await uploadFanPostImage(user.id, file) : await uploadPostImage(user.id, file);
+      // Upload media files first (in parallel for speed)
+      const isFanUser = (user?.user_type || '').toString().toLowerCase() === 'fan';
+      const uploadPromises = selectedFiles.map(async (file) => {
+        const isVid = file.type.startsWith('video/');
+        const res = isVid
+          ? (isFanUser ? await uploadFanPostVideo(user.id, file) : await uploadPostVideo(user.id, file))
+          : (isFanUser ? await uploadFanPostImage(user.id, file) : await uploadPostImage(user.id, file));
+        if (res?.error) {
+          const kind = isVid ? 'video' : 'image';
+          throw new Error(`Error uploading ${kind}: ${res.error?.message || 'Unknown error'}`);
         }
-
-        if (result?.error) {
-          console.error('Error uploading file:', result.error);
-          alert(`Error uploading ${isVideo ? 'video' : 'image'}: ${result.error.message || 'Unknown error'}`);
-          uploadError = true;
-          break;
+        if (!res?.path) {
+          throw new Error('Upload result missing path');
         }
+        console.log(`[DEBUG] Upload success - storing path: ${res.path}`);
+        return res.path as string;
+      });
 
-        // Store the storage path for consistent resolution
-        if (result?.path) {
-          console.log(`[DEBUG] Upload success - storing path: ${result.path}`);
-          uploadedUrls.push(result.path);
-        } else {
-          console.error(`[DEBUG] Upload result missing path:`, result);
-          uploadError = true;
-          break;
-        }
-      }
-
-      if (uploadError) {
+      let uploadedUrls: string[] = [];
+      try {
+        uploadedUrls = await Promise.all(uploadPromises);
+      } catch (uploadErr: unknown) {
+        console.error('Error uploading one or more files:', uploadErr);
+        alert(uploadErr instanceof Error ? uploadErr.message : 'Error uploading files');
         setIsSubmitting(false);
         return;
       }
@@ -206,6 +196,17 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
 
       console.log(`[DEBUG] Post created successfully:`, created);
 
+      // Generate public URLs for the uploaded media to ensure they display immediately
+      const publicMediaUrls = await Promise.all(
+        uploadedUrls.map(async (path) => {
+          const isFan = userType === 'fan';
+          const resolver = isFan ? getFanPostPublicUrl : getPostPublicUrl;
+          const publicUrl = resolver(path);
+          console.log(`[DEBUG] Resolved media URL for display: ${path} → ${publicUrl}`);
+          return publicUrl || path; // Fallback to path if resolution fails
+        })
+      );
+
       // Use the UUID returned by Supabase for UI post
       const newPost: Post = {
         id: created.id,
@@ -215,7 +216,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
         userType: userType === 'racer' ? 'RACER' : 'FAN',
         userVerified: false,
         content: composedContent,
-        mediaUrls: uploadedUrls,
+        mediaUrls: publicMediaUrls, // Use public URLs instead of storage paths
         timestamp: new Date().toLocaleDateString(),
         likes: 0,
         comments: 0,
@@ -358,7 +359,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
                   <button
                     type="button"
                     onClick={triggerFileSelect}
-                    className="p-2 hover:bg-slate-700 rounded-full transition-colors"
+                    className="p-2 hover:bg-slate-700 rounded-full transition-colors cursor-pointer"
                     title="Photo/Video"
                   >
                     <Image className="h-5 w-5 text-green-500" />
@@ -366,14 +367,14 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onClose, onPostCreated, 
                   <button
                     type="button"
                     onClick={() => setShowFeelingPicker((s) => !s)}
-                    className="p-2 hover:bg-slate-700 rounded-full transition-colors"
+                    className="p-2 hover:bg-slate-700 rounded-full transition-colors cursor-pointer"
                     title="Feeling/Activity"
                   >
                     <Smile className="h-5 w-5 text-yellow-400" />
                   </button>
                   <button
                     type="button"
-                    className="p-2 hover:bg-slate-700 rounded-full transition-colors"
+                    className="p-2 hover:bg-slate-700 rounded-full transition-colors cursor-pointer"
                     title="Tag location"
                   >
                     <MapPin className="h-5 w-5 text-red-500" />

@@ -829,6 +829,10 @@ export default function Grandstand() {
           onClose={() => setShowCreatePost(false)}
           onPostCreated={(newPost: NewPostData) => {
             // Create a properly typed object
+            // Log the incoming post data for debugging
+            console.log('[DEBUG] New post created with media:', newPost.mediaUrls);
+            
+            // Create a properly typed object with correct media URLs
             const adaptedPost: PostCardType = {
               ...newPost,
               profiles: {
@@ -840,10 +844,14 @@ export default function Grandstand() {
               user_id: user?.id || '',
               likes_count: newPost.likes ?? 0,
               comments_count: newPost.comments ?? 0,
-              media_urls: newPost.mediaUrls || [],
+              // Ensure media_urls is properly formatted for PostCard component
+              media_urls: Array.isArray(newPost.mediaUrls) ? newPost.mediaUrls : 
+                (typeof newPost.mediaUrls === 'string' ? [newPost.mediaUrls] : []),
               created_at: newPost.created_at || new Date().toISOString(),
               updated_at: new Date().toISOString(),
-              post_type: 'text' as const,
+              post_type: newPost.mediaUrls?.length ? 
+                (newPost.mediaUrls.some(url => url.includes('.mp4') || url.includes('.webm') || url.includes('.mov')) ? 'video' : 
+                 newPost.mediaUrls.length > 1 ? 'gallery' : 'photo') : 'text',
               visibility: 'public' as const,
               total_tips: 0,
               allow_tips: false

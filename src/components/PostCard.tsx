@@ -831,42 +831,65 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
 
   const handleMediaError = async (originalUrl: string) => {
     try {
-      // Avoid loops: if already using a fallback, skip
-      if (fallbackUrls[originalUrl]) return;
-      
-      // Try to generate a signed URL for this media
-      console.log(`[DEBUG] Media load error, trying to generate signed URL for: ${originalUrl}`);
-      
-      // Try all possible buckets if needed
+      if (fallbackUrls[originalUrl]) return; // avoid loops
+
+      console.log(`[DEBUG] Media load error, starting signed URL fallback for: ${originalUrl}`);
       const buckets = ['racer-photos', 'postimage', 'new_post'];
-      let signed = null;
-      
-      // First try with the original URL
+      let signed: string | null = null;
+
+      // 1) First try with the original URL/path (this uses resolveBucketAndPath under the hood)
       signed = await getSignedUrl(originalUrl);
-      
-      // If that fails, try explicit bucket+path combinations
+
+      // 2) Build more specific candidates using filename and known folder conventions
       if (!signed) {
-        // Extract the path part if it's a URL
-        let path = originalUrl;
-        if (originalUrl.includes('/')) {
-          // Get the last part after the last slash
-          const parts = originalUrl.split('/');
-          if (parts.length >= 2) {
-            // Try with just the filename
-            path = parts[parts.length - 1];
+        const tryDecodeTwice = (s: string) => {
+          try {
+            const once = decodeURIComponent(s);
+            try { return decodeURIComponent(once); } catch { return once; }
+          } catch { return s; }
+        };
+
+        // Extract a best-effort filename from the URL or storage path
+        let filename = originalUrl;
+        try {
+          if (/^https?:\/\//i.test(originalUrl)) {
+            const u = new URL(originalUrl);
+            filename = u.pathname.split('/').pop() || originalUrl;
+          } else {
+            const parts = originalUrl.split('?')[0].split('#')[0].split('/');
+            filename = parts.pop() || originalUrl;
           }
+        } catch {
+          // keep original
         }
-        
-        // Try each bucket with the extracted path
-        for (const bucket of buckets) {
-          if (!signed) {
-            console.log(`[DEBUG] Trying bucket ${bucket} with path ${path}`);
+        filename = tryDecodeTwice(filename);
+
+        // Decide folder based on post_type
+        const likelyFolder = post.post_type === 'video' ? 'posts/videos' : 'posts/images';
+        const userId = (post as any).user_id as string | undefined;
+
+        // Candidate object paths to try
+        const pathCandidates: string[] = [];
+        // plain filename at bucket root (legacy)
+        pathCandidates.push(filename);
+        // userId/posts/images|videos/filename (current convention)
+        if (userId) pathCandidates.push(`${userId}/${likelyFolder}/${filename}`);
+        // also try the other folder just in case post_type is misclassified
+        if (userId) {
+          const altFolder = likelyFolder.endsWith('images') ? 'posts/videos' : 'posts/images';
+          pathCandidates.push(`${userId}/${altFolder}/${filename}`);
+        }
+
+        // 3) Try each bucket/path combination
+        outer: for (const bucket of buckets) {
+          for (const path of pathCandidates) {
+            console.log(`[DEBUG] Trying candidate for signed URL → ${bucket}/${path}`);
             signed = await getSignedUrl(bucket, path);
-            if (signed) break;
+            if (signed) break outer;
           }
         }
       }
-      
+
       if (signed) {
         setFallbackUrls(prev => ({ ...prev, [originalUrl]: signed }));
         console.log(`[DEBUG] Generated signed URL fallback: ${originalUrl} → ${signed}`);

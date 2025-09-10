@@ -19,17 +19,11 @@ export const RacerPostsList: React.FC<RacerPostsListProps> = ({ userId, reloadTo
       if (!userId) return;
       setLoading(true);
       try {
+        // Simplified query to avoid PGRST201 error from ambiguous relationships
+        // PostCard component will handle profile data fetching as needed
         const { data, error } = await supabase
           .from('racer_posts')
-          .select(`
-            *,
-            racer_profiles:profiles!inner(
-              id,
-              name,
-              user_type,
-              avatar
-            )
-          `)
+          .select('*')
           .eq('user_id', userId)
           .order('created_at', { ascending: false });
         if (error) {

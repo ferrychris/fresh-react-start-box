@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
+import { supabase } from '../lib/supabase/client';
+import { Camera, Instagram, Facebook, Youtube, BadgeInfo, Image as ImageIcon } from 'lucide-react';
 
 // Header with banner + metrics
 import { ProfileHeader } from '../components/racer-dashboard/components/ProfileHeader';
@@ -20,6 +22,27 @@ const RacerProfile: React.FC = () => {
   const [reloadToken, setReloadToken] = useState(0);
   const [headerLoading, setHeaderLoading] = useState<boolean>(true);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [racerLoading, setRacerLoading] = useState<boolean>(false);
+  const [racerError, setRacerError] = useState<string | null>(null);
+  const [racerDetails, setRacerDetails] = useState<{
+    username: string | null;
+    team_name: string | null;
+    car_number: string | null;
+    racing_class: string | null;
+    bio: string | null;
+    car_photos: string[];
+    instagram_url: string | null;
+    facebook_url: string | null;
+    tiktok_url: string | null;
+    youtube_url: string | null;
+    career_wins: number | null;
+    podiums: number | null;
+    championships: number | null;
+    years_racing: number | null;
+    career_history: string | null;
+    highlights: string | null;
+    achievements: string | null;
+  } | null>(null);
 
   // Tabs configuration matching FanDashboard style
   const tabs = [
@@ -46,6 +69,61 @@ const RacerProfile: React.FC = () => {
   // Prefer route :id when present, else current user
   const userId = id || user?.id || 'current-user';
   const isOwner = user && (userId === user.id || userId === 'current-user');
+
+  // Load racer profile details
+  useEffect(() => {
+    let cancelled = false;
+    const loadRacer = async () => {
+      try {
+        setRacerLoading(true);
+        setRacerError(null);
+        if (!userId || userId === 'current-user') return;
+        const { data, error } = await supabase
+          .from('racer_profiles')
+          .select(`
+            username, team_name, car_number, racing_class, bio, car_photos,
+            instagram_url, facebook_url, tiktok_url, youtube_url,
+            career_wins, podiums, championships, years_racing,
+            career_history, highlights, achievements
+          `)
+          .eq('id', userId)
+          .single();
+        if (error) throw error;
+        if (cancelled) return;
+        const photos = Array.isArray(data?.car_photos)
+          ? (data.car_photos as string[]).filter((u) => typeof u === 'string')
+          : [];
+        setRacerDetails({
+          username: data?.username ?? null,
+          team_name: data?.team_name ?? null,
+          car_number: data?.car_number ?? null,
+          racing_class: data?.racing_class ?? null,
+          bio: data?.bio ?? null,
+          car_photos: photos,
+          instagram_url: data?.instagram_url ?? null,
+          facebook_url: data?.facebook_url ?? null,
+          tiktok_url: data?.tiktok_url ?? null,
+          youtube_url: data?.youtube_url ?? null,
+          career_wins: data?.career_wins ?? null,
+          podiums: data?.podiums ?? null,
+          championships: data?.championships ?? null,
+          years_racing: data?.years_racing ?? null,
+          career_history: data?.career_history ?? null,
+          highlights: data?.highlights ?? null,
+          achievements: data?.achievements ?? null,
+        });
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) setRacerError('Failed to load racer details');
+      } finally {
+        if (!cancelled) setRacerLoading(false);
+      }
+    };
+    loadRacer();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -103,9 +181,135 @@ const RacerProfile: React.FC = () => {
           )}
 
           {activeTab === 'racing-info' && (
-            <div className="bg-card rounded-2xl p-6 border border-border">
-              <h3 className="text-xl font-bold text-foreground mb-4">Racing Info</h3>
-              <p className="text-muted-foreground">Car, class, team, equipment, and track preferences will appear here.</p>
+            <div className="bg-card rounded-2xl p-6 border border-border space-y-6">
+              <h3 className="text-xl font-bold text-foreground">Racing Info</h3>
+
+              {/* Loading / Error States */}
+              {racerLoading && (
+                <div className="text-sm text-muted-foreground">Loading racer details...</div>
+              )}
+              {racerError && (
+                <div className="text-sm text-red-400">{racerError}</div>
+              )}
+
+              {/* Car Photos (First) */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                    <h4 className="text-lg font-semibold text-foreground">Car Photos</h4>
+                  </div>
+                  {isOwner && (
+                    <button
+                      className="text-xs px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900/50 hover:bg-slate-900 text-muted-foreground"
+                      onClick={() => navigate('/settings/profile')}
+                    >
+                      Update
+                    </button>
+                  )}
+                </div>
+                {racerDetails?.car_photos && racerDetails.car_photos.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {racerDetails.car_photos.map((url, idx) => (
+                      <div key={idx} className="aspect-square overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
+                        <img src={url} alt={`Car ${idx + 1}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Camera className="w-4 h-4" /> No car photos yet.
+                  </div>
+                )}
+              </div>
+
+              {/* Bio */}
+              <div>
+                <h4 className="text-lg font-semibold text-foreground mb-2">Bio</h4>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {racerDetails?.bio || 'No bio provided yet.'}
+                </p>
+              </div>
+
+              {/* Basics */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <div className="text-xs text-muted-foreground">Username</div>
+                  <div className="text-foreground font-medium">{racerDetails?.username || '—'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Team</div>
+                  <div className="text-foreground font-medium">{racerDetails?.team_name || '—'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Car Number</div>
+                  <div className="text-foreground font-medium">{racerDetails?.car_number || '—'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Class</div>
+                  <div className="text-foreground font-medium">{racerDetails?.racing_class || '—'}</div>
+                </div>
+              </div>
+
+              {/* Social Links */}
+              <div>
+                <h4 className="text-lg font-semibold text-foreground mb-2">Social Links</h4>
+                <div className="flex flex-wrap gap-2">
+                  {racerDetails?.instagram_url && (
+                    <a className="text-sm px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900/40 hover:bg-slate-900 text-foreground" href={racerDetails.instagram_url} target="_blank" rel="noreferrer">Instagram</a>
+                  )}
+                  {racerDetails?.facebook_url && (
+                    <a className="text-sm px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900/40 hover:bg-slate-900 text-foreground" href={racerDetails.facebook_url} target="_blank" rel="noreferrer">Facebook</a>
+                  )}
+                  {racerDetails?.tiktok_url && (
+                    <a className="text-sm px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900/40 hover:bg-slate-900 text-foreground" href={racerDetails.tiktok_url} target="_blank" rel="noreferrer">TikTok</a>
+                  )}
+                  {racerDetails?.youtube_url && (
+                    <a className="text-sm px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900/40 hover:bg-slate-900 text-foreground" href={racerDetails.youtube_url} target="_blank" rel="noreferrer">YouTube</a>
+                  )}
+                  {!racerDetails?.instagram_url && !racerDetails?.facebook_url && !racerDetails?.tiktok_url && !racerDetails?.youtube_url && (
+                    <div className="text-sm text-muted-foreground">No social links provided.</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div>
+                <h4 className="text-lg font-semibold text-foreground mb-2">Stats</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/40">
+                    <div className="text-xs text-muted-foreground">Career Wins</div>
+                    <div className="text-foreground text-lg font-bold">{racerDetails?.career_wins ?? 0}</div>
+                  </div>
+                  <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/40">
+                    <div className="text-xs text-muted-foreground">Podiums</div>
+                    <div className="text-foreground text-lg font-bold">{racerDetails?.podiums ?? 0}</div>
+                  </div>
+                  <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/40">
+                    <div className="text-xs text-muted-foreground">Championships</div>
+                    <div className="text-foreground text-lg font-bold">{racerDetails?.championships ?? 0}</div>
+                  </div>
+                  <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/40">
+                    <div className="text-xs text-muted-foreground">Years Racing</div>
+                    <div className="text-foreground text-lg font-bold">{racerDetails?.years_racing ?? 0}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Career */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="text-lg font-semibold text-foreground mb-2">Career History</h4>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{racerDetails?.career_history || '—'}</p>
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold text-foreground mb-2">Highlights & Achievements</h4>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div><span className="text-foreground font-medium">Highlights:</span> <span className="whitespace-pre-wrap">{racerDetails?.highlights || '—'}</span></div>
+                    <div><span className="text-foreground font-medium">Achievements:</span> <span className="whitespace-pre-wrap">{racerDetails?.achievements || '—'}</span></div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

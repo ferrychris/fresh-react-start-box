@@ -21,10 +21,17 @@ export interface RacerProfileData {
   racing_class?: string;
   profile_photo_url?: string;
   banner_photo_url?: string;
+  // New completion requirements
+  bio?: string | null;
+  car_photos?: unknown;
+  instagram_url?: string | null;
+  facebook_url?: string | null;
+  tiktok_url?: string | null;
+  youtube_url?: string | null;
 }
 
-// Required fields for racer verification
-const REQUIRED_FIELDS = [
+// Required fields for racer verification (base fields)
+const REQUIRED_FIELDS_BASE = [
   'name',
   'avatar',
   'banner_image', 
@@ -41,13 +48,16 @@ const FIELD_LABELS: Record<string, string> = {
   username: 'Username',
   team_name: 'Team Name',
   car_number: 'Car Number',
-  racing_class: 'Racing Class'
+  racing_class: 'Racing Class',
+  bio: 'Bio',
+  car_photos: 'Car Photo',
+  social_link: 'Social Link'
 };
 
 /**
  * Check if a field value is considered complete
  */
-function isFieldComplete(value: any): boolean {
+function isFieldComplete(value: unknown): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === 'string') return value.trim().length > 0;
   return true;
@@ -61,7 +71,7 @@ export function analyzeProfileCompletion(profileData: RacerProfileData): Profile
   const missingFields: string[] = [];
 
   // Check each required field
-  REQUIRED_FIELDS.forEach(field => {
+  REQUIRED_FIELDS_BASE.forEach(field => {
     const value = profileData[field];
     if (isFieldComplete(value)) {
       completedFields.push(field);
@@ -70,7 +80,37 @@ export function analyzeProfileCompletion(profileData: RacerProfileData): Profile
     }
   });
 
-  const completionPercentage = Math.round((completedFields.length / REQUIRED_FIELDS.length) * 100);
+  // New: Bio
+  if (isFieldComplete(profileData.bio)) {
+    completedFields.push('bio');
+  } else {
+    missingFields.push('bio');
+  }
+
+  // New: At least one car photo (car_photos as JSON array)
+  const photos = Array.isArray(profileData.car_photos) ? profileData.car_photos : [];
+  if (Array.isArray(photos) && photos.length > 0) {
+    completedFields.push('car_photos');
+  } else {
+    missingFields.push('car_photos');
+  }
+
+  // New: At least one social link
+  const socialLinks = [
+    profileData.instagram_url,
+    profileData.facebook_url,
+    profileData.tiktok_url,
+    profileData.youtube_url
+  ];
+  const hasAnySocial = socialLinks.some(u => typeof u === 'string' && u.trim() !== '');
+  if (hasAnySocial) {
+    completedFields.push('social_link');
+  } else {
+    missingFields.push('social_link');
+  }
+
+  const totalRequired = REQUIRED_FIELDS_BASE.length + 3; // base + bio + car_photos + social_link
+  const completionPercentage = Math.round((completedFields.length / totalRequired) * 100);
   const isComplete = missingFields.length === 0;
   const shouldVerify = isComplete;
 
@@ -105,10 +145,10 @@ export async function fetchProfileCompletionData(userId: string): Promise<RacerP
     if (profileError) throw profileError;
     if (profile.user_type !== 'racer') return null;
 
-    // Get racer-specific data
+    // Get racer-specific data (include new fields)
     const { data: racerProfile, error: racerError } = await supabase
       .from('racer_profiles')
-      .select('username, team_name, car_number, racing_class, profile_photo_url, banner_photo_url')
+      .select('username, team_name, car_number, racing_class, profile_photo_url, banner_photo_url, bio, car_photos, instagram_url, facebook_url, tiktok_url, youtube_url')
       .eq('id', userId)
       .single();
 
@@ -123,7 +163,13 @@ export async function fetchProfileCompletionData(userId: string): Promise<RacerP
       car_number: racerProfile.car_number,
       racing_class: racerProfile.racing_class,
       profile_photo_url: racerProfile.profile_photo_url,
-      banner_photo_url: racerProfile.banner_photo_url
+      banner_photo_url: racerProfile.banner_photo_url,
+      bio: racerProfile.bio ?? null,
+      car_photos: racerProfile.car_photos ?? [],
+      instagram_url: racerProfile.instagram_url ?? null,
+      facebook_url: racerProfile.facebook_url ?? null,
+      tiktok_url: racerProfile.tiktok_url ?? null,
+      youtube_url: racerProfile.youtube_url ?? null
     };
   } catch (error) {
     console.error('Error fetching profile completion data:', error);
@@ -178,7 +224,13 @@ export async function checkAndUpdateCompletion(userId: string): Promise<ProfileC
           car_number,
           racing_class,
           profile_photo_url,
-          banner_photo_url
+          banner_photo_url,
+          bio,
+          car_photos,
+          instagram_url,
+          facebook_url,
+          tiktok_url,
+          youtube_url
         )
       `)
       .eq('id', userId)
@@ -195,7 +247,13 @@ export async function checkAndUpdateCompletion(userId: string): Promise<ProfileC
       username: data.racer_profiles.username,
       team_name: data.racer_profiles.team_name,
       car_number: data.racer_profiles.car_number,
-      racing_class: data.racer_profiles.racing_class
+      racing_class: data.racer_profiles.racing_class,
+      bio: data.racer_profiles.bio ?? null,
+      car_photos: data.racer_profiles.car_photos ?? [],
+      instagram_url: data.racer_profiles.instagram_url ?? null,
+      facebook_url: data.racer_profiles.facebook_url ?? null,
+      tiktok_url: data.racer_profiles.tiktok_url ?? null,
+      youtube_url: data.racer_profiles.youtube_url ?? null
     };
     
     // Analyze completion without deep recursion
@@ -203,7 +261,7 @@ export async function checkAndUpdateCompletion(userId: string): Promise<ProfileC
     const missingFields: string[] = [];
     
     // Check each required field
-    for (const field of REQUIRED_FIELDS) {
+    for (const field of REQUIRED_FIELDS_BASE) {
       const value = profileData[field];
       if (isFieldComplete(value)) {
         completedFields.push(field);
@@ -211,8 +269,37 @@ export async function checkAndUpdateCompletion(userId: string): Promise<ProfileC
         missingFields.push(field);
       }
     }
-    
-    const completionPercentage = Math.round((completedFields.length / REQUIRED_FIELDS.length) * 100);
+
+    // Bio
+    if (isFieldComplete(profileData.bio)) {
+      completedFields.push('bio');
+    } else {
+      missingFields.push('bio');
+    }
+
+    // Car Photos
+    const photos2 = Array.isArray(profileData.car_photos) ? profileData.car_photos : [];
+    if (Array.isArray(photos2) && photos2.length > 0) {
+      completedFields.push('car_photos');
+    } else {
+      missingFields.push('car_photos');
+    }
+
+    // Social Link
+    const socialAny = [
+      profileData.instagram_url,
+      profileData.facebook_url,
+      profileData.tiktok_url,
+      profileData.youtube_url
+    ].some((u) => typeof u === 'string' && u.trim() !== '');
+    if (socialAny) {
+      completedFields.push('social_link');
+    } else {
+      missingFields.push('social_link');
+    }
+
+    const totalRequired2 = REQUIRED_FIELDS_BASE.length + 3;
+    const completionPercentage = Math.round((completedFields.length / totalRequired2) * 100);
     const isComplete = missingFields.length === 0;
     
     const status: ProfileCompletionStatus = {

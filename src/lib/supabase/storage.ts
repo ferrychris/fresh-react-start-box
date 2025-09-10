@@ -9,6 +9,20 @@ const LEGACY_BUCKETS = ['postimage', 'new_post', 'racer-photos'];
 // Use a single bucket for all post uploads (fans and racers)
 const FAN_POST_BUCKET = BUCKET_NAME;
 
+// Safely decode a possibly percent-encoded path. Handles double-encoding like %2520 → %20 → space
+const safeDecode = (s: string): string => {
+  try {
+    const once = decodeURIComponent(s);
+    // If still contains encoded percent, try again
+    if (/%[0-9A-Fa-f]{2}/.test(once)) {
+      try { return decodeURIComponent(once); } catch { return once; }
+    }
+    return once;
+  } catch {
+    return s;
+  }
+};
+
 // Generic file upload with retry logic
 export const uploadFile = async (bucket: string, path: string, file: File) => {
   console.log(`[DEBUG] uploadFile - Starting upload to bucket: ${bucket}, path: ${path}, file: ${file.name} (${file.size} bytes)`);
@@ -360,7 +374,7 @@ const resolveBucketAndPath = (defaultBucket: string, rawPath: string): { bucket:
       console.log(`[DEBUG] Detected bucket prefix '${bucket}/'`);
       return { 
         bucket, 
-        objectPath: p.substring(bucket.length + 1).replace(/^\/+/, '') 
+        objectPath: safeDecode(p.substring(bucket.length + 1).replace(/^\/+/, '')) 
       };
     }
   }
@@ -376,7 +390,7 @@ const resolveBucketAndPath = (defaultBucket: string, rawPath: string): { bucket:
   console.log(`[DEBUG] Using default bucket '${defaultBucket}' for path '${p}'`);
   return { 
     bucket: defaultBucket, 
-    objectPath: p.replace(/^\/+/g, '') 
+    objectPath: safeDecode(p.replace(/^\/+/, '')) 
   };
 };
 

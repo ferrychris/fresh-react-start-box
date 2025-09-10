@@ -23,7 +23,8 @@ export const ProfileCompletionProgress: React.FC<ProfileCompletionProgressProps>
   showDetails = true
 }) => {
   const [status, setStatus] = useState<ProfileCompletionStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Only show loading when we actually have a userId to look up
+  const [loading, setLoading] = useState<boolean>(!!userId);
 
   useEffect(() => {
     const checkCompletion = async () => {
@@ -34,6 +35,8 @@ export const ProfileCompletionProgress: React.FC<ProfileCompletionProgressProps>
           const completionStatus = analyzeProfileCompletion(profileData);
           setStatus(completionStatus);
           onCompletionChange?.(completionStatus);
+        } else {
+          setStatus(null);
         }
       } catch (error) {
         console.error('Error checking profile completion:', error);
@@ -42,10 +45,15 @@ export const ProfileCompletionProgress: React.FC<ProfileCompletionProgressProps>
       }
     };
 
-    if (userId) {
-      checkCompletion();
+    if (!userId) {
+      // No user ID, nothing to load; ensure we don't stay in loading state
+      setStatus(null);
+      setLoading(false);
+      return;
     }
-  }, [userId, onCompletionChange]);
+
+    checkCompletion();
+  }, [userId]);
 
   if (loading) {
     return (
@@ -61,7 +69,13 @@ export const ProfileCompletionProgress: React.FC<ProfileCompletionProgressProps>
   }
 
   if (!status) {
-    return null;
+    return (
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardContent className="p-4">
+          <span className="text-slate-400 text-sm">Profile info will appear once you start filling in your details.</span>
+        </CardContent>
+      </Card>
+    );
   }
 
   const getStatusColor = () => {
