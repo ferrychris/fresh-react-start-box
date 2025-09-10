@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 import { supabase } from '../lib/supabase/client';
-import { Camera, Instagram, Facebook, Youtube, BadgeInfo, Image as ImageIcon } from 'lucide-react';
+import { Camera, Instagram, Facebook, Youtube, BadgeInfo, Image as ImageIcon, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Header with banner + metrics
 import { ProfileHeader } from '../components/racer-dashboard/components/ProfileHeader';
@@ -31,6 +31,7 @@ const RacerProfile: React.FC = () => {
     racing_class: string | null;
     bio: string | null;
     car_photos: string[];
+    profile_photo_url: string | null;
     instagram_url: string | null;
     facebook_url: string | null;
     tiktok_url: string | null;
@@ -43,6 +44,8 @@ const RacerProfile: React.FC = () => {
     highlights: string | null;
     achievements: string | null;
   } | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState<boolean>(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number>(0);
 
   // Tabs configuration matching FanDashboard style
   const tabs = [
@@ -81,7 +84,7 @@ const RacerProfile: React.FC = () => {
         const { data, error } = await supabase
           .from('racer_profiles')
           .select(`
-            username, team_name, car_number, racing_class, bio, car_photos,
+            username, team_name, car_number, racing_class, bio, car_photos, profile_photo_url,
             instagram_url, facebook_url, tiktok_url, youtube_url,
             career_wins, podiums, championships, years_racing,
             career_history, highlights, achievements
@@ -100,6 +103,7 @@ const RacerProfile: React.FC = () => {
           racing_class: data?.racing_class ?? null,
           bio: data?.bio ?? null,
           car_photos: photos,
+          profile_photo_url: data?.profile_photo_url ?? null,
           instagram_url: data?.instagram_url ?? null,
           facebook_url: data?.facebook_url ?? null,
           tiktok_url: data?.tiktok_url ?? null,
@@ -124,6 +128,24 @@ const RacerProfile: React.FC = () => {
       cancelled = true;
     };
   }, [userId]);
+
+  // Close lightbox with Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!lightboxOpen) return;
+      if (e.key === 'Escape') setLightboxOpen(false);
+      if (e.key === 'ArrowRight') setLightboxIndex((i) => {
+        const total = racerDetails?.car_photos?.length || 0;
+        return total ? (i + 1) % total : i;
+      });
+      if (e.key === 'ArrowLeft') setLightboxIndex((i) => {
+        const total = racerDetails?.car_photos?.length || 0;
+        return total ? (i - 1 + total) % total : i;
+      });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightboxOpen, racerDetails?.car_photos?.length]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -150,6 +172,43 @@ const RacerProfile: React.FC = () => {
               </button>
             </div>
           )}
+
+          {/* Lightbox Overlay */}
+          {lightboxOpen && racerDetails?.car_photos?.length ? (
+            <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+              <button
+                type="button"
+                className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white"
+                onClick={() => setLightboxOpen(false)}
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                className="absolute left-4 md:left-8 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white"
+                onClick={() => setLightboxIndex((i) => ((i - 1 + (racerDetails.car_photos.length)) % racerDetails.car_photos.length))}
+                aria-label="Previous image"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <div className="max-w-5xl max-h-[85vh] w-full flex items-center justify-center">
+                <img
+                  src={racerDetails.car_photos[lightboxIndex]}
+                  alt={`Car ${lightboxIndex + 1}`}
+                  className="w-auto h-auto max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                />
+              </div>
+              <button
+                type="button"
+                className="absolute right-4 md:right-8 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white"
+                onClick={() => setLightboxIndex((i) => ((i + 1) % (racerDetails.car_photos.length)))}
+                aria-label="Next image"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </div>
+          ) : null}
           {/* Owner actions are now shown inside the header */}
           {/* Navigation Tabs (Fan Dashboard style) */}
           <div className="mb-6">
@@ -182,7 +241,7 @@ const RacerProfile: React.FC = () => {
 
           {activeTab === 'racing-info' && (
             <div className="bg-card rounded-2xl p-6 border border-border space-y-6">
-              <h3 className="text-xl font-bold text-foreground">Racing Info</h3>
+              <h3 className="text-xl font-bold text-foreground mb-4">Racing Info</h3>
 
               {/* Loading / Error States */}
               {racerLoading && (
@@ -191,6 +250,8 @@ const RacerProfile: React.FC = () => {
               {racerError && (
                 <div className="text-sm text-red-400">{racerError}</div>
               )}
+
+              
 
               {/* Car Photos (First) */}
               <div>
@@ -211,9 +272,15 @@ const RacerProfile: React.FC = () => {
                 {racerDetails?.car_photos && racerDetails.car_photos.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {racerDetails.car_photos.map((url, idx) => (
-                      <div key={idx} className="aspect-square overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
-                        <img src={url} alt={`Car ${idx + 1}`} className="w-full h-full object-cover" />
-                      </div>
+                      <button
+                        key={idx}
+                        type="button"
+                        className="group aspect-square overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 cursor-zoom-in"
+                        onClick={() => { setLightboxIndex(idx); setLightboxOpen(true); }}
+                        aria-label={`Zoom car photo ${idx + 1}`}
+                      >
+                        <img src={url} alt={`Car ${idx + 1}`} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                      </button>
                     ))}
                   </div>
                 ) : (
