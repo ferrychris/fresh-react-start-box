@@ -125,7 +125,7 @@ export const deleteRacerCarPhoto = async (photoUrl: string) => {
     }
 };
 
-// Improve post image upload with better error handling
+// Post image upload for racers
 export const uploadPostImage = async (userId: string, file: File) => {
   if (!userId) {
     console.error('uploadPostImage: No user ID provided');
@@ -144,12 +144,18 @@ export const uploadPostImage = async (userId: string, file: File) => {
     return { error: new Error(`File size exceeds the 10MB limit`) };
   }
   
-  // Store images under the same racer bucket with user ID and timestamp
-  const path = `${userId}/posts/images/${Date.now()}-${file.name}`;
+  // Generate unique filename to avoid conflicts
+  const timestamp = Date.now();
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+  const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const fileName = `${timestamp}-${randomSuffix}.${fileExt}`;
+  const path = `${userId}/posts/images/${fileName}`;
+  
+  console.log(`[DEBUG] uploadPostImage - uploading to path: ${path}`);
   return uploadFile(BUCKET_NAME, path, file);
 };
 
-// Improve post video upload with better error handling
+// Post video upload for racers
 export const uploadPostVideo = async (userId: string, file: File) => {
   if (!userId) {
     console.error('uploadPostVideo: No user ID provided');
@@ -168,24 +174,42 @@ export const uploadPostVideo = async (userId: string, file: File) => {
     return { error: new Error(`File size exceeds the 50MB limit`) };
   }
   
-  // Store videos under the same racer bucket with user ID and timestamp
-  const path = `${userId}/posts/videos/${Date.now()}-${file.name}`;
+  // Generate unique filename to avoid conflicts
+  const timestamp = Date.now();
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+  const fileExt = file.name.split('.').pop()?.toLowerCase() || 'mp4';
+  const fileName = `${timestamp}-${randomSuffix}.${fileExt}`;
+  const path = `${userId}/posts/videos/${fileName}`;
+  
+  console.log(`[DEBUG] uploadPostVideo - uploading to path: ${path}`);
   return uploadFile(BUCKET_NAME, path, file);
 };
 
 export const uploadImage = async (racerId: string, file: File) => {
-  // Store images under posts/images with a timestamp to avoid name collisions
-  const path = `${racerId}/posts/images/${Date.now()}-${file.name}`;
+  // Generate unique filename to avoid conflicts
+  const timestamp = Date.now();
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+  const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const fileName = `${timestamp}-${randomSuffix}.${fileExt}`;
+  const path = `${racerId}/posts/images/${fileName}`;
+  
+  console.log(`[DEBUG] uploadImage - uploading to path: ${path}`);
   return uploadFile(BUCKET_NAME, path, file);
 };
 
 export const uploadVideo = async (racerId: string, file: File) => {
-  // Store videos under posts/videos with a timestamp to avoid name collisions
-  const path = `${racerId}/posts/videos/${Date.now()}-${file.name}`;
+  // Generate unique filename to avoid conflicts
+  const timestamp = Date.now();
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+  const fileExt = file.name.split('.').pop()?.toLowerCase() || 'mp4';
+  const fileName = `${timestamp}-${randomSuffix}.${fileExt}`;
+  const path = `${racerId}/posts/videos/${fileName}`;
+  
+  console.log(`[DEBUG] uploadVideo - uploading to path: ${path}`);
   return uploadFile(BUCKET_NAME, path, file);
 };
 
-// Fan-specific upload to the postimage bucket
+// Fan-specific upload functions
 export const uploadFanPostImage = async (userId: string, file: File) => {
   if (!userId) {
     console.error('uploadFanPostImage: No user ID provided');
@@ -199,7 +223,15 @@ export const uploadFanPostImage = async (userId: string, file: File) => {
   if (file.size > MAX_SIZE) {
     return { error: new Error('File size exceeds the 10MB limit') };
   }
-  const path = `${userId}/posts/images/${Date.now()}-${file.name}`;
+  
+  // Generate unique filename to avoid conflicts
+  const timestamp = Date.now();
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+  const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const fileName = `${timestamp}-${randomSuffix}.${fileExt}`;
+  const path = `${userId}/posts/images/${fileName}`;
+  
+  console.log(`[DEBUG] uploadFanPostImage - uploading to path: ${path}`);
   return uploadFile(FAN_POST_BUCKET, path, file);
 };
 
@@ -216,7 +248,15 @@ export const uploadFanPostVideo = async (userId: string, file: File) => {
   if (file.size > MAX_SIZE) {
     return { error: new Error('File size exceeds the 50MB limit') };
   }
-  const path = `${userId}/posts/videos/${Date.now()}-${file.name}`;
+  
+  // Generate unique filename to avoid conflicts
+  const timestamp = Date.now();
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+  const fileExt = file.name.split('.').pop()?.toLowerCase() || 'mp4';
+  const fileName = `${timestamp}-${randomSuffix}.${fileExt}`;
+  const path = `${userId}/posts/videos/${fileName}`;
+  
+  console.log(`[DEBUG] uploadFanPostVideo - uploading to path: ${path}`);
   return uploadFile(FAN_POST_BUCKET, path, file);
 };
 

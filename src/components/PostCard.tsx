@@ -775,6 +775,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     const resolved = normalizedMediaUrls
       .map((u) => {
         if (!u || typeof u !== 'string') return '';
+        
+        // If it's already a data URL (base64), keep as-is
+        if (u.startsWith('data:')) {
+          console.log(`[DEBUG] Data URL detected, keeping as-is: ${u.substring(0, 50)}...`);
+          return u;
+        }
+        
         // If it's a full Supabase storage URL, regenerate a public URL from bucket/object
         const supa = u.match(/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/([^?]+)(?:\?|$)/i);
         if (/^https?:/i.test(u) && supa && supa[1] && supa[2]) {
@@ -784,11 +791,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
           console.log(`[DEBUG] Regenerated public URL from storage href: ${u} → ${regenerated}`);
           return regenerated;
         }
+        
         // Keep other public/data/blob URLs
         if (/^(https?:|data:|blob:)/i.test(u)) {
           console.log(`[DEBUG] URL already public, keeping as-is: ${u}`);
           return u;
         }
+        
         // Otherwise resolve via storage
         const resolver = isFan ? getFanPostPublicUrl : getPostPublicUrl;
         const resolvedUrl = resolver(u) || u;

@@ -177,12 +177,13 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ racerId, onPostCreated
           throw new Error(`Failed to upload ${file.name}`);
         }
 
-        const publicUrl = getPostPublicUrl(result.path);
-        if (!publicUrl) {
-          throw new Error(`Failed to get public URL for ${file.name}`);
+        // Store the storage path directly for consistent resolution
+        if (result.path) {
+          console.log(`[DEBUG] Upload success - storing path: ${result.path}`);
+          uploadedUrls.push(result.path);
+        } else {
+          throw new Error(`Upload result missing path for ${file.name}`);
         }
-
-        uploadedUrls.push(publicUrl);
 
         setUploadProgress(prev => {
           const newProgress = [...prev];
@@ -202,15 +203,16 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ racerId, onPostCreated
 
       // Create the post based on user type
       if (isFan) {
-        await createFanPost({
+        const { data, error } = await createFanPost({
           fan_id: racerId,
           content: content.trim(),
           media_urls: uploadedUrls,
           post_type: postType,
           visibility
         });
+        if (error) throw new Error(error.message || 'Failed to create fan post');
       } else if (isTrack) {
-        await createRacerPost({
+        const { data, error } = await createRacerPost({
           racer_id: racerId,
           content: content.trim(),
           media_urls: uploadedUrls,
@@ -218,8 +220,9 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ racerId, onPostCreated
           visibility,
           allow_tips: allowTips
         });
+        if (error) throw new Error(error.message || 'Failed to create track post');
       } else {
-        await createRacerPost({
+        const { data, error } = await createRacerPost({
           racer_id: racerId,
           content: content.trim(),
           media_urls: uploadedUrls,
@@ -227,6 +230,7 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ racerId, onPostCreated
           visibility,
           allow_tips: allowTips
         });
+        if (error) throw new Error(error.message || 'Failed to create racer post');
       }
 
       console.log('✅ Post created successfully!');
