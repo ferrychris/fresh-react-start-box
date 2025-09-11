@@ -466,7 +466,7 @@ const SettingsProfile: React.FC = () => {
       toast({
         title: 'Success',
         description: 'Profile saved successfully!',
-        variant: 'success',
+        variant: 'default',
       });
     } catch (e: unknown) {
       console.error(e);
