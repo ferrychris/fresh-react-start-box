@@ -405,7 +405,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
         <meta name="twitter:image" content={bannerUrl || avatarForMeta} />
       </Helmet>
 
-      <div className="relative h-64 sm:h-72 lg:h-80">
+      <div className="relative h-64 sm:h-72 lg:h-80 -mt-16">
       {/* Full-bleed banner background */}
       <div className="absolute inset-0">
         {loading ? (
@@ -472,7 +472,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
         )}
         <div className="max-w-6xl mx-auto flex flex-col justify-end h-full">
           {/* Top row: avatar + name on left, metrics on right */}
-          <div className="flex items-start sm:items-center justify-between gap-4 mb-4">
+          <div className="flex items-start sm:items-center justify-between gap-4 mb-4 mt-8 sm:mt-0">
             <div className="flex items-center space-x-4">
               {loading ? (
                 <div className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-full bg-muted animate-pulse"></div>
@@ -510,11 +510,11 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                     <div className="h-8 w-32 bg-muted rounded animate-pulse"></div>
                   ) : (
                     <>
-                      <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+                      <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground flex flex-wrap items-center gap-2">
                         {displayUser.name}
                         {computedVerified && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-500/15 text-blue-400 border border-blue-500/30" title="Verified racer">
-                            <CheckCircle className="w-4 h-4" /> Verified
+                            <CheckCircle className="w-3 sm:w-4 h-3 sm:h-4" /> Verified
                           </span>
                         )}
                       </h1>
@@ -573,7 +573,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                           <Users className="w-4 h-4" />
                         </span>
                         <span className="text-foreground font-semibold">{(displayUser.followers_count || 0).toLocaleString()}</span>
-                        <span>followers</span>
+                        <span className="hidden sm:inline">followers</span>
                       </div>
                       {/* Subscribers */}
                       <div className="inline-flex items-center gap-2">
@@ -581,7 +581,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                           <Crown className="w-4 h-4" />
                         </span>
                         <span className="text-foreground font-semibold">{(displayUser.subscribers_count || 0).toLocaleString()}</span>
-                        <span>subscribers</span>
+                        <span className="hidden sm:inline">subscribers</span>
                       </div>
                       {/* Total Tips */}
                       <div className="inline-flex items-center gap-2">
@@ -589,7 +589,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                           <DollarSign className="w-4 h-4" />
                         </span>
                         <span className="text-foreground font-semibold">${(((displayUser.total_tips_cents || 0) / 100).toLocaleString())}</span>
-                        <span>total tips</span>
+                        <span className="hidden sm:inline">total tips</span>
                       </div>
                       {/* Day Streak */}
                       <div className="inline-flex items-center gap-2">
@@ -597,7 +597,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                           <Flame className="w-4 h-4" />
                         </span>
                         <span className="text-foreground font-semibold">{displayUser.streak_days || 0}</span>
-                        <span>day streak</span>
+                        <span className="hidden sm:inline">day streak</span>
                       </div>
                     </div>
                     {/* Follow/Unfollow button for non-owners */}
