@@ -1,7 +1,7 @@
 import React from 'react';
 import { Eye } from 'lucide-react';
 
-interface ProfileHeaderProps {
+interface FlatProfileHeaderProps {
   name: string;
   username: string;
   avatarUrl: string;
@@ -16,21 +16,85 @@ interface ProfileHeaderProps {
   onPreviewProfile?: () => void;
 }
 
-const ProfileHeader: React.FC<ProfileHeaderProps> = ({
-  name,
-  username,
-  avatarUrl,
-  bannerImageUrl,
-  memberSince,
-  fanType,
-  points,
-  dayStreak,
-  favorites,
-  badges,
-  onEditProfile,
-  onPreviewProfile
-}) => {
+// Minimal shape used by FanDashboard when passing fanProfile prop
+interface FanProfileLike {
+  id: string;
+  name?: string;
+  username?: string;
+  avatar_url?: string;
+  avatar?: string | null;
+  banner_image?: string | null;
+  fan_type?: string;
+  created_at?: string;
+  points?: number;
+  streak_days?: number;
+  favorites_count?: number;
+  badges_count?: number;
+}
 
+interface FanDashboardHeaderProps {
+  fanProfile: FanProfileLike;
+  isOwnProfile?: boolean;
+  onEditProfile?: () => void;
+  profileCompletionPercentage?: number;
+  onPreviewProfile?: () => void;
+}
+
+type ProfileHeaderProps = FlatProfileHeaderProps | FanDashboardHeaderProps;
+
+const ProfileHeader: React.FC<ProfileHeaderProps> = (props) => {
+  // Support both prop shapes by normalizing to a common view model
+  let name: string = '';
+  let username: string = '';
+  let avatarUrl: string = '';
+  let bannerImageUrl: string | undefined;
+  let memberSince: string = '';
+  let fanType: string = 'Racing Fan';
+  let points: number = 0;
+  let dayStreak: number = 0;
+  let favorites: number = 0;
+  let badges: number = 0;
+  let onEditProfile: (() => void) | undefined;
+  let onPreviewProfile: (() => void) | undefined;
+
+  if ('fanProfile' in props) {
+    const fp = props.fanProfile || {} as FanProfileLike;
+    name = fp.name || 'Fan';
+    username = fp.username || name || 'user';
+    avatarUrl = (fp.avatar_url as string) || (fp.avatar as string) || '/default-avatar.png';
+    bannerImageUrl = (fp.banner_image as string | undefined) || undefined;
+    memberSince = fp.created_at ? new Date(fp.created_at).toLocaleDateString() : '';
+    fanType = fp.fan_type || 'Racing Fan';
+    points = Number(fp.points) || 0;
+    dayStreak = Number(fp.streak_days) || 0;
+    favorites = Number(fp.favorites_count) || 0;
+    badges = Number(fp.badges_count) || 0;
+    onEditProfile = props.onEditProfile;
+    onPreviewProfile = props.onPreviewProfile;
+  } else {
+    const flat = props as FlatProfileHeaderProps;
+    name = flat.name;
+    username = flat.username;
+    avatarUrl = flat.avatarUrl;
+    bannerImageUrl = flat.bannerImageUrl;
+    memberSince = flat.memberSince;
+    fanType = flat.fanType;
+    points = flat.points;
+    dayStreak = flat.dayStreak;
+    favorites = flat.favorites;
+    badges = flat.badges;
+    onEditProfile = flat.onEditProfile;
+    onPreviewProfile = flat.onPreviewProfile;
+  }
+
+  // Defensive coercions to prevent runtime errors on initial/empty data
+  const safePoints = Number.isFinite(Number(points)) ? Number(points) : 0;
+  const safeDayStreak = Number.isFinite(Number(dayStreak)) ? Number(dayStreak) : 0;
+  const safeFavorites = Number.isFinite(Number(favorites)) ? Number(favorites) : 0;
+  const safeBadges = Number.isFinite(Number(badges)) ? Number(badges) : 0;
+  const safeAvatarUrl = typeof avatarUrl === 'string' && avatarUrl.length > 0 ? avatarUrl : '/default-avatar.png';
+  const safeMemberSince = memberSince || '';
+  const safeFanType = fanType || 'Racing Fan';
   return (
     <div className="relative w-full">
       {/* Modern banner container with elegant styling */}
@@ -96,7 +160,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               <div className="p-1 bg-gradient-to-r from-green-400 to-blue-500 rounded-full shadow-xl">
                 <div className="p-1 bg-black rounded-full">
                   <img 
-                    src={avatarUrl} 
+                    src={safeAvatarUrl} 
                     alt={name}
                     className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full object-cover"
                   />
@@ -118,7 +182,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                 </h1>
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-semibold rounded-full shadow-lg">
-                    {fanType}
+                    {safeFanType}
                   </span>
                 </div>
               </div>
@@ -129,7 +193,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                 <span className="text-gray-500">•</span>
                 <span>Racing Enthusiast</span>
                 <span className="text-gray-500">•</span>
-                <span>Member since {memberSince}</span>
+                <span>Member since {safeMemberSince}</span>
               </div>
             </div>
           </div>
@@ -140,7 +204,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               <div className="flex items-center justify-center mb-2">
                 <span className="text-2xl">🏆</span>
               </div>
-              <div className="text-2xl font-bold text-white mb-1">{points.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-white mb-1">{safePoints.toLocaleString()}</div>
               <div className="text-xs text-gray-400 uppercase tracking-wide">Points</div>
             </div>
             
@@ -148,7 +212,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               <div className="flex items-center justify-center mb-2">
                 <span className="text-2xl">🔥</span>
               </div>
-              <div className="text-2xl font-bold text-white mb-1">{dayStreak}</div>
+              <div className="text-2xl font-bold text-white mb-1">{safeDayStreak}</div>
               <div className="text-xs text-gray-400 uppercase tracking-wide">Day Streak</div>
             </div>
             
@@ -156,7 +220,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               <div className="flex items-center justify-center mb-2">
                 <span className="text-2xl">❤️</span>
               </div>
-              <div className="text-2xl font-bold text-white mb-1">{favorites}</div>
+              <div className="text-2xl font-bold text-white mb-1">{safeFavorites}</div>
               <div className="text-xs text-gray-400 uppercase tracking-wide">Favorites</div>
             </div>
             
@@ -164,7 +228,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               <div className="flex items-center justify-center mb-2">
                 <span className="text-2xl">🏅</span>
               </div>
-              <div className="text-2xl font-bold text-white mb-1">{badges}</div>
+              <div className="text-2xl font-bold text-white mb-1">{safeBadges}</div>
               <div className="text-xs text-gray-400 uppercase tracking-wide">Badges</div>
             </div>
           </div>

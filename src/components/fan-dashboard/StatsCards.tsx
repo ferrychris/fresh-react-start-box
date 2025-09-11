@@ -32,40 +32,64 @@ interface StatsCardsProps {
   totalTips: number;
   activeSubscriptions: number;
   activityStreak: number;
+  loading: boolean;
 }
 
 const StatsCards: React.FC<StatsCardsProps> = ({
   supportPoints,
   totalTips,
   activeSubscriptions,
-  activityStreak
+  activityStreak,
+  loading
 }) => {
+  // Coerce potentially undefined or invalid values to safe numbers
+  const safeSupportPoints = Number.isFinite(Number(supportPoints)) ? Number(supportPoints) : 0;
+  const safeTotalTips = Number.isFinite(Number(totalTips)) ? Number(totalTips) : 0;
+  const safeActiveSubscriptions = Number.isFinite(Number(activeSubscriptions)) ? Number(activeSubscriptions) : 0;
+  const safeActivityStreak = Number.isFinite(Number(activityStreak)) ? Number(activityStreak) : 0;
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="group relative bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 shadow-lg animate-pulse">
+            <div className="flex justify-between items-start mb-4">
+              <div className="h-4 w-1/2 bg-gray-800 rounded" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gray-800" />
+            </div>
+            <div className="h-6 w-3/4 bg-gray-800 rounded mb-2" />
+            <div className="h-3 w-1/2 bg-gray-800 rounded" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
       <StatsCard
         title="Support Points"
-        value={supportPoints.toLocaleString()}
+        value={safeSupportPoints.toLocaleString()}
         icon={<Trophy className="h-6 w-6 text-amber-400" />}
         description="Earned through fan activities"
         color="bg-gradient-to-br from-amber-500/20 to-yellow-500/20"
       />
       <StatsCard
         title="Total Tips Given"
-        value={`$${totalTips.toLocaleString()}`}
+        value={`$${safeTotalTips.toLocaleString()}`}
         icon={<Gift className="h-6 w-6 text-green-400" />}
         description="Supporting your favorite racers"
         color="bg-gradient-to-br from-green-500/20 to-emerald-500/20"
       />
       <StatsCard
         title="Active Subscriptions"
-        value={activeSubscriptions}
+        value={safeActiveSubscriptions}
         icon={<Crown className="h-6 w-6 text-blue-400" />}
         description="Premium racer subscriptions"
         color="bg-gradient-to-br from-blue-500/20 to-indigo-500/20"
       />
       <StatsCard
         title="Activity Streak"
-        value={`${activityStreak} days`}
+        value={`${safeActivityStreak} days`}
         icon={<Calendar className="h-6 w-6 text-red-400" />}
         description="Consecutive days active"
         color="bg-gradient-to-br from-red-500/20 to-pink-500/20"

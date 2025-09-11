@@ -1020,7 +1020,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                     {displayName}
                   </button>
                 </span>
-                {(isVerified || racerBadgeData?.is_verified) && (
+                {isRacerEffective && racerBadgeData?.is_verified && (
                   <VerifiedBadge type="verified" size="sm" />
                 )}
                 {/* Racer badges removed to prevent duplication with the RACER tag */}

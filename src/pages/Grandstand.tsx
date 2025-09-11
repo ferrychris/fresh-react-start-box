@@ -11,6 +11,7 @@ import { SuggestionsPanel } from '../components/SuggestionsPanel';
 import { PostCountTester } from '../components/PostCountTester';
 // Sidebars removed for a cleaner single-column layout
 import Particles from '../components/Particles';
+import Sparkles from '../components/effects/Sparkles';
 
 // Define proper types for the CreatePost component's return value
 interface NewPostData {
@@ -85,6 +86,12 @@ export default function Grandstand() {
   const mountIdRef = useRef<string>(Math.random().toString(36).slice(2));
   const [bgLoading, setBgLoading] = useState<boolean>(false);
   const [showComingSoonNotice, setShowComingSoonNotice] = useState<boolean>(true);
+  const [showSparkles, setShowSparkles] = useState<boolean>(false);
+
+  const triggerSparkles = (ms: number = 1800) => {
+    setShowSparkles(true);
+    window.setTimeout(() => setShowSparkles(false), ms);
+  };
 
   // Log component mount/unmount
   useEffect(() => {
@@ -381,8 +388,10 @@ export default function Grandstand() {
         if (error) throw error;
         if (!isMounted) return;
 
-        // Map posts minimally first (no profiles) for fastest paint and smaller payload
-        const minimal: PostCardType[] = (rows || []).map((r) => ({ ...r } as PostCardType));
+        // Filter out invalid/dangling rows (e.g., deleted users) and map minimally first (no profiles)
+        const minimal: PostCardType[] = (rows || [])
+          .filter((r: any) => r && r.id && r.user_id)
+          .map((r) => ({ ...r } as PostCardType));
         console.debug('[Grandstand] Initial posts loaded (minimal):', { count: minimal.length, nextCursor: !!cursor });
 
         setPosts(minimal);
@@ -524,7 +533,9 @@ export default function Grandstand() {
       // Keep pagination queries lean to avoid server statement timeouts
       const { data: rows, nextCursor: cursor, error } = await getPublicPostsPage({ limit, cursor: nextCursor, includeProfiles: false });
       if (error) throw error;
-      const mapped: PostCardType[] = (rows || []).map((r: PostCardType) => {
+      const mapped: PostCardType[] = (rows || [])
+        .filter((r: any) => r && (r as any).id && (r as any).user_id)
+        .map((r: PostCardType) => {
         const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
         return { ...r, profiles: profile } as PostCardType;
       });
@@ -647,6 +658,10 @@ export default function Grandstand() {
         color="rgba(56, 189, 248, 0.25)" 
         maxSpeed={10}
       />
+      {/* Celebration sparkles overlay */}
+      {showSparkles && (
+        <Sparkles durationMs={1800} count={90} />
+      )}
       {/* Coming Soon Notice Bar */}
       {showComingSoonNotice && (
         <div className="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-slate-900/60 bg-slate-900 border-b border-slate-800">
@@ -867,6 +882,25 @@ export default function Grandstand() {
             setPosts([adaptedPost, ...posts]);
             setShowCreatePost(false);
             setComposeAutoOpen(null);
+
+            // First-post-of-day celebration: per-user daily key in localStorage
+            try {
+              const uid = user?.id;
+              if (uid) {
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                const key = `gs_first_post_${uid}_${yyyy}-${mm}-${dd}`;
+                const already = localStorage.getItem(key);
+                if (!already) {
+                  localStorage.setItem(key, '1');
+                  triggerSparkles(1800);
+                }
+              }
+            } catch {
+              // non-fatal storage issues
+            }
           }}
           autoOpen={composeAutoOpen}
         />

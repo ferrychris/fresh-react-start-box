@@ -97,30 +97,51 @@ export const getPublicPostsPage = async (options: {
   try {
     const { limit = 12, cursor, includeProfiles = true } = options;
     
+    // Build a minimal select by default to reduce payload and latency.
+    const baseColumns = [
+      'id',
+      'user_id',
+      'racer_id',
+      'content',
+      'media_urls',
+      'post_type',
+      'visibility',
+      'user_type',
+      'likes_count',
+      'comments_count',
+      'upvotes_count',
+      'created_at',
+      'updated_at',
+      'total_tips',
+      'allow_tips',
+    ].join(',');
+
+    const profileColumns = `
+      profiles!racer_posts_user_id_fkey (
+        id,
+        name,
+        email,
+        avatar,
+        user_type,
+        is_verified
+      ),
+      racer_profiles!racer_posts_racer_id_fkey (
+        id,
+        username,
+        profile_photo_url,
+        car_number,
+        racing_class,
+        team_name
+      )
+    `;
+
     let query = supabase
       .from('racer_posts')
-      .select(`
-        *,
-        ${includeProfiles ? `
-        profiles!racer_posts_user_id_fkey (
-          id,
-          name,
-          email,
-          avatar,
-          user_type,
-          is_verified
-        ),
-        ` : ''}
-        racer_profiles!racer_posts_racer_id_fkey (
-          id,
-          username,
-          profile_photo_url,
-          car_number,
-          racing_class,
-          team_name
-        )
-      `)
+      .select(
+        includeProfiles ? `${baseColumns}, ${profileColumns}` : baseColumns
+      )
       .eq('visibility', 'public')
+      .not('user_id', 'is', null)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(limit);

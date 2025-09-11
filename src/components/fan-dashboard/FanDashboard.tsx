@@ -8,7 +8,7 @@ import { ProfileCompletionGuide } from '../ProfileCompletionGuide';
 import ProfileHeader from './ProfileHeader';
 import NavigationTabs from './NavigationTabs';
 import StatsCards from './StatsCards';
-import FavoriteRacers from './FavoriteRacers';
+// FavoriteRacers removed from Fan Dashboard per request
 import RecentActivity from './RecentActivity';
 import PersonalPost from './posts/PersonalPost';
 
@@ -45,19 +45,7 @@ interface FanStats {
   activity_streak: number;
 }
 
-interface Racer {
-  id: string;
-  name: string;
-  avatarUrl: string;
-  flag: string;
-  lastTipped: string | null;
-  totalTipped: number;
-  subscription: string | null;
-  nextRace: {
-    track: string;
-    date: string;
-  };
-}
+// Favorite racers removed
 
 interface ActivityItem {
   id: string;
@@ -77,17 +65,7 @@ interface ActivityItem {
   };
 }
 
-interface RacerData {
-  racer_id: string;
-  racer_profiles: {
-    username: string;
-    profile_photo_url: string;
-    country: string;
-  };
-  last_tipped: string | null;
-  total_tipped: number;
-  subscription_tier: string | null;
-}
+// Favorite racers removed
 
 interface ActivityData {
   id: string;
@@ -112,7 +90,7 @@ const FanDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadingProfile, setLoadingProfile] = useState<boolean>(true);
   const [loadingStats, setLoadingStats] = useState<boolean>(true);
-  const [loadingFavorites, setLoadingFavorites] = useState<boolean>(true);
+  // const [loadingFavorites, setLoadingFavorites] = useState<boolean>(true);
   const [loadingActivity, setLoadingActivity] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState('overview');
   // If we have a route param id, we're on the read-only preview route
@@ -129,7 +107,8 @@ const FanDashboard: React.FC = () => {
   });
   
   // Favorite racers and activity
-  const [favoriteRacers, setFavoriteRacers] = useState<Racer[]>([]);
+  // Favorite racers removed from Fan Dashboard
+  // const [favoriteRacers, setFavoriteRacers] = useState<Racer[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
 
   // Profile guide state (must be declared before any early returns)
@@ -164,7 +143,7 @@ const FanDashboard: React.FC = () => {
       setLoading(true);
       setLoadingProfile(true);
       setLoadingStats(true);
-      setLoadingFavorites(true);
+      // favorites loading removed
       setLoadingActivity(true);
       if (!targetId) {
         // Defer until we have a route id or an authenticated user id
@@ -264,70 +243,7 @@ const FanDashboard: React.FC = () => {
       })();
 
       // 3) Favorites
-      (async () => {
-        try {
-          let racersData: RacerData[] = [];
-          try {
-            const { data, error: racersError } = await supabase
-              .from('fan_favorite_racers')
-              .select(`
-                racer_id,
-                racer_profiles!fan_favorite_racers_racer_id_fkey (username, profile_photo_url, country),
-                last_tipped,
-                total_tipped,
-                subscription_tier
-              `)
-              .eq('fan_id', targetId)
-              .order('total_tipped', { ascending: false })
-              .limit(5);
-            if (!racersError && data) {
-              racersData = data.filter(item => item.racer_profiles).map(item => ({
-                ...item,
-                racer_profiles: {
-                  username: item.racer_profiles?.[0]?.username || 'Unknown',
-                  profile_photo_url: item.racer_profiles?.[0]?.profile_photo_url || '/default-avatar.png',
-                  country: item.racer_profiles?.[0]?.country || 'Unknown'
-                }
-              }));
-            }
-          } catch (racersError: unknown) {
-            const errorMsg = racersError instanceof Error ? racersError.message : 'Unknown error';
-            console.log('Fan favorite racers table may not exist yet:', errorMsg);
-          }
-          if (racersData.length === 0) {
-            if (user?.id === targetId) {
-              setFavoriteRacers([
-                {
-                  id: 'placeholder-1',
-                  name: 'Add Your First Favorite Racer',
-                  avatarUrl: '/default-avatar.png',
-                  flag: '/default-flag.png',
-                  lastTipped: null,
-                  totalTipped: 0,
-                  subscription: 'None',
-                  nextRace: { track: 'Unknown', date: 'Unknown' }
-                }
-              ]);
-            } else {
-              setFavoriteRacers([]);
-            }
-          } else {
-            const formattedRacers = racersData.map((item: RacerData) => ({
-              id: item.racer_id,
-              name: item.racer_profiles.username || 'Unknown Racer',
-              avatarUrl: item.racer_profiles.profile_photo_url || '/default-avatar.png',
-              flag: item.racer_profiles.country || '/default-flag.png',
-              lastTipped: item.last_tipped ? (new Date(item.last_tipped).toLocaleDateString() as string | null) : null,
-              totalTipped: item.total_tipped || 0,
-              subscription: item.subscription_tier || 'None',
-              nextRace: { track: 'Unknown', date: 'Unknown' }
-            }));
-            setFavoriteRacers(formattedRacers);
-          }
-        } finally {
-          setLoadingFavorites(false);
-        }
-      })();
+      // Favorites section removed from Fan Dashboard
 
       // 4) Activity
       (async () => {
@@ -378,15 +294,15 @@ const FanDashboard: React.FC = () => {
                 timeAgo,
                 content: item.content || '',
                 metadata: {
-                  racerId: item.racer_id,
-                  racerName: item.racer_name,
-                  amount: item.amount,
-                  badgeName: item.badge_name,
-                  postId: item.post_id,
-                  postContent: item.post_content,
-                  commentContent: item.comment_content,
-                  likes: item.likes
-                }
+                  racerId: item.racer_id || undefined,
+                  racerName: item.racer_name || undefined,
+                  amount: item.amount || undefined,
+                  badgeName: item.badge_name || undefined,
+                  postId: item.post_id || undefined,
+                  postContent: item.post_content || undefined,
+                  commentContent: item.comment_content || undefined,
+                  likes: item.likes || undefined,
+                },
               };
             });
           }
@@ -421,54 +337,7 @@ const FanDashboard: React.FC = () => {
   };
 
   // Handle tipping a racer
-  const handleTipRacer = (racerId: string, amount: number) => {
-    try {
-      // Implement tip functionality
-      console.log(`Tipping racer ${racerId} with $${amount}`);
-      
-      // Update the UI optimistically
-      const updatedRacers = favoriteRacers.map(racer => {
-        if (racer.id === racerId) {
-          return {
-            ...racer,
-            lastTipped: new Date().toLocaleDateString(),
-            totalTipped: racer.totalTipped + amount
-          };
-        }
-        return racer;
-      });
-      
-      setFavoriteRacers(updatedRacers);
-      
-      // Add to recent activity
-      const racerName = favoriteRacers.find(r => r.id === racerId)?.name || 'Unknown Racer';
-      
-      const newActivity = {
-        id: `temp-${Date.now()}`,
-        type: 'tip' as const,
-        timestamp: new Date().toISOString(),
-        timeAgo: 'just now',
-        content: '',
-        metadata: {
-          racerId,
-          racerName,
-          amount
-        }
-      };
-      
-      setRecentActivity([newActivity, ...recentActivity.slice(0, 4)]);
-      
-      // Update stats
-      setStats({
-        ...stats,
-        total_tips: stats.total_tips + amount
-      });
-      
-      // Save to database (would be implemented in a real app)
-    } catch (error) {
-      console.error('Error tipping racer:', error);
-    }
-  };
+  // Tip racer functionality removed with Favorite Racers section
 
   // Handle view all activity button click
   const handleViewAllActivity = () => {
@@ -479,14 +348,13 @@ const FanDashboard: React.FC = () => {
   const tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'posts', label: 'Posts', count: 24 },
-    { id: 'racers', label: 'Supported Racers', count: favoriteRacers.length },
     // { id: 'activity', label: 'Activity' }, // Commented out activity tab
     { id: 'badges', label: 'Badges', count: fanProfile?.badges_count || 0 }
   ];
 
   // Determine if we should show a loading state until some data is fetched
-  const hasAnyData = Boolean(fanProfile) || favoriteRacers.length > 0 || recentActivity.length > 0;
-  const isLoadingOverall = !hasAnyData && (loadingProfile || loadingStats || loadingFavorites || loadingActivity);
+  const hasAnyData = Boolean(fanProfile) || recentActivity.length > 0;
+  const isLoadingOverall = !hasAnyData && (loadingProfile || loadingStats || loadingActivity);
 
   // Removed early return to keep hooks order consistent
 
@@ -585,12 +453,67 @@ const FanDashboard: React.FC = () => {
       ) : (
         fanProfile ? (
           <div className="min-h-screen">
-            {/* TODO: Render actual fan dashboard content here. This placeholder prevents recursive self-render. */}
+            <div
+              className="relative h-48 bg-cover bg-center rounded-b-3xl shadow-lg"
+              style={{ backgroundImage: `url(${bannerImage || '/placeholder-banner.jpg'})` }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 to-transparent" />
+            </div>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 mb-6">
+              <ProfileHeader
+                fanProfile={fanProfile}
+                isOwnProfile={isOwnProfile}
+                onEditProfile={handleEditProfile}
+                profileCompletionPercentage={profileCompletionPercentage}
+              />
+
+              <div className="mt-6">
+                <NavigationTabs tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
+              </div>
+
+              <div className="py-6">
+                {activeTab === 'overview' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+                    <div className="space-y-6">
+                      <StatsCards 
+                        supportPoints={stats.support_points}
+                        totalTips={stats.total_tips}
+                        activeSubscriptions={stats.active_subscriptions}
+                        activityStreak={stats.activity_streak}
+                        loading={loadingStats}
+                      />
+                      <RecentActivity
+                        activities={recentActivity}
+                        loading={loadingActivity}
+                        onViewAllActivity={handleViewAllActivity}
+                      />
+                    </div>
+                  </div>
+                )}
+                {activeTab === 'posts' && (
+                  <div className="space-y-6">
+                    {isOwnProfile && (
+                      <PersonalPost fanId={targetId || ''} />
+                    )}
+                  </div>
+                )}
+                {activeTab === 'badges' && (
+                  <div className="text-center text-gray-400 py-10">
+                    Coming Soon: Badges will be displayed here!
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
           <div className="text-center py-12">
             <h2 className="text-xl font-bold text-white mb-2">Welcome to your Fan Dashboard</h2>
             <p className="text-gray-400">We couldn't load a fan profile. If you just signed up, complete your profile in Settings.</p>
+            {isOwnProfile && hasCheckedProfile && user?.id && (
+              <div className="mt-6">
+                <ProfileCompletionGuide userId={user.id} onClose={handleCloseGuide} />
+              </div>
+            )}
           </div>
         )
       )}

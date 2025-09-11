@@ -39,6 +39,7 @@ import { FounderLetter } from './pages/FounderLetter';
 import { Home } from './pages/Home';
 import { ComingSoon } from './pages/ComingSoon';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { UserProvider, useUser } from './contexts/UserContext';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
@@ -431,7 +432,9 @@ const App: React.FC = () => {
     <AppProvider>
       <ThemeProvider>
         <UserProvider>
-          <AppContent />
+          <ErrorBoundary>
+            <AppContent />
+          </ErrorBoundary>
         </UserProvider>
       </ThemeProvider>
     </AppProvider>

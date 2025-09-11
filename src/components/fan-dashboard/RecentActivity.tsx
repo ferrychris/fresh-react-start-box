@@ -23,10 +23,38 @@ interface ActivityItem {
 interface RecentActivityProps {
   activities: ActivityItem[];
   onViewAllActivity: () => void;
+  loading: boolean;
 }
 
-const RecentActivity: React.FC<RecentActivityProps> = ({ activities, onViewAllActivity }) => {
+const RecentActivity: React.FC<RecentActivityProps> = ({ activities, onViewAllActivity, loading }) => {
   // Theme context available if needed for future styling
+
+  // Normalize inputs to prevent runtime errors on unexpected values
+  const safeActivities: ActivityItem[] = Array.isArray(activities) ? activities : [];
+  const isLoading = Boolean(loading);
+  const handleViewAll = typeof onViewAllActivity === 'function' ? onViewAllActivity : () => {};
+
+  if (isLoading) {
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 animate-pulse">
+        <div className="h-4 w-1/3 bg-gray-800 rounded mb-4" />
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex gap-3 items-center">
+              <div className="w-10 h-10 rounded-full bg-gray-800" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-2/3 bg-gray-800 rounded" />
+                <div className="h-3 w-1/2 bg-gray-800 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 text-center">
+          <div className="h-8 w-1/3 mx-auto bg-gray-800 rounded-lg" />
+        </div>
+      </div>
+    );
+  }
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -61,14 +89,15 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ activities, onViewAllAc
   };
 
   const renderActivityContent = (activity: ActivityItem) => {
+    const m = activity?.metadata || {};
     switch (activity.type) {
       case 'tip':
         return (
           <div>
             <p className="text-white">
-              Tipped <Link to={`/racer/${activity.metadata.racerId}`} className="text-green-500 hover:underline">
-                {activity.metadata.racerName}
-              </Link> <span className="text-green-500">${activity.metadata.amount}</span>
+              Tipped <Link to={`/racer/${m.racerId ?? ''}`} className="text-green-500 hover:underline">
+                {m.racerName ?? 'Racer'}
+              </Link> <span className="text-green-500">${m.amount ?? 0}</span>
             </p>
             {activity.content && <p className="text-gray-400 text-sm mt-1">{activity.content}</p>}
           </div>
@@ -77,7 +106,7 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ activities, onViewAllAc
         return (
           <div>
             <p className="text-white">
-              Earned badge: <span className="text-amber-500">{activity.metadata.badgeName}</span>
+              Earned badge: <span className="text-amber-500">{m.badgeName ?? ''}</span>
             </p>
             {activity.content && <p className="text-gray-400 text-sm mt-1">{activity.content}</p>}
           </div>
@@ -86,8 +115,8 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ activities, onViewAllAc
         return (
           <div>
             <p className="text-white">
-              Subscribed to <Link to={`/racer/${activity.metadata.racerId}`} className="text-green-500 hover:underline">
-                {activity.metadata.racerName}
+              Subscribed to <Link to={`/racer/${m.racerId ?? ''}`} className="text-green-500 hover:underline">
+                {m.racerName ?? 'Racer'}
               </Link>
             </p>
             {activity.content && <p className="text-gray-400 text-sm mt-1">{activity.content}</p>}
@@ -97,11 +126,11 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ activities, onViewAllAc
         return (
           <div>
             <p className="text-white">
-              Posted: <span className="text-gray-300">"{activity.metadata.postContent}"</span>
+              Posted: <span className="text-gray-300">"{m.postContent ?? ''}"</span>
             </p>
-            {activity.metadata.likes && (
+            {typeof m.likes === 'number' && m.likes > 0 && (
               <div className="flex items-center gap-1 text-gray-400 text-sm mt-1">
-                <Heart className="h-3 w-3" /> {activity.metadata.likes} likes
+                <Heart className="h-3 w-3" /> {m.likes} likes
               </div>
             )}
           </div>
@@ -110,11 +139,11 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ activities, onViewAllAc
         return (
           <div>
             <p className="text-white">
-              Commented on <Link to={`/racer/${activity.metadata.racerId}`} className="text-green-500 hover:underline">
-                {activity.metadata.racerName}
+              Commented on <Link to={`/racer/${m.racerId ?? ''}`} className="text-green-500 hover:underline">
+                {m.racerName ?? 'Racer'}
               </Link>'s post
             </p>
-            <p className="text-gray-400 text-sm mt-1">"{activity.metadata.commentContent}"</p>
+            <p className="text-gray-400 text-sm mt-1">"{m.commentContent ?? ''}"</p>
           </div>
         );
       default:
@@ -127,7 +156,7 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ activities, onViewAllAc
       <h2 className="text-lg font-semibold text-white mb-4">Recent Activity</h2>
       
       <div className="space-y-4">
-        {activities.map((activity) => (
+        {safeActivities.map((activity) => (
           <div key={activity.id} className="flex gap-3">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getActivityColor(activity.type)}`}>
               {getActivityIcon(activity.type)}
@@ -141,16 +170,16 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ activities, onViewAllAc
         ))}
       </div>
       
-      {activities.length === 0 && (
+      {safeActivities.length === 0 && (
         <div className="text-center py-8">
           <p className="text-gray-400">No recent activity to display.</p>
         </div>
       )}
       
-      {activities.length > 0 && (
+      {safeActivities.length > 0 && (
         <div className="mt-6 text-center">
           <button
-            onClick={onViewAllActivity}
+            onClick={handleViewAll}
             className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
           >
             View All Activity
