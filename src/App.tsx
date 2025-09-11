@@ -50,6 +50,7 @@ import { Toaster } from 'react-hot-toast';
 import Fanheader from './components/fan-dashboard/Fanheader'; // Import Fanheader component
 import FanProfileNew from './pages/FanProfileNew';
 import PostPage from './pages/PostPage';
+import NotFound from './pages/NotFound';
 
 // Component to handle scroll to top on route changes
 const ScrollToTop: React.FC = () => {
@@ -244,6 +245,8 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
           path="/grandstand"
           element={authUser ? <Grandstand /> : <Navigate to="/" replace />}
         />
+        {/* Catch-all 404 route */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </main>
   );
