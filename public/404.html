@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>404 • OnlyRaceFans</title>
+    <meta name="robots" content="noindex" />
+    <style>
+      :root {
+        --bg: #000;
+        --card: #0b0f19;
+        --text: #fff;
+        --muted: #9aa4b2;
+        --orange: #ff5a1f;
+        --purple: #6d28d9;
+      }
+      html, body { height: 100%; }
+      body {
+        margin: 0; background: var(--bg); color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+        display: grid; place-items: center;
+      }
+      .wrap { position: relative; padding: 32px; width: min(720px, 92vw); text-align: center; }
+      .badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); font-size: 12px; backdrop-filter: saturate(120%) blur(6px); }
+      .title { font-size: clamp(48px, 8vw, 80px); font-weight: 900; margin: 12px 0 4px; letter-spacing: .5px; }
+      .subtitle { font-size: 22px; font-weight: 800; margin: 0 0 8px; }
+      .muted { color: var(--muted); font-size: 14px; margin: 0; }
+      .cta { margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+      .btn { appearance: none; border: 0; cursor: pointer; text-decoration: none; border-radius: 12px; padding: 10px 14px; font-weight: 700; color: #fff; transition: transform .15s ease, opacity .15s ease, box-shadow .15s ease; }
+      .btn:active { transform: translateY(1px); }
+      .btn.primary { background: var(--orange); box-shadow: 0 10px 30px rgba(255,90,31,.2); }
+      .btn.primary:hover { opacity: .95; }
+      .btn.secondary { background: #1f2937; }
+      .btn.secondary:hover { opacity: .95; }
+      .track { position: relative; height: 64px; margin-top: 28px; overflow: hidden; }
+      .line { position: absolute; left: 0; right: 0; top: 50%; height: 2px; transform: translateY(-50%); background: rgba(255,255,255,.08); }
+      .line.glow { background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.45), rgba(255,255,255,0)); filter: blur(.2px); animation: pulse 2.2s ease-in-out infinite; }
+      .car { position: absolute; left: -20%; top: 50%; transform: translateY(-50%); font-size: 24px; animation: drive 6s linear infinite; white-space: nowrap; color: var(--muted); }
+      .bgsplash-1, .bgsplash-2 { position: absolute; width: 320px; height: 320px; border-radius: 999px; filter: blur(64px); opacity: .22; pointer-events: none; }
+      .bgsplash-1 { background: var(--orange); top: -80px; right: -80px; }
+      .bgsplash-2 { background: var(--purple); bottom: -80px; left: -80px; }
+      @keyframes drive { from { transform: translate(-20%, -50%);} to { transform: translate(140%, -50%);} }
+      @keyframes pulse { 0%, 100% { opacity: .25 } 50% { opacity: .6 } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap" role="main">
+      <div class="bgsplash-1"></div>
+      <div class="bgsplash-2"></div>
+
+      <div class="badge">🏁 Oops—missed the apex!</div>
+      <div class="title">404</div>
+      <div class="subtitle">This page pulled into the pits</div>
+      <p class="muted">Either the track changed or your link took a detour. Let’s get you back on the racing line.</p>
+
+      <div class="cta">
+        <a class="btn primary" href="/">🏎️ Back to Home</a>
+        <a class="btn secondary" href="/grandstand">🎟️ Open Grandstand</a>
+      </div>
+
+      <div class="track" aria-hidden="true">
+        <div class="line"></div>
+        <div class="line glow"></div>
+        <div class="car">🏎️ <span style="margin-left:8px; font-size:13px; vertical-align:middle;">"Flat out through 404—what could go wrong?"</span></div>
+      </div>
+    </div>
+  </body>
+</html>
