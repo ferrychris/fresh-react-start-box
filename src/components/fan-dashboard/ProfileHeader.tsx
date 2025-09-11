@@ -34,7 +34,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   return (
     <div className="relative w-full">
       {/* Modern banner container with elegant styling */}
-      <div className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-black rounded-3xl overflow-hidden border border-gray-800/50 shadow-2xl mx-4 sm:mx-6 lg:mx-8">
+      <div className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-black rounded-3xl overflow-hidden border border-gray-800/50 shadow-2xl mx-2 sm:mx-4 lg:mx-6">
         
         {/* Background image with sophisticated overlay */}
         <div className="absolute inset-0 h-64 sm:h-72 lg:h-80 overflow-hidden">
@@ -86,10 +86,10 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
         )}
 
         {/* Content container with proper spacing */}
-        <div className="relative pt-16 sm:pt-20 lg:pt-24 pb-8 px-6 sm:px-8 lg:px-10">
+        <div className="relative pt-12 sm:pt-16 lg:pt-20 pb-6 sm:pb-8 px-4 sm:px-6 lg:px-8">
           
           {/* Profile section with responsive layout */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-6 mb-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4 sm:gap-6 mb-6 sm:mb-8">
             
             {/* Avatar with premium styling */}
             <div className="relative">
@@ -113,7 +113,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             {/* User information with elegant typography */}
             <div className="flex-1 min-w-0">
               <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight">
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white tracking-tight">
                   {name}
                 </h1>
                 <div className="flex items-center gap-2">

@@ -405,7 +405,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
         <meta name="twitter:image" content={bannerUrl || avatarForMeta} />
       </Helmet>
 
-      <div className="relative border-b border-border h-64 sm:h-72 lg:h-80">
+      <div className="relative h-64 sm:h-72 lg:h-80">
       {/* Full-bleed banner background */}
       <div className="absolute inset-0">
         {loading ? (
@@ -433,7 +433,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
       </div>
 
       {/* Foreground header content */}
-      <div className="relative z-10 p-6 h-full">
+      <div className="relative z-10 px-6 pb-6 pt-0 h-full">
         {/* Owner action buttons (top-right over banner) */}
         {isOwner && (
           <div className="absolute right-6 top-6 flex items-center gap-2">

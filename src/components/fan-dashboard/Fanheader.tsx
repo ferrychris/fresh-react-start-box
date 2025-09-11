@@ -3,7 +3,7 @@ import { useUser } from '@/contexts/UserContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useApp } from '@/contexts/AppContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronDown, Bell, Search, Upload } from 'lucide-react';
+import { ChevronDown, Bell, Search, Upload, Home, Trophy, Flag, Handshake } from 'lucide-react';
 import { ProfileCompletionIndicator } from '@/components/ProfileCompletionIndicator';
 import { 
   DropdownMenu, 
@@ -399,6 +399,7 @@ const Fanheader = () => {
             }`}
             onClick={() => navigate('/grandstand')}
           >
+            <Home className="h-5 w-5 text-fedex-orange" />
             <span className="text-[12px] mt-0.5 font-semibold">Grandstand</span>
           </button>
 
@@ -410,6 +411,7 @@ const Fanheader = () => {
             }`}
             onClick={() => navigate('/racers')}
           >
+            <Search className="h-5 w-5 text-fedex-orange" />
             <span className="text-[12px] mt-0.5 font-semibold">Racers</span>
           </button>
 
@@ -421,6 +423,7 @@ const Fanheader = () => {
             }`}
             onClick={() => navigate('/super-fans')}
           >
+            <Trophy className="h-5 w-5 text-fedex-orange" />
             <span className="text-[12px] mt-0.5 font-semibold">Super Fans</span>
           </button>
 
@@ -432,6 +435,7 @@ const Fanheader = () => {
             }`}
             onClick={() => navigate('/series')}
           >
+            <Flag className="h-5 w-5 text-fedex-orange" />
             <span className="text-[12px] mt-0.5 font-semibold">Series</span>
           </button>
 
@@ -443,6 +447,7 @@ const Fanheader = () => {
             }`}
             onClick={() => navigate('/sponsorships')}
           >
+            <Handshake className="h-5 w-5 text-fedex-orange" />
             <span className="text-[12px] mt-0.5 font-semibold">Sponsors</span>
           </button>
         </div>

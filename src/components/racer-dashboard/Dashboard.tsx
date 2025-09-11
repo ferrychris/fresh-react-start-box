@@ -493,7 +493,7 @@ export const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black py-6">
+    <div className="min-h-screen bg-black pt-0 pb-6">
       <div className="max-w-7xl mx-auto px-4">
         {needsProfileCompletion && (
           <div className="mb-4 rounded-xl border border-yellow-700/40 bg-yellow-500/10 text-yellow-200 p-4 flex items-start justify-between">
