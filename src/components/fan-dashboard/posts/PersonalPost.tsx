@@ -143,7 +143,7 @@ const PersonalPost: React.FC<PersonalPostProps> = ({ fanId }) => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6">
+    <div className="max-w-3xl mx-auto px-0 py-2">
       <h1 className="text-2xl font-bold mb-6">
         <span className="bg-clip-text text-transparent bg-gradient-to-r from-fedex-orange to-red-500">
           My Posts
@@ -159,7 +159,7 @@ const PersonalPost: React.FC<PersonalPostProps> = ({ fanId }) => {
       <div className="space-y-6">
         {/* Composer - only on own profile */}
         {isOwnProfile && (
-          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4 lg:p-6">
+          <div className="bg-gray-900 rounded-xl p-4 lg:p-5">
             <h2 className="text-lg font-semibold mb-3">Create a post</h2>
             <textarea
               className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
@@ -197,7 +197,7 @@ const PersonalPost: React.FC<PersonalPostProps> = ({ fanId }) => {
             <p className="text-sm text-gray-400">Loading posts...</p>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {posts.slice(0, visibleCount).map((post) => (
               <PostCard key={post.id} post={post} />
             ))}

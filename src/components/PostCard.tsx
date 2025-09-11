@@ -986,7 +986,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   };
 
   return (
-    <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden hover:border-gray-700 transition-all duration-300">
+    <div className="bg-gray-900 rounded-2xl overflow-hidden transition-all duration-300">
       {/* Post Header */}
       <div className="p-4 lg:p-6">
         <div className="flex items-center space-x-3 mb-4">

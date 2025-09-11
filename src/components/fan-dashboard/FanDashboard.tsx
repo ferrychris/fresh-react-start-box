@@ -480,7 +480,7 @@ const FanDashboard: React.FC = () => {
     { id: 'overview', label: 'Overview' },
     { id: 'posts', label: 'Posts', count: 24 },
     { id: 'racers', label: 'Supported Racers', count: favoriteRacers.length },
-    { id: 'activity', label: 'Activity' },
+    // { id: 'activity', label: 'Activity' }, // Commented out activity tab
     { id: 'badges', label: 'Badges', count: fanProfile?.badges_count || 0 }
   ];
 
