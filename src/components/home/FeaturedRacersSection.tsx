@@ -49,7 +49,7 @@ const FeaturedRacersSection: React.FC<FeaturedRacersSectionProps> = ({ theme, ra
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {racers.map((racer) => (
-            <div className={`relative rounded-xl border transition-all duration-200 ${theme === 'dark' ? 'bg-gray-950/80 border-gray-800 hover:border-gray-700 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]' : 'bg-white border-gray-200 hover:border-gray-300 shadow-sm'} hover:shadow-md`}>
+            <div key={racer.id} className={`relative rounded-xl border transition-all duration-200 ${theme === 'dark' ? 'bg-gray-950/80 border-gray-800 hover:border-gray-700 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]' : 'bg-white border-gray-200 hover:border-gray-300 shadow-sm'} hover:shadow-md`}>
               {/* Featured Badge */}
               <div className={`relative`}> {/* wrapper for sparkles */}
                 <div className={`absolute top-3 right-3 z-10 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${theme === 'dark' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30' : 'bg-orange-100 text-orange-700 border border-orange-200'}`}>

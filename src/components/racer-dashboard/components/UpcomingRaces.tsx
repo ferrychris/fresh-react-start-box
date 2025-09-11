@@ -66,8 +66,8 @@ export const UpcomingRaces: React.FC<UpcomingRacesProps> = ({ userId, canEdit = 
           
         if (error) {
           console.error('Error fetching upcoming races:', error);
-          // If there's an error or no data, fall back to mock data
-          setRaces(getMockRaces());
+          // Do not use mock data; show empty state
+          setRaces([]);
         } else if (data && data.length > 0) {
           const formattedRaces = data.map((race: any) => {
             const track = trackOptions.find(t => t.id === race.track_id)?.name || race.track_name;
@@ -82,12 +82,12 @@ export const UpcomingRaces: React.FC<UpcomingRacesProps> = ({ userId, canEdit = 
           });
           setRaces(formattedRaces);
         } else {
-          // No upcoming races found, use mock data
-          setRaces(getMockRaces());
+          // No upcoming races found
+          setRaces([]);
         }
       } catch (error) {
         console.error('Error in fetchUpcomingRaces:', error);
-        setRaces(getMockRaces());
+        setRaces([]);
       } finally {
         setLoading(false);
       }
@@ -242,23 +242,7 @@ export const UpcomingRaces: React.FC<UpcomingRacesProps> = ({ userId, canEdit = 
     }
   };
 
-  // Fallback mock data
-  const getMockRaces = (): Race[] => [
-    {
-      id: '1',
-      eventName: 'Charlotte 400',
-      date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 1 week from now
-      track: 'Charlotte Motor Speedway',
-      series: 'Cup Series'
-    },
-    {
-      id: '2',
-      eventName: 'Bristol Night Race',
-      date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 2 weeks from now
-      track: 'Bristol Motor Speedway',
-      series: 'Cup Series'
-    }
-  ];
+  // No mock data; display empty state when there are no upcoming races
 
   return (
     <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
@@ -280,39 +264,39 @@ export const UpcomingRaces: React.FC<UpcomingRacesProps> = ({ userId, canEdit = 
         <div className="mb-4 bg-slate-800 border border-slate-700 rounded-xl p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <input
-              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500"
+              className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500"
               placeholder="Event name"
               value={eventName}
               onChange={(e) => setEventName(e.target.value)}
             />
             <input
               type="datetime-local"
-              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500"
+              className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500"
               value={eventDate}
               onChange={(e) => setEventDate(e.target.value)}
             />
             <input
-              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500"
+              className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500"
               placeholder="Track name"
               value={trackName}
               onChange={(e) => setTrackName(e.target.value)}
             />
           </div>
           <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={seriesId} onChange={(e) => setSeriesId(e.target.value)}>
+            <select className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-sm text-white" value={seriesId} onChange={(e) => setSeriesId(e.target.value)}>
               <option value="">Select series (optional)</option>
               {seriesOptions.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-            <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={trackId} onChange={(e) => setTrackId(e.target.value)}>
+            <select className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-sm text-white" value={trackId} onChange={(e) => setTrackId(e.target.value)}>
               <option value="">Select track (optional)</option>
               {trackOptions.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
             <input
-              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
+              className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-sm text-white"
               placeholder="Short description (optional)"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -353,39 +337,39 @@ export const UpcomingRaces: React.FC<UpcomingRacesProps> = ({ userId, canEdit = 
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <input
-                      className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500"
+                      className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500"
                       placeholder="Event name"
                       value={editEventName}
                       onChange={(e) => setEditEventName(e.target.value)}
                     />
                     <input
                       type="datetime-local"
-                      className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500"
+                      className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500"
                       value={editEventDate}
                       onChange={(e) => setEditEventDate(e.target.value)}
                     />
                     <input
-                      className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500"
+                      className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500"
                       placeholder="Track name"
                       value={editTrackName}
                       onChange={(e) => setEditTrackName(e.target.value)}
                     />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={editSeriesId} onChange={(e) => setEditSeriesId(e.target.value)}>
+                    <select className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-sm text-white" value={editSeriesId} onChange={(e) => setEditSeriesId(e.target.value)}>
                       <option value="">Select series (optional)</option>
                       {seriesOptions.map((s) => (
                         <option key={s.id} value={s.id}>{s.name}</option>
                       ))}
                     </select>
-                    <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={editTrackId} onChange={(e) => setEditTrackId(e.target.value)}>
+                    <select className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-sm text-white" value={editTrackId} onChange={(e) => setEditTrackId(e.target.value)}>
                       <option value="">Select track (optional)</option>
                       {trackOptions.map((t) => (
                         <option key={t.id} value={t.id}>{t.name}</option>
                       ))}
                     </select>
                     <input
-                      className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
+                      className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-sm text-white"
                       placeholder="Short description (optional)"
                       value={editDescription}
                       onChange={(e) => setEditDescription(e.target.value)}

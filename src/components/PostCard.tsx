@@ -264,7 +264,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const displayName = authorName || profile?.name || racerName || emailUsername || roleGeneric;
   
   // Get racer details
-  const carNumber = post.racer_profiles?.car_number?.replace(/^#/, '');
   const racingClass = post.racer_profiles?.racing_class;
   const teamName = post.racer_profiles?.team_name;
 
@@ -1010,15 +1009,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                     {displayName}
                   </button>
                 </span>
-                {isRacerEffective && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/30">
-                    🏎️ Racer
-                  </span>
-                )}
                 {/* Racer badges removed to prevent duplication with the RACER tag */}
-                {carNumber && (
-                  <span className="text-orange-500 text-sm group-hover:text-orange-300 group-hover:font-bold transition-all duration-300">#{carNumber}</span>
-                )}
               </div>
               <div className="flex items-center space-x-2 text-sm">
                 <span className={`font-medium ${getUserTypeColor(displayUserType)} group-hover:brightness-110 transition-all duration-300`}>

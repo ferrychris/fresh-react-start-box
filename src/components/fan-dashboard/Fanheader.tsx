@@ -120,8 +120,8 @@ const Fanheader = () => {
         <div className="flex items-center gap-4 min-w-0">
           <Link to="/" className="shrink-0 flex items-center gap-3 group" aria-label="OnlyRaceFans Home">
           <div className="group flex-shrink-0 cursor-pointer">
-              <div className="h-[50px] flex items-center justify-center overflow-hidden transition-transform duration-300">
-                <img src="/onlyracefanlogo.png" alt="OnlyRaceFan Logo" className="h-[200px] w-[250px] object-contain" />
+              <div className="h-[44px] md:h-[50px] flex items-center justify-center overflow-hidden transition-transform duration-300">
+                <img src="/onlyracefanlogo.png" alt="OnlyRaceFan Logo" className="h-[150px] w-[180px] md:h-[200px] md:w-[250px] object-contain" />
               </div>
             </div>
           </Link>
@@ -330,7 +330,7 @@ const Fanheader = () => {
                   className="h-8 w-8 rounded-full"
                 />
               )}
-              <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+              <span className={`hidden md:inline text-sm font-medium ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
                 {user.name || user.email.split('@')[0]}
               </span>
               <ChevronDown className={`h-4 w-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />

@@ -241,9 +241,25 @@ const SettingsProfile: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!userId) return;
+    // Defensive: ensure we have a userId
+    if (!userId) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.id) {
+          setUserId(user.id);
+        } else {
+          toast({ title: 'Not Signed In', description: 'Please sign in to save your profile.', variant: 'destructive' });
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to get auth user before save', err);
+        toast({ title: 'Save Error', description: 'Could not verify your session. Please sign in again.', variant: 'destructive' });
+        return;
+      }
+    }
     try {
       setSaving(true);
+      console.debug('Saving profile...', { userId, userType });
 
       // Step 1: Handle file uploads first
       let newAvatarUrl = originalAvatarUrl;
@@ -446,14 +462,19 @@ const SettingsProfile: React.FC = () => {
       setOriginalAvatarUrl(newAvatarUrl || null);
       setOriginalBannerUrl(newBannerUrl || null);
 
-      // Stay on the settings page after saving
+      console.log('Profile saved successfully!');
+      toast({
+        title: 'Success',
+        description: 'Profile saved successfully!',
+        variant: 'success',
+      });
     } catch (e: unknown) {
       console.error(e);
       const msg = e instanceof Error ? e.message : 'Failed to save profile';
       toast({
-        title: "Error",
+        title: 'Error',
         description: msg,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setSaving(false);

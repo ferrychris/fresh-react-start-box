@@ -11,7 +11,6 @@ import NavigationTabs from '../components/fan-dashboard/NavigationTabs';
 import { UpcomingRaces } from '../components/racer-dashboard/components/UpcomingRaces';
 import { RacerPostsList } from '../components/racer-dashboard/components/RacerPostsList';
 import { PostCreator } from '../components/PostCreator';
-import { TeamsPanel } from '../components/racer-dashboard/components/TeamsPanel';
 import { AuthModal } from '@/components/auth/AuthModal';
 
 const RacerProfile: React.FC = () => {
@@ -218,8 +217,8 @@ const RacerProfile: React.FC = () => {
           {/* Tab Content */}
           {activeTab === 'activity' && (
             <div className="bg-card rounded-2xl p-6 border border-border">
-              <h3 className="text-xl font-bold text-foreground mb-4">Activity Feed</h3>
-              <p className="text-muted-foreground">Detailed activity tracking coming soon.</p>
+              <h3 className="text-xl font-bold text-foreground mb-2">Activity</h3>
+              <p className="text-muted-foreground">Coming soon — we’re building a rich activity feed for race updates, tips, and more.</p>
             </div>
           )}
 
@@ -389,8 +388,8 @@ const RacerProfile: React.FC = () => {
 
           {activeTab === 'teams' && (
             <div className="bg-card rounded-2xl p-6 border border-border">
-              <h3 className="text-xl font-bold text-foreground mb-4">Teams</h3>
-              <TeamsPanel />
+              <h3 className="text-xl font-bold text-foreground mb-2">Teams</h3>
+              <p className="text-muted-foreground">Coming soon — team profiles, rosters, and management are on the way.</p>
             </div>
           )}
 

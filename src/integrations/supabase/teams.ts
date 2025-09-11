@@ -84,6 +84,34 @@ export async function removeMember(teamId: string, racerId: string): Promise<{ e
   return { error };
 }
 
+/**
+ * Create a new team and attach the current authenticated user as an 'owner'.
+ */
+export async function createTeam(
+  team_name: string,
+  description?: string,
+  logo_url?: string | null,
+  banner_url?: string | null
+): Promise<{ data: Team | null; error: any | null }> {
+  const { data: auth } = await supabase.auth.getUser();
+  const userId = auth?.user?.id;
+  if (!userId) return { data: null, error: new Error('Not authenticated') };
+
+  const { data: teamRow, error: teamErr } = await supabase
+    .from('teams')
+    .insert({ team_name, description: description || null, logo_url: logo_url || null, banner_url: banner_url || null })
+    .select('id, team_name, description, logo_url, banner_url, follower_count')
+    .single();
+  if (teamErr) return { data: null, error: teamErr };
+
+  const { error: memberErr } = await supabase
+    .from('team_members')
+    .insert({ team_id: teamRow.id, racer_id: userId, role: 'owner' });
+  if (memberErr) return { data: null, error: memberErr };
+
+  return { data: teamRow as Team, error: null };
+}
+
 export async function getTeamFollowersCount(teamId: string): Promise<number> {
   const { count, error } = await supabase
     .from('team_followers')
