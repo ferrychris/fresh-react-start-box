@@ -17,7 +17,7 @@ const RacerProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useUser();
-  const [activeTab, setActiveTab] = useState<'activity' | 'feeds' | 'racing-info' | 'schedule' | 'teams'>('feeds');
+  const [activeTab, setActiveTab] = useState<'feeds' | 'racing-info' | 'schedule' | 'teams'>('feeds');
   const [reloadToken, setReloadToken] = useState(0);
   const [headerLoading, setHeaderLoading] = useState<boolean>(true);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
@@ -46,9 +46,8 @@ const RacerProfile: React.FC = () => {
   const [lightboxOpen, setLightboxOpen] = useState<boolean>(false);
   const [lightboxIndex, setLightboxIndex] = useState<number>(0);
 
-  // Tabs configuration matching FanDashboard style
+  // Tabs configuration matching FanDashboard style (Activity removed)
   const tabs = [
-    { id: 'activity', label: 'Activity' },
     { id: 'feeds', label: 'Feeds' },
     { id: 'racing-info', label: 'Racing Info' },
     { id: 'schedule', label: 'Schedule' },
@@ -58,7 +57,6 @@ const RacerProfile: React.FC = () => {
   const handleTabChange = (tabId: string) => {
     // Narrow the type from string to our union
     if (
-      tabId === 'activity' ||
       tabId === 'feeds' ||
       tabId === 'racing-info' ||
       tabId === 'schedule' ||
@@ -215,15 +213,10 @@ const RacerProfile: React.FC = () => {
           </div>
 
           {/* Tab Content */}
-          {activeTab === 'activity' && (
-            <div className="bg-card rounded-2xl p-6 border border-border">
-              <h3 className="text-xl font-bold text-foreground mb-2">Activity</h3>
-              <p className="text-muted-foreground">Coming soon — we’re building a rich activity feed for race updates, tips, and more.</p>
-            </div>
-          )}
+          {/* Activity tab removed */}
 
           {activeTab === 'feeds' && (
-            <div className="bg-card rounded-2xl p-6 border border-border space-y-4">
+            <div className="bg-card rounded-2xl p-6 space-y-4">
               {/* Inline composer for owner */}
               {user && (userId === user.id || userId === 'current-user') && (
                 <div className="bg-gray-900/50 backdrop-blur-sm rounded-2xl border border-gray-800/50 p-4">
@@ -239,7 +232,7 @@ const RacerProfile: React.FC = () => {
           )}
 
           {activeTab === 'racing-info' && (
-            <div className="bg-card rounded-2xl p-6 border border-border space-y-6">
+            <div className="bg-card rounded-2xl p-6 space-y-6">
               <h3 className="text-xl font-bold text-foreground mb-4">Racing Info</h3>
 
               {/* Loading / Error States */}
@@ -380,14 +373,14 @@ const RacerProfile: React.FC = () => {
           )}
 
           {activeTab === 'schedule' && (
-            <div className="bg-card rounded-2xl p-6 border border-border">
+            <div className="bg-card rounded-2xl p-6">
               <h3 className="text-xl font-bold text-foreground mb-4">Schedule</h3>
               <UpcomingRaces userId={userId} canEdit={Boolean(isOwner)} />
             </div>
           )}
 
           {activeTab === 'teams' && (
-            <div className="bg-card rounded-2xl p-6 border border-border">
+            <div className="bg-card rounded-2xl p-6">
               <h3 className="text-xl font-bold text-foreground mb-2">Teams</h3>
               <p className="text-muted-foreground">Coming soon — team profiles, rosters, and management are on the way.</p>
             </div>

@@ -356,7 +356,7 @@ const Fanheader = () => {
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link
-                  to={profileRoute}
+                  to="/settings/profile"
                   className="w-full cursor-pointer"
                 >
                   Settings

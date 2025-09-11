@@ -245,7 +245,7 @@ export const UpcomingRaces: React.FC<UpcomingRacesProps> = ({ userId, canEdit = 
   // No mock data; display empty state when there are no upcoming races
 
   return (
-    <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
+    <div className="bg-slate-900 rounded-2xl p-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-xl font-bold text-white">Upcoming Races</h3>
         <div className="flex items-center gap-2">
@@ -261,7 +261,7 @@ export const UpcomingRaces: React.FC<UpcomingRacesProps> = ({ userId, canEdit = 
         </div>
       </div>
       {canEdit && showForm && (
-        <div className="mb-4 bg-slate-800 border border-slate-700 rounded-xl p-4">
+        <div className="mb-4 bg-slate-800 rounded-xl p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <input
               className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500"
@@ -332,7 +332,7 @@ export const UpcomingRaces: React.FC<UpcomingRacesProps> = ({ userId, canEdit = 
           </div>
         ) : races.length > 0 ? (
           races.map((race) => (
-            <div key={race.id} className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+            <div key={race.id} className="bg-slate-800 rounded-xl p-4">
               {canEdit && editingId === race.id ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

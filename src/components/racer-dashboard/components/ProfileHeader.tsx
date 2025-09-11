@@ -452,6 +452,15 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
               <Eye className="w-4 h-4" />
               <span className="sr-only">Preview</span>
             </button>
+            {/* Share icon next to preview */}
+            <button
+              onClick={handleShareProfile}
+              className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-transparent text-slate-200 hover:text-white transition"
+              title="Share profile"
+            >
+              <Share2 className="w-4 h-4" />
+              <span className="sr-only">Share</span>
+            </button>
           </div>
         )}
         <div className="max-w-6xl mx-auto flex flex-col justify-end h-full">
@@ -595,42 +604,9 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
                         >
                           {isFollowing ? 'Unfollow' : 'Follow'}
                         </button>
-                        <div className="relative">
-                          <button
-                            onClick={handleShareProfile}
-                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 transition"
-                            title="Share profile"
-                          >
-                            <Share2 className="w-4 h-4" />
-                            <span>Share</span>
-                          </button>
-                          {copiedTooltip && (
-                            <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap px-2 py-1 text-[10px] rounded bg-slate-800 border border-slate-700 text-slate-200 shadow">
-                              Link copied
-                            </span>
-                          )}
-                        </div>
                       </div>
                     )}
-                    {(!viewerId || isOwner || (viewerId && viewerId === resolvedUserId)) && (
-                      <div className="mt-3">
-                        <div className="relative inline-block">
-                          <button
-                            onClick={handleShareProfile}
-                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 transition"
-                            title="Share profile"
-                          >
-                            <Share2 className="w-4 h-4" />
-                            <span>Share</span>
-                          </button>
-                          {copiedTooltip && (
-                            <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap px-2 py-1 text-[10px] rounded bg-slate-800 border border-slate-700 text-slate-200 shadow">
-                              Link copied
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                    {(!viewerId || isOwner || (viewerId && viewerId === resolvedUserId)) && null}
                   </>
                 )}
               </div>
