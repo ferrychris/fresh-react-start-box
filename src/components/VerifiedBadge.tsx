@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, Crown, Star, Trophy, Zap } from 'lucide-react';
+import { Check, CheckCircle, Crown, Star, Trophy, Zap } from 'lucide-react';
 
 export interface BadgeProps {
   type?: 'verified' | 'featured' | 'champion' | 'rising' | 'pro';
@@ -73,11 +73,23 @@ export const VerifiedBadge: React.FC<BadgeProps> = ({
   type = 'verified', 
   size = 'md', 
   className = '',
-  showTooltip = true 
+  showTooltip = false 
 }) => {
   const badge = badgeConfig[type];
   const sizeStyles = sizeConfig[size];
   const IconComponent = badge.icon;
+
+  // Special rendering for 'verified' to mimic Facebook-style: solid blue circle with white check.
+  if (type === 'verified') {
+    return (
+      <div
+        className={`inline-flex items-center justify-center rounded-full bg-blue-500 ${sizeStyles.padding} ${className} transition-all duration-200 hover:scale-110`}
+        title={showTooltip ? `${badge.label}: ${badge.description}` : undefined}
+      >
+        <Check className={`${sizeStyles.iconSize} text-white`} />
+      </div>
+    );
+  }
 
   const badgeElement = (
     <div 
