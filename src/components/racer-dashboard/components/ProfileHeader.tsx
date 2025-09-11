@@ -437,29 +437,13 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ userId, isOwner = 
         {/* Owner action buttons (top-right over banner) */}
         {isOwner && (
           <div className="absolute right-6 top-6 flex items-center gap-2">
-            {/* Quick actions: change avatar, change banner (route to edit for now) */}
-            <button
-              onClick={onEditProfile}
-              title="Change Avatar"
-              className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-gray-900/70 text-gray-100 border border-gray-700 hover:bg-gray-800 transition"
-            >
-              <Camera className="w-4 h-4" />
-              <span className="sr-only">Change Avatar</span>
-            </button>
+            {/* Quick actions: edit profile and preview */}
             <button
               onClick={onEditProfile}
               className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-gray-900/70 text-gray-100 border border-gray-700 hover:bg-gray-800 transition"
               >
               <Pencil className="w-4 h-4" />
               <span className="sr-only">Edit Profile</span>
-            </button>
-            <button
-              onClick={onEditProfile}
-              title="Change Banner"
-              className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-gray-900/70 text-gray-100 border border-gray-700 hover:bg-gray-800 transition"
-            >
-              <Camera className="w-4 h-4" />
-              <span className="sr-only">Change Banner</span>
             </button>
             <button
               onClick={onPreviewProfile}

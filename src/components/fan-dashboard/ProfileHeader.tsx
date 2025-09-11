@@ -89,10 +89,10 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
         <div className="relative pt-12 sm:pt-16 lg:pt-20 pb-6 sm:pb-8 px-4 sm:px-6 lg:px-8">
           
           {/* Profile section with responsive layout */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="flex flex-col items-start gap-4 sm:gap-6 mb-6 sm:mb-8 pt-16">
             
-            {/* Avatar with premium styling */}
-            <div className="relative">
+            {/* Avatar with premium styling - positioned at bottom of banner */}
+            <div className="relative -mt-24 ml-4">
               <div className="p-1 bg-gradient-to-r from-green-400 to-blue-500 rounded-full shadow-xl">
                 <div className="p-1 bg-black rounded-full">
                   <img 

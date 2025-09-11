@@ -20,16 +20,16 @@ const NavigationTabs: React.FC<NavigationTabsProps> = ({
   // theme not used here; removed to avoid lint warnings
 
   return (
-    <div className="mx-4 sm:mx-6 lg:mx-8 mt-6">
-      <div className="flex overflow-x-auto scrollbar-thin bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-1">
+    <div className="mx-0 sm:mx-6 lg:mx-8 mt-2 sm:mt-6">
+      <div className="flex justify-between sm:justify-start w-full px-1 sm:gap-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={`relative px-4 sm:px-6 py-3 text-sm font-medium transition-all duration-300 rounded-xl whitespace-nowrap ${
+            className={`relative px-1 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-all duration-300 whitespace-nowrap border-b-2 flex-1 sm:flex-none ${
               activeTab === tab.id
-                ? 'text-white bg-gradient-to-r from-orange-500 to-orange-600 shadow-lg transform scale-105'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                ? 'text-orange-500 border-orange-500'
+                : 'text-gray-400 hover:text-gray-200 border-transparent hover:border-gray-700'
             }`}
           >
             <div className="flex items-center gap-2">
