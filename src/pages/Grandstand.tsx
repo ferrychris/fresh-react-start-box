@@ -10,6 +10,7 @@ import { getJSONCookie, setJSONCookie } from '@/lib/cookies';
 import { SuggestionsPanel } from '../components/SuggestionsPanel';
 import { PostCountTester } from '../components/PostCountTester';
 // Sidebars removed for a cleaner single-column layout
+import Particles from '../components/Particles';
 
 // Define proper types for the CreatePost component's return value
 interface NewPostData {
@@ -638,7 +639,14 @@ export default function Grandstand() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black">
+    <div className="relative min-h-screen bg-gradient-to-br from-black via-gray-900 to-black">
+      {/* Subtle background particles */}
+      <Particles
+        className="opacity-60"
+        density={0.0025}
+        color="rgba(56, 189, 248, 0.25)" 
+        maxSpeed={10}
+      />
       {/* Coming Soon Notice Bar */}
       {showComingSoonNotice && (
         <div className="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-slate-900/60 bg-slate-900 border-b border-slate-800">

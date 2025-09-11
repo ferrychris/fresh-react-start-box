@@ -113,6 +113,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [editedContent, setEditedContent] = useState('');
   const [isDeleted, setIsDeleted] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
+  // Transient animation flags
+  const [likeBurst, setLikeBurst] = useState(false);
+  const [upvoteBurst, setUpvoteBurst] = useState(false);
   const [racerBadgeData, setRacerBadgeData] = useState<{
     is_verified: boolean;
     is_featured: boolean;
@@ -417,6 +420,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     // Optimistic UI update
     setIsUpvoted(!wasUpvoted);
     setUpvotesCount(prev => prev + (wasUpvoted ? -1 : 1));
+    if (!wasUpvoted) {
+      setUpvoteBurst(true);
+      window.setTimeout(() => setUpvoteBurst(false), 350);
+    }
     
     try {
       let result;
@@ -528,6 +535,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
     // Optimistic UI update
     setIsLiked(!wasLiked);
     setLikesCount(prev => prev + (wasLiked ? -1 : 1));
+    if (!wasLiked) {
+      setLikeBurst(true);
+      window.setTimeout(() => setLikeBurst(false), 350);
+    }
     
     try {
       let result;
@@ -1148,14 +1159,24 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
             disabled={likeBusy}
             className={`flex items-center space-x-2 transition-all duration-200 ${isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-400'}`}
           >
-            <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+            <span className="relative inline-block">
+              {likeBurst && (
+                <span className="pointer-events-none absolute -inset-2 rounded-full bg-red-500/30 animate-ping" />
+              )}
+              <Heart className={`w-5 h-5 transition-transform ${isLiked ? 'fill-current text-red-500' : ''} ${likeBurst ? 'scale-110' : ''}`} />
+            </span>
             <span className="font-medium">{likesCount}</span>
           </button>
           <button
             onClick={handleUpvoteToggle}
             className={`flex items-center space-x-2 transition-all duration-200 ${isUpvoted ? 'text-fedex-orange' : 'text-gray-400 hover:text-fedex-orange'}`}
           >
-            <ArrowBigUp className={`w-5 h-5 ${isUpvoted ? 'fill-current' : ''}`} />
+            <span className="relative inline-block">
+              {upvoteBurst && (
+                <span className="pointer-events-none absolute -inset-2 rounded-full bg-orange-500/30 animate-ping" />
+              )}
+              <ArrowBigUp className={`w-5 h-5 transition-transform ${isUpvoted ? 'fill-current' : ''} ${upvoteBurst ? 'scale-110' : ''}`} />
+            </span>
             <span className="font-medium">{upvotesCount}</span>
           </button>
           <button 
