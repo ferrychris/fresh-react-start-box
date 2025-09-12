@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useUser } from '@/contexts/UserContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useApp } from '@/contexts/AppContext';
@@ -11,6 +11,7 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
+import { supabase } from '@/lib/supabase/client';
 import { CreatePost } from '@/components/fan-dashboard/posts/CreatePost';
 
 type RacerListItem = {
@@ -33,6 +34,17 @@ const Fanheader = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const inputWrapperRef = useRef<HTMLDivElement | null>(null);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [loadingActivity, setLoadingActivity] = useState(false);
+  const [recentActivity, setRecentActivity] = useState<Array<{
+    id: string;
+    type: 'tip' | 'badge' | 'subscription' | 'post' | 'comment';
+    timestamp: string;
+    content: string;
+    metadata?: Record<string, any>;
+    timeAgo: string;
+  }>>([]);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   const racerList: RacerListItem[] = racers as RacerListItem[];
   const matches = useMemo(() => {
@@ -90,6 +102,66 @@ const Fanheader = () => {
       }
     };
   }, []);
+
+  const getTimeAgo = useCallback((date: Date): string => {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    let interval = seconds / 31536000;
+    if (interval > 1) return `${Math.floor(interval)}y`;
+    interval = seconds / 2592000;
+    if (interval > 1) return `${Math.floor(interval)}mo`;
+    interval = seconds / 86400;
+    if (interval > 1) return `${Math.floor(interval)}d`;
+    interval = seconds / 3600;
+    if (interval > 1) return `${Math.floor(interval)}h`;
+    interval = seconds / 60;
+    if (interval > 1) return `${Math.floor(interval)}m`;
+    return `${Math.max(0, Math.floor(seconds))}s`;
+  }, []);
+
+  const loadRecentActivity = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      setLoadingActivity(true);
+      const lastSeenKey = `activity_last_seen_${user.id}`;
+      const lastSeenStr = localStorage.getItem(lastSeenKey);
+      const lastSeen = lastSeenStr ? new Date(lastSeenStr).getTime() : 0;
+      const { data, error } = await supabase
+        .from('fan_activity')
+        .select('*')
+        .eq('fan_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      const items = (data || []).map((a: any) => ({
+        id: a.id,
+        type: a.activity_type as any,
+        timestamp: a.created_at,
+        content: a.content || '',
+        metadata: {
+          racerName: a.racer_name,
+          amount: a.amount,
+          postContent: a.post_content,
+          commentContent: a.comment_content,
+        },
+        timeAgo: getTimeAgo(new Date(a.created_at)),
+      }));
+      setRecentActivity(items);
+      // compute unread vs lastSeen
+      const unread = (data || []).filter((a: any) => new Date(a.created_at).getTime() > lastSeen).length;
+      setUnreadCount(unread);
+    } catch (e) {
+      // non-fatal
+    } finally {
+      setLoadingActivity(false);
+    }
+  }, [user?.id, getTimeAgo]);
+
+  const markAllAsRead = useCallback(() => {
+    if (!user?.id) return;
+    const lastSeenKey = `activity_last_seen_${user.id}`;
+    localStorage.setItem(lastSeenKey, new Date().toISOString());
+    setUnreadCount(0);
+  }, [user?.id]);
   
   if (!user) return null;
   
@@ -296,18 +368,60 @@ const Fanheader = () => {
         <div className="flex items-center space-x-3 shrink-0">
           {/* Create Post */}
           
-          {/* Notification bell */}
-          <button 
-            className={`p-2 relative rounded-md transition-colors ${
-              theme === 'dark'
-                ? 'text-gray-400 hover:text-white hover:bg-gray-800/80'
-                : 'text-gray-600 hover:text-fedex-orange hover:bg-gray-100/80'
-            }`}
-            aria-label="Notifications"
-          >
-            <Bell className="h-6 w-6" />
-            <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500"></span>
-          </button>
+          {/* Notifications dropdown */}
+          <DropdownMenu open={notifOpen} onOpenChange={(open) => { setNotifOpen(open); if (open) { loadRecentActivity(); markAllAsRead(); } }}>
+            <DropdownMenuTrigger asChild>
+              <button 
+                className={`p-2 relative rounded-md transition-colors ${
+                  theme === 'dark'
+                    ? 'text-gray-400 hover:text-white hover:bg-gray-800/80'
+                    : 'text-gray-600 hover:text-fedex-orange hover:bg-gray-100/80'
+                }`}
+                aria-label="Notifications"
+              >
+                <Bell className="h-6 w-6" />
+                {unreadCount > 0 ? (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] leading-[18px] text-center font-semibold">{unreadCount}</span>
+                ) : null}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className={`${theme === 'dark' ? 'bg-gray-900 border-gray-800 text-gray-100' : 'bg-white border-gray-200 text-gray-800'} w-80 p-0 overflow-hidden` }>
+              <div className="max-h-96 overflow-y-auto">
+                <div className={`px-4 py-3 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-800' : 'border-gray-200'}`}>
+                  <div className="text-sm font-semibold">Recent activity</div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={markAllAsRead} className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-black'}`}>Mark all as read</button>
+                    <Link to="/activity" className="text-xs text-fedex-orange hover:underline">View all</Link>
+                  </div>
+                </div>
+                {loadingActivity ? (
+                  <div className="p-4 text-sm text-gray-400">Loading...</div>
+                ) : recentActivity.length === 0 ? (
+                  <div className="p-4 text-sm text-gray-400">No recent activity</div>
+                ) : (
+                  <ul className="divide-y divide-gray-800/60">
+                    {recentActivity.map(item => (
+                      <li key={item.id} className="px-4 py-3">
+                        <div className="flex items-start gap-3">
+                          {/* Minimal type indicator */}
+                          <span className={`inline-block mt-0.5 w-2 h-2 rounded-full ${
+                            item.type === 'tip' ? 'bg-green-500' :
+                            item.type === 'badge' ? 'bg-amber-500' :
+                            item.type === 'subscription' ? 'bg-purple-500' :
+                            item.type === 'comment' ? 'bg-blue-500' : 'bg-gray-500'
+                          }`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm text-foreground truncate">{item.content || (item.type.charAt(0).toUpperCase() + item.type.slice(1))}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{item.timeAgo} ago</div>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
           
           {/* Profile Completion Indicator - only show for fans */}
           {user.user_type === 'fan' && (

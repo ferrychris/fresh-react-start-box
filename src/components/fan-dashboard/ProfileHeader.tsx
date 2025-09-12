@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye } from 'lucide-react';
+import { Eye, Trophy, Flame, Heart, Award, Gift, Crown } from 'lucide-react';
 
 interface FlatProfileHeaderProps {
   name: string;
@@ -30,6 +30,8 @@ interface FanProfileLike {
   streak_days?: number;
   favorites_count?: number;
   badges_count?: number;
+  total_tips?: number;
+  active_subscriptions?: number;
 }
 
 interface FanDashboardHeaderProps {
@@ -56,6 +58,8 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = (props) => {
   let badges: number = 0;
   let onEditProfile: (() => void) | undefined;
   let onPreviewProfile: (() => void) | undefined;
+  let totalTips: number = 0;
+  let activeSubscriptions: number = 0;
 
   if ('fanProfile' in props) {
     const fp = props.fanProfile || {} as FanProfileLike;
@@ -69,6 +73,8 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = (props) => {
     dayStreak = Number(fp.streak_days) || 0;
     favorites = Number(fp.favorites_count) || 0;
     badges = Number(fp.badges_count) || 0;
+    totalTips = Number(fp.total_tips) || 0;
+    activeSubscriptions = Number(fp.active_subscriptions) || 0;
     onEditProfile = props.onEditProfile;
     onPreviewProfile = props.onPreviewProfile;
   } else {
@@ -95,6 +101,8 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = (props) => {
   const safeAvatarUrl = typeof avatarUrl === 'string' && avatarUrl.length > 0 ? avatarUrl : '/default-avatar.png';
   const safeMemberSince = memberSince || '';
   const safeFanType = fanType || 'Racing Fan';
+  const safeTotalTips = Number.isFinite(Number(totalTips)) ? Number(totalTips) : 0;
+  const safeActiveSubscriptions = Number.isFinite(Number(activeSubscriptions)) ? Number(activeSubscriptions) : 0;
   return (
     <div className="relative w-full">
       {/* Modern banner container with elegant styling */}
@@ -195,41 +203,53 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = (props) => {
                 <span className="text-gray-500">•</span>
                 <span>Member since {safeMemberSince}</span>
               </div>
+
+              {/* Mobile-only compact stats row: Tips and Subscriptions */}
+              <div className="sm:hidden mt-3 flex items-center justify-start gap-6 text-sm">
+                <div className="flex items-center gap-2">
+                  <Gift className="w-5 h-5 text-green-400" />
+                  <span className="text-white font-semibold">${safeTotalTips.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Crown className="w-5 h-5 text-blue-400" />
+                  <span className="text-white font-semibold">{safeActiveSubscriptions}</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Premium stats display - column on mobile, grid on larger screens */}
-          <div className="flex flex-col sm:grid sm:grid-cols-4 gap-4 p-6 bg-black/30 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl">
-            <div className="text-center w-full sm:w-auto">
-              <div className="flex items-center justify-center mb-2">
-                <span className="text-2xl">🏆</span>
+          {/* Premium stats display - grid across all breakpoints for inline icon row on mobile */}
+          <div className="grid grid-cols-4 gap-4 p-6 bg-black/30 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl">
+            <div className="w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <Trophy className="w-4 h-4 text-blue-400" />
+                <span className="text-white font-semibold">{safePoints.toLocaleString()}</span>
+                <span className="hidden sm:inline text-gray-300">points</span>
               </div>
-              <div className="text-2xl font-bold text-white mb-1">{safePoints.toLocaleString()}</div>
-              <div className="text-xs text-gray-400 uppercase tracking-wide">Points</div>
             </div>
             
-            <div className="text-center w-full sm:w-auto">
-              <div className="flex items-center justify-center mb-2">
-                <span className="text-2xl">🔥</span>
+            <div className="w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <Flame className="w-4 h-4 text-red-400" />
+                <span className="text-white font-semibold">{safeDayStreak}</span>
+                <span className="hidden sm:inline text-gray-300">day streak</span>
               </div>
-              <div className="text-2xl font-bold text-white mb-1">{safeDayStreak}</div>
-              <div className="text-xs text-gray-400 uppercase tracking-wide">Day Streak</div>
             </div>
             
-            <div className="text-center w-full sm:w-auto">
-              <div className="flex items-center justify-center mb-2">
-                <span className="text-2xl">❤️</span>
+            <div className="w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <Heart className="w-4 h-4 text-pink-400" />
+                <span className="text-white font-semibold">{safeFavorites}</span>
+                <span className="hidden sm:inline text-gray-300">following</span>
               </div>
-              <div className="text-2xl font-bold text-white mb-1">{safeFavorites}</div>
-              <div className="text-xs text-gray-400 uppercase tracking-wide">Favorites</div>
             </div>
             
-            <div className="text-center w-full sm:w-auto">
-              <div className="flex items-center justify-center mb-2">
-                <span className="text-2xl">🏅</span>
+            <div className="w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <Award className="w-4 h-4 text-yellow-400" />
+                <span className="text-white font-semibold">{safeBadges}</span>
+                <span className="hidden sm:inline text-gray-300">badges</span>
               </div>
-              <div className="text-2xl font-bold text-white mb-1">{safeBadges}</div>
-              <div className="text-xs text-gray-400 uppercase tracking-wide">Badges</div>
             </div>
           </div>
         </div>

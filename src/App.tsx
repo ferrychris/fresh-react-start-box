@@ -46,6 +46,7 @@ import { Link } from 'react-router-dom';
 import SettingsProfile from './pages/SettingsProfile';
 import TestRunner from './components/TestRunner';
 import Grandstand from './pages/Grandstand';
+import Activity from './pages/Activity';
 import { AppProvider, useApp } from './contexts/AppContext';
 import { Toaster } from 'react-hot-toast';
 import Fanheader from './components/fan-dashboard/Fanheader'; // Import Fanheader component
@@ -237,6 +238,7 @@ const MainContent: React.FC<{ user?: User | null; showAuthModal?: boolean }>
         <Route path="/payment/cancel" element={<PaymentCancel />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/founder-letter" element={<FounderLetter />} />
+        <Route path="/activity" element={authUser ? <Activity /> : <Navigate to="/" replace />} />
         <Route path="/coming-soon" element={<ComingSoon />} />
         <Route path="/settings/profile" element={<SettingsProfile />} />
         <Route path="/test-posts" element={<TestRunner />} />

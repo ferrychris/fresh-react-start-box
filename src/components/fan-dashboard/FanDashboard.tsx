@@ -9,7 +9,7 @@ import ProfileHeader from './ProfileHeader';
 import NavigationTabs from './NavigationTabs';
 import StatsCards from './StatsCards';
 // FavoriteRacers removed from Fan Dashboard per request
-import RecentActivity from './RecentActivity';
+// RecentActivity moved to notifications dropdown in Fanheader
 import PersonalPost from './posts/PersonalPost';
 
 // Define types for our data structures
@@ -228,8 +228,30 @@ const FanDashboard: React.FC = () => {
             ? tipsRows.reduce((sum: number, r: any) => sum + (Number(r.total_tips) || 0), 0)
             : 0;
 
-          // Do not query fan_streaks to avoid 400s; default to 0
-          const streak = 0;
+          // Following count (racers this fan follows)
+          const { count: followingCount } = await supabase
+            .from('fan_connections')
+            .select('*', { count: 'planned', head: true })
+            .eq('fan_id', targetId);
+
+          // Badges count
+          const { count: badgesCount } = await supabase
+            .from('fan_badges')
+            .select('*', { count: 'planned', head: true })
+            .eq('fan_id', targetId);
+
+          // Current streak from fan_streaks (fallback to 0 if missing)
+          let streak = 0;
+          try {
+            const { data: streakRow } = await supabase
+              .from('fan_streaks')
+              .select('current_streak')
+              .eq('fan_id', targetId)
+              .maybeSingle();
+            streak = Number((streakRow as any)?.current_streak) || 0;
+          } catch {
+            // keep default 0
+          }
 
           setStats({
             support_points: Number(totalTips) + Number(subsCount || 0) * 10,
@@ -237,6 +259,13 @@ const FanDashboard: React.FC = () => {
             active_subscriptions: Number(subsCount) || 0,
             activity_streak: streak
           });
+
+          // Also augment local fanProfile counts once loaded
+          setFanProfile((prev) => prev ? {
+            ...prev,
+            favorites_count: Number(followingCount) || 0,
+            badges_count: Number(badgesCount) || 0,
+          } : prev);
         } finally {
           setLoadingStats(false);
         }
@@ -453,15 +482,17 @@ const FanDashboard: React.FC = () => {
       ) : (
         fanProfile ? (
           <div className="min-h-screen">
-            <div
-              className="relative h-48 bg-cover bg-center rounded-b-3xl shadow-lg"
-              style={{ backgroundImage: `url(${bannerImage || '/placeholder-banner.jpg'})` }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 to-transparent" />
-            </div>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 mb-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 mb-6">
               <ProfileHeader
-                fanProfile={fanProfile}
+                fanProfile={{
+                  ...fanProfile!,
+                  points: stats.support_points,
+                  streak_days: stats.activity_streak,
+                  favorites_count: fanProfile?.favorites_count ?? 0,
+                  badges_count: fanProfile?.badges_count ?? 0,
+                  total_tips: stats.total_tips,
+                  active_subscriptions: stats.active_subscriptions,
+                }}
                 isOwnProfile={isOwnProfile}
                 onEditProfile={handleEditProfile}
                 profileCompletionPercentage={profileCompletionPercentage}
@@ -482,11 +513,7 @@ const FanDashboard: React.FC = () => {
                         activityStreak={stats.activity_streak}
                         loading={loadingStats}
                       />
-                      <RecentActivity
-                        activities={recentActivity}
-                        loading={loadingActivity}
-                        onViewAllActivity={handleViewAllActivity}
-                      />
+                      {/* RecentActivity removed: now available via the notifications dropdown */}
                     </div>
                   </div>
                 )}

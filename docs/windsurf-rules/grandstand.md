@@ -1,7 +1,8 @@
 # Grandstand: Feed, Suggestions, and Teams You Follow
 
 This document explains how the Grandstand page is structured, how it loads data, and the rules that keep it fast and resilient.
-
+mongo dob HWUzMFVT0MiJVgsh
+ferrychris95_db_user
 ## File layout
 - Page: `src/pages/Grandstand.tsx`
 - Left sidebar component: `src/components/grandstand/LeftSidebar.tsx`

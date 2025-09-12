@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Gift, Crown, Calendar } from 'lucide-react';
+import { Gift, Crown } from 'lucide-react';
 
 interface StatsCardProps {
   title: string;
@@ -49,8 +49,8 @@ const StatsCards: React.FC<StatsCardsProps> = ({
   const safeActivityStreak = Number.isFinite(Number(activityStreak)) ? Number(activityStreak) : 0;
   if (loading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {Array.from({ length: 4 }).map((_, i) => (
+      <div className="hidden sm:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 sm:gap-6">
+        {Array.from({ length: 2 }).map((_, i) => (
           <div key={i} className="group relative bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 shadow-lg animate-pulse">
             <div className="flex justify-between items-start mb-4">
               <div className="h-4 w-1/2 bg-gray-800 rounded" />
@@ -65,14 +65,7 @@ const StatsCards: React.FC<StatsCardsProps> = ({
   }
   
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-      <StatsCard
-        title="Support Points"
-        value={safeSupportPoints.toLocaleString()}
-        icon={<Trophy className="h-6 w-6 text-amber-400" />}
-        description="Earned through fan activities"
-        color="bg-gradient-to-br from-amber-500/20 to-yellow-500/20"
-      />
+    <div className="hidden sm:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 sm:gap-6">
       <StatsCard
         title="Total Tips Given"
         value={`$${safeTotalTips.toLocaleString()}`}
@@ -86,13 +79,6 @@ const StatsCards: React.FC<StatsCardsProps> = ({
         icon={<Crown className="h-6 w-6 text-blue-400" />}
         description="Premium racer subscriptions"
         color="bg-gradient-to-br from-blue-500/20 to-indigo-500/20"
-      />
-      <StatsCard
-        title="Activity Streak"
-        value={`${safeActivityStreak} days`}
-        icon={<Calendar className="h-6 w-6 text-red-400" />}
-        description="Consecutive days active"
-        color="bg-gradient-to-br from-red-500/20 to-pink-500/20"
       />
     </div>
   );
