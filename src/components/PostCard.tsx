@@ -342,8 +342,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   // Navigate to author's profile (racer -> /racer/:id, fan -> /fan/:id)
   const goToAuthorProfile = () => {
     try {
-      if (isRacer && post.racer_profiles?.id) {
-        navigate(`/racer/${post.racer_profiles.id}`);
+      // Prefer racer route when post is by a racer. Use racerProfileId which
+      // falls back to post.user_id when racer_profiles.id isn't backfilled yet.
+      if (isRacer && racerProfileId) {
+        navigate(`/racer/${racerProfileId}`);
         return;
       }
       // Fallback to fan profile using the profile.id if present, else post.user_id
