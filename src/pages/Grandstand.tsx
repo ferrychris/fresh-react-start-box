@@ -8,7 +8,6 @@ import { PostCard, type Post as PostCardType } from '../components/PostCard';
 import { supabase } from '../lib/supabase';
 import { getJSONCookie, setJSONCookie } from '@/lib/cookies';
 import { SuggestionsPanel } from '../components/SuggestionsPanel';
-import { PostCountTester } from '../components/PostCountTester';
 // Sidebars removed for a cleaner single-column layout
 import Particles from '../components/Particles';
 import Sparkles from '../components/effects/Sparkles';
@@ -839,13 +838,6 @@ export default function Grandstand() {
             )}
           </div>
         </div>
-        
-        {/* Temporary debugging tool - remove in production */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-8">
-            <PostCountTester />
-          </div>
-        )}
       </div>
       {showCreatePost && (
         <CreatePost

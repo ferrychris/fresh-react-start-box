@@ -18,13 +18,16 @@ import {
   UserPlus,
   CheckCircle,
   Crown,
-  ArrowBigUp
+  ArrowBigUp,
+  Pencil,
+  Trash2,
+  Save
 } from 'lucide-react';
 import { useUser } from '@/contexts/UserContext';
 import { PostComment } from '@/types';
 import type { Post as PostType } from '@/types';
 import { formatTimeAgo } from '@/lib/utils';
-import { getPostLikers, likePost, unlikePost, addCommentToPost, getPostComments, deletePost, updatePost, getPostUpvoter, upvotePost, removeUpvote, getPostCounts, deleteCommentFromPost, getRacerBadgeData } from '@/lib/supabase/posts';
+import { getPostLikers, likePost, unlikePost, addCommentToPost, getPostComments, deletePost, updatePost, getPostUpvoter, upvotePost, removeUpvote, getPostCounts, deleteCommentFromPost, getRacerBadgeData, updateComment } from '@/lib/supabase/posts';
 // Removed RacerBadges to avoid duplicate racer badge next to the RACER tag
 import { createPaymentSession } from '@/lib/supabase/payments'; // Verified path
 import { SubscriptionModal } from '@/components/SubscriptionModal';
@@ -100,6 +103,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [hasMoreComments, setHasMoreComments] = useState(false);
   const [newComment, setNewComment] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editCommentText, setEditCommentText] = useState('');
+  const [commentActionLoading, setCommentActionLoading] = useState<Record<string, boolean>>({});
   const [showTipModal, setShowTipModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [tipAmount, setTipAmount] = useState(5);
@@ -466,10 +472,30 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
         async (payload) => {
           const c = payload.new as any;
           const cid = c?.id != null ? String(c.id) : undefined;
-          if (cid && !commentIdsRef.current.has(cid)) {
-            commentIdsRef.current.add(cid);
-            const profile = await fetchUserProfile(String(c.user_id));
-            setComments(prev => [{
+          
+          // Skip if we don't have a valid ID or if we've already processed this comment
+          if (!cid) return;
+          
+          // Check if we already have this comment (either from optimistic update or previous realtime event)
+          if (commentIdsRef.current.has(cid)) {
+            console.log(`Comment ${cid} already exists, skipping realtime insert`);
+            return;
+          }
+          
+          // Add to our tracking set
+          commentIdsRef.current.add(cid);
+          
+          // Fetch user profile for the comment
+          const profile = await fetchUserProfile(String(c.user_id));
+          
+          // Update comments state, ensuring we don't add duplicates
+          setComments(prev => {
+            // Double-check it's not already in the list
+            if (prev.some(comment => comment.id === cid)) {
+              return prev;
+            }
+            
+            return [{
               id: cid,
               post_id: c.post_id,
               user_id: c.user_id,
@@ -481,9 +507,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
                 avatar: profile.avatar,
                 user_type: 'fan'
               }
-            }, ...prev]);
-            // Don't manually increment here as the database trigger handles it
-          }
+            }, ...prev];
+          });
         }
       )
       .on(
@@ -638,9 +663,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
       // Optimistically update UI only if not already present
       if (created && created.id) {
         const cid = String(created.id);
-        if (!commentIdsRef.current.has(cid)) {
-          commentIdsRef.current.add(cid);
-          setComments(prev => [
+        // Add to tracking set to prevent duplicates from realtime events
+        commentIdsRef.current.add(cid);
+        
+        // Use a function to ensure we're working with the latest state
+        setComments(prev => {
+          // Check if comment already exists in the list
+          const exists = prev.some(c => c.id === cid);
+          if (exists) return prev;
+          
+          // Add new comment at the beginning
+          return [
             {
               id: cid,
               post_id: created.post_id,
@@ -650,14 +683,89 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
               user: created.user
             },
             ...prev
-          ]);
-        }
+          ];
+        });
       }
       setNewComment('');
     } catch (err) {
       console.error('Failed to add comment:', err);
     } finally {
       setCommentsLoading(false);
+    }
+  };
+
+  const handleEditComment = (comment: PostComment) => {
+    setEditingCommentId(comment.id);
+    setEditCommentText(comment.content);
+  };
+
+  const handleSaveComment = async (commentId: string) => {
+    if (!user || !editCommentText.trim()) return;
+    
+    try {
+      setCommentActionLoading(prev => ({ ...prev, [commentId]: true }));
+      
+      const { data, error } = await updateComment(commentId, user.id, editCommentText.trim());
+      
+      if (error) {
+        console.error('Error updating comment:', error);
+        return;
+      }
+      
+      if (data) {
+        // Update the comment in the UI
+        setComments(prev => prev.map(c => {
+          if (c.id === commentId) {
+            return {
+              ...c,
+              content: editCommentText.trim(),
+              // If the API returns updated_at, use it
+              ...(data.updated_at ? { updated_at: data.updated_at } : {})
+            };
+          }
+          return c;
+        }));
+      }
+      
+      // Reset editing state
+      setEditingCommentId(null);
+      setEditCommentText('');
+    } catch (err) {
+      console.error('Failed to update comment:', err);
+    } finally {
+      setCommentActionLoading(prev => ({ ...prev, [commentId]: false }));
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!user) return;
+    
+    if (!confirm('Are you sure you want to delete this comment?')) {
+      return;
+    }
+    
+    try {
+      setCommentActionLoading(prev => ({ ...prev, [commentId]: true }));
+      
+      const { error } = await deleteCommentFromPost(commentId, user.id);
+      
+      if (error) {
+        console.error('Error deleting comment:', error);
+        return;
+      }
+      
+      // Remove the comment from the UI
+      setComments(prev => prev.filter(c => c.id !== commentId));
+      
+      // Update comment count
+      setCommentsCount(prev => Math.max(0, prev - 1));
+      
+      // Remove from tracking set
+      commentIdsRef.current.delete(commentId);
+    } catch (err) {
+      console.error('Failed to delete comment:', err);
+    } finally {
+      setCommentActionLoading(prev => ({ ...prev, [commentId]: false }));
     }
   };
 
@@ -1186,9 +1294,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
           </button>
           <button 
             onClick={handleToggleComments}
-            className="flex items-center space-x-2 text-gray-400 hover:text-blue-400 transition-all duration-200"
+            className={`flex items-center space-x-2 transition-all duration-200 ${showComments ? 'text-blue-400 bg-blue-500/10 rounded-lg px-2 py-1' : 'text-gray-400 hover:text-blue-400'}`}
           >
-            <MessageCircle className="w-5 h-5" />
+            <MessageCircle className={`w-5 h-5 ${showComments ? 'animate-pulse' : ''}`} />
             <span className="font-medium">{commentsCount}</span>
           </button>
           <button 
@@ -1200,39 +1308,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
           </button>
         </div>
 
-        {/* Tip/Subscribe Actions for Racers – temporarily disabled */}
-        {/**
-         * {isRacerEffective && !isOwner && (
-         *   <div className="flex items-center space-x-3">
-         *     <div className="flex items-center space-x-2">
-         *       <button
-         *         onClick={() => alert('Tip coming soon!')}
-         *         aria-label="Tip"
-         *         className={`w-9 h-9 rounded-full transition-colors duration-200 flex items-center justify-center bg-green-700 cursor-not-allowed opacity-90 text-white`}
-         *         disabled
-         *         title="Tip – coming soon"
-         *       >
-         *         <DollarSign className="w-4 h-4" />
-         *       </button>
-         *       <span className="text-[10px] px-2 py-0.5 rounded-full border border-green-500/30 text-green-300/90 bg-green-500/10">Coming soon</span>
-         *     </div>
-         *     <div className="flex items-center space-x-2">
-         *       <button
-         *         onClick={() => alert('Join Team coming soon!')}
-         *         className="relative px-3 py-1.5 bg-orange-700 cursor-not-allowed opacity-90 text-white rounded-lg transition-colors duration-200 text-sm flex items-center space-x-1 shadow-md"
-         *         disabled
-         *         title="Join the Team – coming soon"
-         *       >
-         *         <span className="pointer-events-none absolute -top-1 -right-1 text-yellow-300 animate-ping">✦</span>
-         *         <span className="pointer-events-none absolute -bottom-1 -left-1 text-orange-300 animate-pulse">✧</span>
-         *         <Crown className="w-3 h-3" />
-         *         <span>Join the Team</span>
-         *       </button>
-         *       <span className="text-[10px] px-2 py-0.5 rounded-full border border-orange-500/30 text-orange-300/90 bg-orange-500/10">Coming soon</span>
-         *     </div>
-         *   </div>
-         * )}
-         */}
+        {/* Tip/Subscribe Actions for Racers - temporarily disabled */}
 
         {/* Follow Actions for Tracks/Series */}
         {(userType === 'track' || userType === 'series') && !isOwner && (
@@ -1241,34 +1317,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
               <Users className="w-3 h-3" />
               <span>Follow</span>
             </button>
-          </div>
-        )}
-
-        {/* Comments Section */}
-        {showComments && (
-          <div className="mt-4 pt-4">
-            <h4 className="text-md font-semibold text-white mb-3">
-              {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
-            </h4>
-            <div className="space-y-3 mb-4">
-              {Array.from(new Map(comments.map(c => [c.id, c])).values()).map((comment) => (
-                <div key={comment.id} className="flex items-start gap-3 mt-3">
-                  <img
-                    src={comment.user?.avatar || dicebearUrl}
-                    alt={comment.user?.name || 'User'}
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-semibold text-white">{comment.user?.name || 'User'}</span>
-                      <span className="text-gray-500">•</span>
-                      <span className="text-gray-400 text-xs">{formatTimeAgo(comment.created_at)}</span>
-                    </div>
-                    <p className="text-gray-300 text-sm mt-1">{comment.content}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
@@ -1285,6 +1333,108 @@ export const PostCard: React.FC<PostCardProps> = ({ post: initialPost, onPostUpd
           />
         )}
       </div>
+      
+      {/* Comments Section */}
+      {showComments && (
+        <div className="px-4 lg:px-6 py-4 border-t border-gray-800 mt-2">
+          <h4 className="text-md font-semibold text-white mb-3">
+            {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
+          </h4>
+          <div className="space-y-3 mb-4">
+            {comments.map((comment) => (
+              <div key={comment.id} className="flex items-start gap-3 mt-3 group">
+                <img
+                  src={comment.user?.avatar || dicebearUrl}
+                  alt={comment.user?.name || 'User'}
+                  className="w-8 h-8 rounded-full object-cover"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="font-semibold text-white">{comment.user?.name || 'User'}</span>
+                      <span className="text-gray-500">•</span>
+                      <span className="text-gray-400 text-xs">{formatTimeAgo(comment.created_at)}</span>
+                    </div>
+                    {user && comment.user_id === user.id && (
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => handleEditComment(comment)}
+                          className="p-1 text-gray-400 hover:text-blue-400 transition-colors rounded-full hover:bg-gray-800/50"
+                          disabled={commentActionLoading[comment.id]}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteComment(comment.id)}
+                          className="p-1 text-gray-400 hover:text-red-400 transition-colors rounded-full hover:bg-gray-800/50"
+                          disabled={commentActionLoading[comment.id]}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {editingCommentId === comment.id ? (
+                    <div className="mt-1 relative">
+                      <textarea
+                        value={editCommentText}
+                        onChange={(e) => setEditCommentText(e.target.value)}
+                        className="w-full bg-gray-800/50 border border-gray-700 rounded-lg p-2 text-sm text-gray-200 focus:ring-1 focus:ring-fedex-orange focus:border-fedex-orange outline-none transition-all"
+                        rows={2}
+                      />
+                      <div className="flex justify-end gap-2 mt-2">
+                        <button
+                          onClick={() => setEditingCommentId(null)}
+                          className="px-2 py-1 text-xs text-gray-400 hover:text-gray-200 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => handleSaveComment(comment.id)}
+                          disabled={!editCommentText.trim() || commentActionLoading[comment.id]}
+                          className={`px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-1 ${!editCommentText.trim() || commentActionLoading[comment.id] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <Save className="w-3 h-3" />
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-gray-300 text-sm mt-1">{comment.content}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {/* Add comment input */}
+          {user && (
+            <div className="mt-4 flex items-start gap-3">
+              <img 
+                src={user.avatar || dicebearUrl} 
+                alt={user.name || 'You'} 
+                className="w-8 h-8 rounded-full object-cover"
+              />
+              <div className="flex-1 relative max-w-md">
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Write a comment..."
+                  className="w-full bg-gray-800/50 border border-gray-700 rounded-xl p-3 text-sm text-gray-200 focus:ring-1 focus:ring-fedex-orange focus:border-fedex-orange outline-none transition-all"
+                  rows={1}
+                />
+                <button
+                  onClick={handleAddComment}
+                  disabled={!newComment.trim()}
+                  className={`absolute right-3 bottom-3 text-fedex-orange hover:text-fedex-orange/80 transition-colors ${!newComment.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <Send className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   </div>
   );

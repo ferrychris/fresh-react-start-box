@@ -504,6 +504,22 @@ export const deleteCommentFromPost = async (commentId: string, userId: string) =
   }
 };
 
+export const updateComment = async (commentId: string, userId: string, content: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('post_comments')
+      .update({ comment_text: content, updated_at: new Date().toISOString() })
+      .eq('id', commentId)
+      .eq('user_id', userId)
+      .select('*')
+      .single();
+
+    return { data, error };
+  } catch (e) {
+    return { error: { message: e instanceof Error ? e.message : 'Unknown error' }, data: null };
+  }
+};
+
 // Post management functions
 export const deletePost = async (postId: string) => {
   try {
